@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
+import { isAdmin } from "@/lib/bale";
 import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
@@ -15,7 +16,11 @@ export async function POST(req:NextRequest){
     let data:unknown;
     switch(body.action){
       case "profile.update":data=await updateOwnProfile(session.familyId,session.userId,{displayName:p.displayName as string,relationLabel:p.relationLabel as string,bio:p.bio as string,birthday:(p.birthday as string)||null});break;
-      case "task.create":data=await createFamilyTask(session.familyId,session.userId,{title:p.title as string,description:p.description as string,dueAt:(p.dueAt as string)||null,rewardCoins:Number(p.rewardCoins||0)});break;
+      case "task.create":{
+        const requestedReward=Math.max(0,Number(p.rewardCoins||0));
+        if(requestedReward>0&&!await isAdmin(session.chatId,session.userId).catch(()=>false))return NextResponse.json({ok:false,error:"admin_required_for_reward"},{status:403});
+        data=await createFamilyTask(session.familyId,session.userId,{title:p.title as string,description:p.description as string,dueAt:(p.dueAt as string)||null,rewardCoins:requestedReward});break;
+      }
       case "task.complete":data=await completeFamilyTask(session.familyId,session.userId,String(p.taskId||""));break;
       case "memory.create":data=await createMemory(session.familyId,session.userId,{title:p.title as string,caption:p.caption as string,memoryDate:(p.memoryDate as string)||null,mediaUrl:(p.mediaUrl as string)||null,tags:Array.isArray(p.tags)?p.tags.map(String):[],visibility:p.visibility==="private"?"private":p.visibility==="selected"?"selected":"family",allowedMemberIds:Array.isArray(p.allowedMemberIds)?p.allowedMemberIds.map(String):[]});break;
       case "store.purchase":data=await purchaseStoreItem(session.familyId,session.userId,String(p.itemId||""));break;
