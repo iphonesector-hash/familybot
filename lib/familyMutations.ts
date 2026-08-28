@@ -33,18 +33,15 @@ export async function createMemory(familyId:string,userId:number,input:{title?:s
     const valid=await supabase.from("members").select("id").eq("family_id",familyId).in("id",allowedIds);if(valid.error)throw valid.error;
     if((valid.data||[]).length!==allowedIds.length)throw new Error("invalid_memory_viewer");
   }
-  const {data,error}=await supabase.from("memories").insert({family_id:familyId,creator_member_id:member.data.id,title,caption:String(input.caption||"").slice(0,1200)||null,media_url:input.mediaUrl||null,memory_date:input.memoryDate||null,tags,visibility}).select("id,title,caption,media_url,memory_date,tags,visibility,created_at").single();if(error)throw error;
+  const media=String(input.mediaUrl||"").trim().slice(0,1500);
+  if(media.startsWith("storage:")&&!media.startsWith(`storage:${familyId}/${member.data.id}/`))throw new Error("invalid_memory_media");
+  if(visibility!=="family"&&media&&!media.startsWith(`storage:${familyId}/${member.data.id}/`))throw new Error("restricted_memory_requires_private_media");
+  const {data,error}=await supabase.from("memories").insert({family_id:familyId,creator_member_id:member.data.id,title,caption:String(input.caption||"").slice(0,1200)||null,media_url:media||null,memory_date:input.memoryDate||null,tags,visibility}).select("id,title,caption,media_url,memory_date,tags,visibility,created_at").single();if(error)throw error;
   if(visibility==="selected"){
     const rows=allowedIds.filter(id=>id!==member.data.id).map(memberId=>({memory_id:data.id,member_id:memberId}));
     if(rows.length){const viewers=await supabase.from("memory_viewers").insert(rows);if(viewers.error){await supabase.from("memories").delete().eq("id",data.id);throw viewers.error}}
   }
   return data;
-}
-
-export async function saveRelationship(familyId:string,userId:number,input:{toMemberId?:string;relationType?:string}){
-  const supabase=db();const from=await supabase.from("members").select("id").eq("family_id",familyId).eq("bale_user_id",userId).single();if(from.error)throw from.error;const to=String(input.toMemberId||"");const relation=String(input.relationType||"").trim().slice(0,60);if(!to||!relation)throw new Error("relationship_required");
-  const target=await supabase.from("members").select("id").eq("id",to).eq("family_id",familyId).single();if(target.error)throw target.error;
-  const {data,error}=await supabase.from("relationships").upsert({family_id:familyId,from_member_id:from.data.id,to_member_id:target.data.id,relation_type:relation},{onConflict:"from_member_id,to_member_id,relation_type"}).select("id,from_member_id,to_member_id,relation_type").single();if(error)throw error;return data;
 }
 
 export const STORE_ITEMS=[
