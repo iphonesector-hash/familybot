@@ -28,13 +28,14 @@ Before production, rotate every secret that has ever been pasted into a chat, sc
 ## 2. Database
 
 1. Back up the target Supabase database.
-2. Apply all pending migrations in `supabase/migrations/`.
-3. Run `20260828_final_schema_reconciliation.sql` and the later Phase-A/Lucky-Wheel reconciliation migrations in filename order.
-4. Verify the atomic RPC functions for XP, coins, daily claim, task completion, purchases, transfers and Lucky Wheel exist.
-5. Verify `lucky_wheel_spins` exists and `family_spin_lucky_wheel` enforces a 24-hour cooldown with a row lock before enabling the feature.
+2. Apply the approved release migrations in filename order.
+3. Run `20260828_final_schema_reconciliation.sql`, then the later uniquely timestamped release reconciliation files.
+4. Verify the atomic RPC functions for XP, coins, daily claim, task completion, purchases, transfers, Owner gifts and Lucky Wheel exist.
+5. Verify `daily_spin_claims` exists and `family_claim_daily_spin_atomic` enforces the 24-hour cooldown while locking the member row before enabling the feature.
 6. Verify `bale_updates` exists before enabling the live webhook so update retries cannot duplicate rewards or moderation actions.
-7. Verify `family_fund_memberships` and `owner_gift_log` exist.
+7. Verify `family_fund_memberships`, `owner_gift_log` and `briefing_deliveries` exist.
 8. Verify the `family-avatars` Storage bucket is PRIVATE. New family photos must be returned through short-lived signed URLs only.
+9. Treat `20260828235500_release_rewards_fund_briefing.sql` as the canonical reconciliation for Wheel/Fund/Owner-Gift/Briefing dependencies.
 
 ## 3. Bale Mini App
 
@@ -98,14 +99,14 @@ Test with separate owner, regular-admin and normal-member accounts:
 
 Verify with real rows, not demo data:
 - profile edit and birthday
-- visual family tree with photo upload and relationship editing
+- visual family tree with photo upload, relationship creation/removal and relationship editing
 - private avatar URLs cannot be fetched after signed URL expiry or from another family
 - tasks and rewards
 - events/calendar
 - polls and live results
 - memories: family/private/selected viewers
 - Family House/store ownership
-- 24-hour Lucky Wheel cooldown, double-tap/race protection and Coin/XP ledger behavior
+- 24-hour Lucky Wheel cooldown, double-tap/race protection, weighted reward display, Coin/XP ledger behavior and star-halo reward reveal
 - Owner-only Coin/XP gift and audit log
 - Family Fund join + owner approve/reject; financial fund actions remain disabled with the future-update notice
 - challenges
@@ -113,8 +114,8 @@ Verify with real rows, not demo data:
 - expense split and shopping list
 - Secret Gift private assignment
 - missions/achievements
-- Entertainment hub
-- Utilities hub (weather, translator, BMI, calculator, unit conversion, age)
+- Entertainment hub: Hafez, jokes, riddles, facts, truth/dare, question and motivation
+- Utilities hub: weather, translator, BMI, calculator, unit conversion and age
 
 ## 7. Games QA
 
@@ -161,6 +162,7 @@ On a real iPhone inside Bale:
 - RSS headlines are deduplicated and source-labeled
 - optional Groq ranking never fabricates a headline; it may only select from fetched titles
 - morning/evening endpoint is protected by `CRON_SECRET`
+- `briefing_deliveries` prevents duplicate morning/evening posts per Tehran date and releases a claim after a failed Bale send so a legitimate retry can proceed
 - Supabase Vault contains the final app URL and cron secret before enabling `supabase/daily-briefing.sql`
 - scheduler is NOT enabled before the final deployment
 
@@ -176,7 +178,7 @@ Vercel Hobby cron frequency is limited. Do not rely on high-frequency Vercel Cro
 ## 11. Final release sequence
 
 1. GitHub CI: typecheck + production build must be green on the exact release SHA.
-2. Run database backup and all migrations/reconciliation files.
+2. Run database backup and the approved release/reconciliation migrations.
 3. Verify private Storage bucket and signed avatar behavior.
 4. Configure final production environment variables.
 5. Rotate temporary Bale/Groq/ElevenLabs secrets.
