@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import BaleBridge from "./BaleBridge";
 import BirthdayMode from "./BirthdayMode";
 import SessionBridge from "./SessionBridge";
+import MiniAppBootstrap from "./MiniAppBootstrap";
 import "./globals.css";
 import "./motion.css";
 import "./platform.css";
@@ -26,7 +28,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
-      <body><SessionBridge/><BaleBridge/><BirthdayMode/>{children}</body>
+      <head><Script src="https://tapi.bale.ai/miniapp.js?3" strategy="beforeInteractive"/></head>
+      <body><SessionBridge/><BaleBridge/><MiniAppBootstrap/><BirthdayMode/>{children}</body>
     </html>
   );
 }
