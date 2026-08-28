@@ -6,7 +6,7 @@ import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
 
 export default function NativeBaleNav(){
   const pathname=usePathname();
-  const {webApp,inBale,supported}=useBaleMiniApp();
+  const {webApp,inBale,supported,isIframe}=useBaleMiniApp();
 
   useEffect(()=>{
     if(!webApp||!inBale)return;
@@ -26,7 +26,7 @@ export default function NativeBaleNav(){
       }catch{}
     };
 
-    if(pathname==="/")back?.hide?.();else{back?.show?.();back?.onClick?.(onBack)}
+    if(isIframe||pathname==="/")back?.hide?.();else{back?.show?.();back?.onClick?.(onBack)}
     const canManage=sessionStorage.getItem("familybot.canManage")==="1";
     if(canManage){settings?.show?.();settings?.onClick?.(onSettings)}else settings?.hide?.();
     try{webApp.setHeaderColor?.("#09051f")}catch{}
@@ -35,7 +35,7 @@ export default function NativeBaleNav(){
       back?.offClick?.(onBack);
       settings?.offClick?.(onSettings);
     };
-  },[webApp,inBale,pathname]);
+  },[webApp,inBale,isIframe,pathname]);
 
   if(inBale&&!supported)return <div className="miniappCompatibilityNotice">نسخه بله شما قدیمی است؛ برای استفاده کامل از Family Bot بله را به آخرین نسخه به‌روزرسانی کنید.</div>;
   return null;
