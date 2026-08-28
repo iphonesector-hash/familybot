@@ -3,6 +3,7 @@ import BaleBridge from "./BaleBridge";
 import "./globals.css";
 import "./motion.css";
 import "./platform.css";
+import "./admin.css";
 
 export const metadata: Metadata = {
   title: "Family Bot | خانواده بزرگ جهانی",
