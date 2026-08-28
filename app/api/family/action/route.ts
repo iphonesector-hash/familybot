@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
-import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, saveRelationship, updateOwnProfile } from "@/lib/familyMutations";
+import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
 import { readPlannerData } from "@/lib/plannerData";
@@ -18,7 +18,6 @@ export async function POST(req:NextRequest){
       case "task.create":data=await createFamilyTask(session.familyId,session.userId,{title:p.title as string,description:p.description as string,dueAt:(p.dueAt as string)||null,rewardCoins:Number(p.rewardCoins||0)});break;
       case "task.complete":data=await completeFamilyTask(session.familyId,session.userId,String(p.taskId||""));break;
       case "memory.create":data=await createMemory(session.familyId,session.userId,{title:p.title as string,caption:p.caption as string,memoryDate:(p.memoryDate as string)||null,mediaUrl:(p.mediaUrl as string)||null,tags:Array.isArray(p.tags)?p.tags.map(String):[],visibility:p.visibility==="private"?"private":p.visibility==="selected"?"selected":"family",allowedMemberIds:Array.isArray(p.allowedMemberIds)?p.allowedMemberIds.map(String):[]});break;
-      case "relationship.save":data=await saveRelationship(session.familyId,session.userId,{toMemberId:String(p.toMemberId||""),relationType:String(p.relationType||"")});break;
       case "store.purchase":data=await purchaseStoreItem(session.familyId,session.userId,String(p.itemId||""));break;
       case "event.create":data=await createFamilyEvent(session.familyId,session.userId,{title:p.title as string,description:p.description as string,startsAt:p.startsAt as string,endsAt:(p.endsAt as string)||null,location:p.location as string,eventType:p.eventType as string});break;
       case "event.cancel":data=await cancelOwnEvent(session.familyId,session.userId,String(p.eventId||""));break;
