@@ -14,10 +14,10 @@ export async function readFinance(familyId:string,userId:number){
 }
 
 export async function createExpense(familyId:string,userId:number,input:{title?:string;amount?:number;category?:string;notes?:string;participantMemberIds?:string[];spentAt?:string}){
-  const s=db();const me=await member(familyId,userId);const title=String(input.title||"").trim().slice(0,160);const amount=Math.round(Number(input.amount)||0);if(!title||amount<=0)throw new Error("expense_title_and_amount_required");const participants=Array.from(new Set((input.participantMemberIds||[]).map(String).filter(Boolean)));if(!participants.length)participants.push(me.id);
-  const valid=await s.from("members").select("id").eq("family_id",familyId).in("id",participants);if(valid.error)throw valid.error;const ids=(valid.data||[]).map(x=>x.id);if(!ids.length)throw new Error("expense_participants_required");const base=Math.floor(amount/ids.length);let rem=amount-base*ids.length;
-  const expense=await s.from("family_expenses").insert({family_id:familyId,creator_member_id:me.id,payer_member_id:me.id,title,amount,category:String(input.category||"").trim().slice(0,60)||null,notes:String(input.notes||"").trim().slice(0,500)||null,spent_at:input.spentAt||new Date().toISOString()}).select("id,title,amount,spent_at,payer_member_id").single();if(expense.error)throw expense.error;
-  const rows=ids.map(id=>({expense_id:expense.data.id,member_id:id,share_amount:base+(rem-->0?1:0),settled:id===me.id}));const split=await s.from("expense_splits").insert(rows);if(split.error)throw split.error;return expense.data;
+  const s=db();const me=await member(familyId,userId);const title=String(input.title||"").trim().slice(0,160);const amount=Math.round(Number(input.amount)||0);if(!title||amount<=0)throw new Error("expense_title_and_amount_required");
+  const requested=Array.from(new Set((input.participantMemberIds||[]).map(String).filter(Boolean)));if(!requested.length)requested.push(me.id);
+  const valid=await s.from("members").select("id").eq("family_id",familyId).in("id",requested);if(valid.error)throw valid.error;const ids=(valid.data||[]).map(x=>x.id);if(ids.length!==requested.length)throw new Error("invalid_expense_participant");if(!ids.length)throw new Error("expense_participants_required");
+  const result=await s.rpc("family_create_expense_atomic",{p_family_id:familyId,p_creator_member_id:me.id,p_title:title,p_amount:amount,p_category:String(input.category||"").trim().slice(0,60)||null,p_notes:String(input.notes||"").trim().slice(0,500)||null,p_spent_at:input.spentAt||null,p_participant_ids:ids});if(result.error)throw result.error;return result.data;
 }
 
 export async function settleExpenseShare(familyId:string,userId:number,expenseId:string){
