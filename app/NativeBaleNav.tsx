@@ -10,6 +10,7 @@ export default function NativeBaleNav(){
 
   useEffect(()=>{
     if(!webApp||!inBale)return;
+    let cancelled=false;
     const back=webApp.BackButton;
     const settings=webApp.SettingsButton;
     const onBack=()=>{
@@ -27,11 +28,23 @@ export default function NativeBaleNav(){
     };
 
     if(isIframe||pathname==="/")back?.hide?.();else{back?.show?.();back?.onClick?.(onBack)}
-    const canManage=sessionStorage.getItem("familybot.canManage")==="1";
-    if(canManage){settings?.show?.();settings?.onClick?.(onSettings)}else settings?.hide?.();
+    settings?.hide?.();
+    const session=sessionStorage.getItem("familybot.session");
+    if(session){
+      fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"})
+        .then(r=>r.json())
+        .then(d=>{
+          if(cancelled)return;
+          const canManage=Boolean(d?.ok&&d?.dashboard?.permissions?.canManage);
+          sessionStorage.setItem("familybot.canManage",canManage?"1":"0");
+          if(canManage){settings?.show?.();settings?.onClick?.(onSettings)}else settings?.hide?.();
+        })
+        .catch(()=>settings?.hide?.());
+    }
     try{webApp.setHeaderColor?.("#09051f")}catch{}
 
     return()=>{
+      cancelled=true;
       back?.offClick?.(onBack);
       settings?.offClick?.(onSettings);
     };
