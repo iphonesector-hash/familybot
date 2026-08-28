@@ -16,10 +16,10 @@ export async function createFamilyTask(familyId:string,userId:number,input:{titl
 }
 
 export async function completeFamilyTask(familyId:string,userId:number,taskId:string){
-  const supabase=db();const member=await supabase.from("members").select("id,coins").eq("family_id",familyId).eq("bale_user_id",userId).single();if(member.error)throw member.error;
-  const task=await supabase.from("tasks").select("id,status,reward_coins").eq("id",taskId).eq("family_id",familyId).single();if(task.error)throw task.error;if(task.data.status==="done")return task.data;
-  const done=await supabase.from("tasks").update({status:"done",completed_at:new Date().toISOString(),assignee_member_id:member.data.id}).eq("id",taskId).eq("family_id",familyId).neq("status","done").select("id,status,reward_coins").single();if(done.error)throw done.error;
-  const reward=Number(done.data.reward_coins||0);if(reward>0){await supabase.from("members").update({coins:Number(member.data.coins||0)+reward}).eq("id",member.data.id);await supabase.from("coin_ledger").insert({family_id:familyId,member_id:member.data.id,amount:reward,reason:"task_complete",reference_type:"task",reference_id:taskId})}return done.data;
+  const supabase=db();const member=await supabase.from("members").select("id").eq("family_id",familyId).eq("bale_user_id",userId).single();if(member.error)throw member.error;
+  const result=await supabase.rpc("family_complete_task_atomic",{p_family_id:familyId,p_member_id:member.data.id,p_task_id:taskId});if(result.error)throw result.error;
+  const row=result.data as {completed?:boolean;alreadyDone?:boolean;reward?:number;coins?:number}|null;
+  return {id:taskId,status:"done",reward_coins:Number(row?.reward||0),coins:Number(row?.coins||0),alreadyDone:Boolean(row?.alreadyDone)};
 }
 
 export async function createMemory(familyId:string,userId:number,input:{title?:string;caption?:string;memoryDate?:string|null;mediaUrl?:string|null;tags?:string[]}){
@@ -42,8 +42,8 @@ export const STORE_ITEMS=[
 ] as const;
 
 export async function purchaseStoreItem(familyId:string,userId:number,itemId:string){
-  const item=STORE_ITEMS.find(x=>x.id===itemId);if(!item)throw new Error("unknown_item");const supabase=db();const member=await supabase.from("members").select("id,coins").eq("family_id",familyId).eq("bale_user_id",userId).single();if(member.error)throw member.error;
-  const owned=await supabase.from("member_items").select("id").eq("member_id",member.data.id).eq("item_id",item.id).maybeSingle();if(owned.error)throw owned.error;if(owned.data)return {alreadyOwned:true,item,coins:Number(member.data.coins||0)};
-  const coins=Number(member.data.coins||0);if(coins<item.price)throw new Error("insufficient_coins");
-  const next=coins-item.price;const insert=await supabase.from("member_items").insert({family_id:familyId,member_id:member.data.id,item_id:item.id,item_name:item.name,item_kind:item.kind,price_paid:item.price}).select("id,item_id,item_name,item_kind,price_paid,created_at").single();if(insert.error)throw insert.error;await supabase.from("members").update({coins:next}).eq("id",member.data.id);await supabase.from("coin_ledger").insert({family_id:familyId,member_id:member.data.id,amount:-item.price,reason:"store_purchase",reference_type:"store_item",reference_id:item.id});return {alreadyOwned:false,item,coins:next,owned:insert.data};
+  const item=STORE_ITEMS.find(x=>x.id===itemId);if(!item)throw new Error("unknown_item");const supabase=db();const member=await supabase.from("members").select("id").eq("family_id",familyId).eq("bale_user_id",userId).single();if(member.error)throw member.error;
+  const result=await supabase.rpc("family_purchase_item_atomic",{p_family_id:familyId,p_member_id:member.data.id,p_item_id:item.id,p_item_name:item.name,p_item_kind:item.kind,p_price:item.price});if(result.error)throw result.error;
+  const row=result.data as {purchased?:boolean;alreadyOwned?:boolean;coins?:number}|null;
+  return {alreadyOwned:Boolean(row?.alreadyOwned),item,coins:Number(row?.coins||0),purchased:Boolean(row?.purchased)};
 }
