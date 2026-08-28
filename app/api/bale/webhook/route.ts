@@ -1,291 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { answerCallbackQuery, baleApi, isAdmin, mainMenuKeyboard, openMiniAppKeyboard, sendMessage } from "@/lib/bale";
 import { createAdminSession } from "@/lib/adminSession";
-import { readAdminSettings } from "@/lib/adminSettings";
+import { isWhitelisted, readAdminSettings } from "@/lib/adminSettings";
 import { addActivityReward, addWarning, claimDaily, clearWarnings, createQuizSession, ensureFamilyMember, familyCoreEnabled, getLeaderboard, getProfile, logModeration, recordFloodEvent, resolveQuiz } from "@/lib/familyCore";
 
-type BaleUser = { id?: number; first_name?: string; last_name?: string; username?: string };
-type BaleMessage = {
-  message_id?: number;
-  text?: string;
-  chat?: { id?: number; type?: string; title?: string };
-  from?: BaleUser;
-  new_chat_members?: BaleUser[];
-  web_app_data?: { data?: string; button_text?: string };
-  reply_to_message?: { from?: BaleUser; message_id?: number };
-  photo?: unknown[];
-  video?: unknown;
-  document?: unknown;
-  forward_origin?: unknown;
-  forward_from?: BaleUser;
-  forward_from_chat?: { id?: number };
-};
-type Update = {
-  message?: BaleMessage;
-  callback_query?: { id?: string; from?: BaleUser; data?: string; message?: BaleMessage };
-};
+type BaleUser={id?:number;first_name?:string;last_name?:string;username?:string};
+type BaleMessage={message_id?:number;text?:string;caption?:string;chat?:{id?:number;type?:string;title?:string};from?:BaleUser;new_chat_members?:BaleUser[];web_app_data?:{data?:string;button_text?:string};reply_to_message?:{from?:BaleUser;message_id?:number};photo?:unknown[];video?:unknown;document?:unknown;sticker?:unknown;animation?:unknown;voice?:unknown;audio?:unknown;forward_origin?:unknown;forward_from?:BaleUser;forward_from_chat?:{id?:number}};
+type Update={message?:BaleMessage;callback_query?:{id?:string;from?:BaleUser;data?:string;message?:BaleMessage}};
 
-const HELP = `🌍 Family Bot\n\n🏠 /start — منوی اصلی و Mini App\n👤 /profile — پروفایل من\n🏆 /rank — رتبه‌بندی خانواده\n🎁 /daily — جایزه روزانه\n🎮 /games — مرکز بازی\n🧠 /quiz — کوئیز دکمه‌ای\n🎲 /dice — تاس\n🪙 /coin — شیر یا خط\n✊ /rps — سنگ کاغذ قیچی\n🤖 /ai — هوش مصنوعی\n📜 /rules — قوانین\n🛡 /admin — پنل مدیریت\n\nمدیریت با Reply:\n⚠️ /warn [دلیل]\n🧹 /unwarn\n🔇 /mute [دقیقه]\n⛔ /ban\n✅ /unban\n📌 /pin`;
+const HELP=`🌍 Family Bot\n\n🏠 /start — منوی اصلی و Mini App\n👤 /profile — پروفایل من\n🏆 /rank — رتبه‌بندی خانواده\n🎁 /daily — جایزه روزانه\n🎮 /games — مرکز بازی\n🧠 /quiz — کوئیز دکمه‌ای\n🎲 /dice — تاس\n🪙 /coin — شیر یا خط\n✊ /rps — سنگ کاغذ قیچی\n🤖 /ai — هوش مصنوعی\n📜 /rules — قوانین\n🛡 /admin — پنل مدیریت\n\nمدیریت با Reply:\n⚠️ /warn [دلیل]\n🧹 /unwarn\n🔇 /mute [دقیقه]\n⛔ /ban\n✅ /unban\n📌 /pin`;
+const RULES="📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
+const fmt=(v:number|string|null|undefined)=>new Intl.NumberFormat("fa-IR").format(Number(v||0));
+const hasExternalLink=(text:string)=>/(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
 
-const RULES = "📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
+function adminKeyboard(token:string){const base=process.env.NEXT_PUBLIC_APP_URL;if(!base)return undefined;const url=new URL("/admin",base);url.searchParams.set("session",token);return{inline_keyboard:[[{text:"🛡 باز کردن مرکز مدیریت",web_app:{url:url.toString()}}]]}}
+function lockedContent(m:BaleMessage,s:Awaited<ReturnType<typeof readAdminSettings>>,isCommand:boolean){if(s.lock_photo&&m.photo?.length)return"عکس";if(s.lock_video&&m.video)return"ویدیو";if(s.lock_document&&m.document)return"فایل";if(s.lock_forward&&(m.forward_origin||m.forward_from||m.forward_from_chat))return"فوروارد";if(s.lock_sticker&&m.sticker)return"استیکر";if(s.lock_gif&&m.animation)return"GIF";if(s.lock_voice&&m.voice)return"ویس";if(s.lock_audio&&m.audio)return"موزیک";if(s.lock_text&&m.text&&!isCommand)return"متن";return null}
+async function mute(chatId:number,userId:number,minutes:number){await baleApi("restrictChatMember",{chat_id:chatId,user_id:userId,permissions:{can_send_messages:false},until_date:Math.floor(Date.now()/1000)+minutes*60})}
+async function buildContext(chatId:number,title:string|undefined,user?:BaleUser){if(!user?.id||!familyCoreEnabled())return null;try{return await ensureFamilyMember(chatId,title,{id:user.id,first_name:user.first_name,last_name:user.last_name,username:user.username})}catch(e){console.error("Family Core bootstrap failed",e);return null}}
+async function sendProfile(chatId:number,ctx:Awaited<ReturnType<typeof buildContext>>){if(!ctx)return sendMessage(chatId,"👤 برای داده‌های زنده، Family Core باید به Supabase متصل باشد.");const p=await getProfile(ctx);return sendMessage(chatId,`👤 ${p.display_name||p.first_name||"عضو خانواده"}\n⭐ Level ${fmt(p.level)}\n✨ XP: ${fmt(p.xp)}\n🪙 Family Coin: ${fmt(p.coins)}\n🔥 Streak: ${fmt(p.streak)} روز`,{reply_markup:openMiniAppKeyboard()})}
+async function sendRank(chatId:number,ctx:Awaited<ReturnType<typeof buildContext>>){if(!ctx)return sendMessage(chatId,"🏆 رتبه‌بندی بعد از اتصال Family Core فعال می‌شود.");const rows=await getLeaderboard(ctx.family.id,10);const body=rows.length?rows.map((r,i)=>`${i+1}. ${r.display_name||r.first_name||"عضو خانواده"} — Lv.${fmt(r.level)} · ${fmt(r.xp)} XP`).join("\n"):"هنوز امتیازی ثبت نشده.";return sendMessage(chatId,`🏆 رتبه‌بندی خانواده\n\n${body}`,{reply_markup:openMiniAppKeyboard()})}
+async function daily(chatId:number,ctx:Awaited<ReturnType<typeof buildContext>>){if(!ctx)return sendMessage(chatId,"🎁 جایزه روزانه بعد از اتصال Family Core فعال می‌شود.");const r=await claimDaily(ctx);if(r.ok)return sendMessage(chatId,`🎁 جایزه امروز دریافت شد!\n+${fmt(r.reward)} 🪙\nموجودی جدید: ${fmt(r.coins)} سکه`);if(r.reason==="claimed")return sendMessage(chatId,"⏳ جایزه امروز رو قبلاً گرفتی. فردا دوباره سر بزن 💜");return sendMessage(chatId,"🎁 موتور جایزه روزانه هنوز کامل فعال نشده.")}
+async function startQuiz(chatId:number,ctx:Awaited<ReturnType<typeof buildContext>>){if(!ctx)return sendMessage(chatId,"🧠 کوئیز بعد از اتصال Family Core فعال می‌شود.");const q=await createQuizSession(ctx);if(!q)return sendMessage(chatId,"فعلاً کوئیز آماده نشد؛ دوباره امتحان کن.");return sendMessage(chatId,`🧠 کوئیز خانوادگی\n\n${q.prompt}\n\n🏆 جایزه: ${fmt(q.reward_coins)} سکه`,{reply_markup:{inline_keyboard:q.options.map((o,i)=>[{text:o,callback_data:`quiz:${q.id}:${i}`}])}})}
 
-function formatNumber(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("fa-IR").format(Number(value || 0));
-}
+async function handleCallback(q:NonNullable<Update["callback_query"]>){const id=q.id,data=q.data||"",m=q.message,chatId=m?.chat?.id,user=q.from;if(!id||!chatId||!user?.id)return;const ctx=await buildContext(chatId,m?.chat?.title,user);if(data.startsWith("quiz:")){const[,sid,opt]=data.split(":");const r=ctx?await resolveQuiz(sid,user.id,Number(opt),ctx):{ok:false as const,reason:"disabled"};if(r.ok){await answerCallbackQuery(id,`درسته! +${r.reward} سکه 🎉`,true);await sendMessage(chatId,`🎉 ${user.first_name||"آفرین"}! جواب درست بود و ${fmt(r.reward)} سکه بردی.`)}else{const t=r.reason==="wrong"?"نه، این گزینه درست نبود 😄":r.reason==="expired"?"زمان این سؤال تموم شده ⏳":"این سؤال قبلاً جواب داده شده.";await answerCallbackQuery(id,t,r.reason!=="wrong")}return}await answerCallbackQuery(id);if(data==="menu:profile")return sendProfile(chatId,ctx);if(data==="menu:rank")return sendRank(chatId,ctx);if(data==="menu:daily")return daily(chatId,ctx);if(data==="menu:ai")return sendMessage(chatId,"🤖 Family AI داخل Mini App هم تایپی و هم صوتی آماده است 🎙️",{reply_markup:openMiniAppKeyboard()});if(data==="menu:rules")return sendMessage(chatId,RULES);if(data==="menu:games")return sendMessage(chatId,"🎮 چی بازی کنیم؟",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}]]}});if(data==="menu:miniapp")return sendMessage(chatId,"🏠 از دکمه زیر وارد Family Bot شو.",{reply_markup:openMiniAppKeyboard()});if(data==="game:quiz")return startQuiz(chatId,ctx);if(data==="game:dice")return sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);if(data==="game:coin")return sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");if(data==="game:rps")return sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});if(data.startsWith("rps:")){const choice=Number(data.split(":")[1]),bot=Math.floor(Math.random()*3),names=["سنگ","کاغذ","قیچی"],result=choice===bot?"مساوی شد 😄":(choice-bot+3)%3===1?"تو بردی! 🎉":"این دست من بردم 🤖";return sendMessage(chatId,`تو: ${names[choice]}\nFamily Bot: ${names[bot]}\n\n${result}`)}}
 
-function hasExternalLink(text: string) {
-  return /(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
-}
+export async function POST(req:NextRequest){
+  const expected=process.env.BALE_WEBHOOK_SECRET,received=req.headers.get("x-bale-bot-api-secret-token")??req.nextUrl.searchParams.get("secret");if(expected&&received!==expected)return NextResponse.json({ok:false},{status:401});
+  const update=(await req.json()) as Update;if(update.callback_query){await handleCallback(update.callback_query);return NextResponse.json({ok:true})}
+  const message=update.message,chatId=message?.chat?.id,userId=message?.from?.id;if(!message||!chatId)return NextResponse.json({ok:true});
+  const ctx=await buildContext(chatId,message.chat?.title,message.from),settings=ctx?await readAdminSettings(ctx.family.id).catch(()=>null):null;
 
-function adminKeyboard(token:string){
-  const base=process.env.NEXT_PUBLIC_APP_URL;
-  if(!base)return undefined;
-  const url=new URL("/admin",base);
-  url.searchParams.set("session",token);
-  return {inline_keyboard:[[{text:"🛡 باز کردن مرکز مدیریت",web_app:{url:url.toString()}}]]};
-}
+  if(message.new_chat_members?.length&&settings?.welcome_enabled!==false){const names=message.new_chat_members.map(u=>u.first_name||"عضو جدید").join("، ");const template=settings?.welcome_message||"💜 {name} خوش اومدی!";await sendMessage(chatId,template.replaceAll("{name}",names),{reply_markup:mainMenuKeyboard()});return NextResponse.json({ok:true})}
+  if(message.web_app_data?.data){await sendMessage(chatId,"✅ اطلاعات Mini App دریافت شد و با Family Bot همگام می‌شود.");return NextResponse.json({ok:true})}
 
-function lockedContent(message:BaleMessage,settings:Awaited<ReturnType<typeof readAdminSettings>>){
-  if(settings.lock_photo&&message.photo?.length)return "عکس";
-  if(settings.lock_video&&message.video)return "ویدیو";
-  if(settings.lock_document&&message.document)return "فایل";
-  if(settings.lock_forward&&(message.forward_origin||message.forward_from||message.forward_from_chat))return "فوروارد";
-  return null;
-}
+  const text=message.text?.trim()??"",[commandRaw="",...args]=text.split(/\s+/),command=commandRaw.toLowerCase().split("@")[0],isCommand=command.startsWith("/");
+  let privileged=false;
+  if(ctx&&userId&&settings){const admin=await isAdmin(chatId,userId).catch(()=>false);const white=!admin&&await isWhitelisted(ctx.family.id,userId).catch(()=>false);privileged=admin||white;const locked=privileged?null:lockedContent(message,settings,isCommand);if(locked){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await logModeration(ctx.family.id,undefined,userId,"content_lock",locked);await sendMessage(chatId,`🔒 ارسال ${locked} در حال حاضر برای اعضای عادی قفل است.`);return NextResponse.json({ok:true})}}
 
-async function mute(chatId: number, userId: number, minutes: number) {
-  await baleApi("restrictChatMember", { chat_id: chatId, user_id: userId, permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + minutes * 60 });
-}
+  if(ctx&&userId&&text&&!isCommand&&!privileged){if(settings?.anti_link&&hasExternalLink(text)){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await logModeration(ctx.family.id,undefined,userId,"anti_link_delete","link removed");const count=await addWarning(ctx.family.id,0,userId,"ارسال لینک در حالت قفل لینک");await sendMessage(chatId,`🔗 لینک حذف شد. اخطار فعال: ${fmt(count)}`);if(count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId);await logModeration(ctx.family.id,undefined,userId,"auto_mute","warn limit reached");await sendMessage(chatId,`🔇 به دلیل رسیدن به ${fmt(settings.warn_limit)} اخطار، کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`)}return NextResponse.json({ok:true})}if(settings?.anti_flood){const flood=await recordFloodEvent(ctx.family.id,userId,settings);if(flood.exceeded){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await mute(chatId,userId,settings.flood_mute_minutes);await logModeration(ctx.family.id,undefined,userId,"anti_flood_mute",`${flood.count} messages in ${settings.flood_window_seconds}s`);await sendMessage(chatId,`🛡 ضداسپم فعال شد؛ ارسال سریع پیام تشخیص داده شد و کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`);return NextResponse.json({ok:true})}}
+  if(ctx&&text&&!isCommand)try{await addActivityReward(ctx,"message",1)}catch(e){console.error("activity reward failed",e)}
 
-async function buildContext(chatId: number, chatTitle: string | undefined, user?: BaleUser) {
-  if (!user?.id || !familyCoreEnabled()) return null;
-  try {
-    return await ensureFamilyMember(chatId, chatTitle, { id: user.id, first_name: user.first_name, last_name: user.last_name, username: user.username });
-  } catch (error) {
-    console.error("Family Core bootstrap failed", error);
-    return null;
+  if(["/start","/family","/menu"].includes(command))await sendMessage(chatId,"🏡 به Family Bot خوش اومدی!\nمدیریت، بازی، خاطرات، برنامه‌ریزی و هوش مصنوعی خانواده، همه یکجا.",{reply_markup:mainMenuKeyboard()});
+  else if(command==="/help")await sendMessage(chatId,HELP,{reply_markup:openMiniAppKeyboard()});
+  else if(command==="/admin"){if(!userId||!ctx||!(await isAdmin(chatId,userId))){await sendMessage(chatId,"⛔ پنل مدیریت فقط برای مدیرهای همین گروه باز می‌شود.");return NextResponse.json({ok:true})}const token=createAdminSession({familyId:ctx.family.id,chatId,userId},900);await sendMessage(chatId,"🛡 مرکز مدیریت Family Bot آماده است.\nاین لینک ۱۵ دقیقه اعتبار دارد و مخصوص مدیر درخواست‌کننده است.",{reply_markup:adminKeyboard(token)})}
+  else if(command==="/profile")await sendProfile(chatId,ctx);
+  else if(command==="/rank")await sendRank(chatId,ctx);
+  else if(command==="/daily")await daily(chatId,ctx);
+  else if(command==="/games")await sendMessage(chatId,"🎮 مرکز بازی Family Bot",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}]]}});
+  else if(command==="/quiz")await startQuiz(chatId,ctx);
+  else if(command==="/dice")await sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);
+  else if(command==="/coin")await sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");
+  else if(command==="/rps")await sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});
+  else if(command==="/ai")await sendMessage(chatId,"🤖 Family AI آماده است. داخل Mini App می‌تونی تایپ کنی یا با من حرف بزنی 🎙️",{reply_markup:openMiniAppKeyboard()});
+  else if(command==="/rules")await sendMessage(chatId,RULES);
+  else if(["/warn","/unwarn","/ban","/unban","/mute","/pin"].includes(command)){
+    if(!userId||!(await isAdmin(chatId,userId))){await sendMessage(chatId,"⛔ این فرمان فقط برای مدیرهای گروه است.");return NextResponse.json({ok:true})}
+    const targetId=message.reply_to_message?.from?.id,reason=args.join(" ").trim();if(!targetId&&command!=="/pin"){await sendMessage(chatId,"↩️ این فرمان را روی پیام عضو موردنظر Reply کن.");return NextResponse.json({ok:true})}
+    if(command==="/warn"){const count=ctx?await addWarning(ctx.family.id,userId,targetId!,reason):null;if(ctx)await logModeration(ctx.family.id,userId,targetId,"warn",reason);await sendMessage(chatId,`⚠️ اخطار ثبت شد${count?` — اخطار فعال: ${fmt(count)}`:""}${reason?`\nدلیل: ${reason}`:""}`);if(ctx&&settings&&count&&count>=settings.warn_limit){await mute(chatId,targetId!,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,targetId!);await logModeration(ctx.family.id,userId,targetId,"auto_mute","warn limit reached");await sendMessage(chatId,`🔇 سقف اخطار پر شد؛ کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد و اخطارها ریست شدند.`)}return NextResponse.json({ok:true})}
+    if(command==="/unwarn"){if(ctx){await clearWarnings(ctx.family.id,targetId!);await logModeration(ctx.family.id,userId,targetId,"unwarn")}await sendMessage(chatId,"🧹 اخطارهای فعال این عضو پاک شد.");return NextResponse.json({ok:true})}
+    if(command==="/ban")await baleApi("banChatMember",{chat_id:chatId,user_id:targetId});if(command==="/unban")await baleApi("unbanChatMember",{chat_id:chatId,user_id:targetId,only_if_banned:true});if(command==="/mute")await mute(chatId,targetId!,Math.max(1,Math.min(10080,Number(args[0])||10)));if(command==="/pin"){const mid=message.reply_to_message?.message_id;if(!mid){await sendMessage(chatId,"↩️ برای پین کردن، روی پیام موردنظر Reply کن.");return NextResponse.json({ok:true})}await baleApi("pinChatMessage",{chat_id:chatId,message_id:mid,disable_notification:true})}if(ctx)await logModeration(ctx.family.id,userId,targetId,command.slice(1),reason);await sendMessage(chatId,"✅ انجام شد.")
   }
+  return NextResponse.json({ok:true});
 }
 
-async function sendProfile(chatId: number, ctx: Awaited<ReturnType<typeof buildContext>>) {
-  if (!ctx) return sendMessage(chatId, "👤 برای داده‌های زنده، Family Core باید به Supabase متصل باشد.");
-  const p = await getProfile(ctx);
-  return sendMessage(chatId, `👤 ${p.display_name || p.first_name || "عضو خانواده"}\n⭐ Level ${formatNumber(p.level)}\n✨ XP: ${formatNumber(p.xp)}\n🪙 Family Coin: ${formatNumber(p.coins)}\n🔥 Streak: ${formatNumber(p.streak)} روز`, { reply_markup: openMiniAppKeyboard() });
-}
-
-async function sendRank(chatId: number, ctx: Awaited<ReturnType<typeof buildContext>>) {
-  if (!ctx) return sendMessage(chatId, "🏆 رتبه‌بندی بعد از اتصال Family Core فعال می‌شود.");
-  const rows = await getLeaderboard(ctx.family.id, 10);
-  const body = rows.length ? rows.map((row, i) => `${i + 1}. ${row.display_name || row.first_name || "عضو خانواده"} — Lv.${formatNumber(row.level)} · ${formatNumber(row.xp)} XP`).join("\n") : "هنوز امتیازی ثبت نشده.";
-  return sendMessage(chatId, `🏆 رتبه‌بندی خانواده\n\n${body}`, { reply_markup: openMiniAppKeyboard() });
-}
-
-async function daily(chatId: number, ctx: Awaited<ReturnType<typeof buildContext>>) {
-  if (!ctx) return sendMessage(chatId, "🎁 جایزه روزانه بعد از اتصال Family Core فعال می‌شود.");
-  const result = await claimDaily(ctx);
-  if (result.ok) return sendMessage(chatId, `🎁 جایزه امروز دریافت شد!\n+${formatNumber(result.reward)} 🪙\nموجودی جدید: ${formatNumber(result.coins)} سکه`);
-  if (result.reason === "claimed") return sendMessage(chatId, "⏳ جایزه امروز رو قبلاً گرفتی. فردا دوباره سر بزن 💜");
-  return sendMessage(chatId, "🎁 موتور جایزه روزانه هنوز کامل فعال نشده.");
-}
-
-async function startQuiz(chatId: number, ctx: Awaited<ReturnType<typeof buildContext>>) {
-  if (!ctx) return sendMessage(chatId, "🧠 کوئیز بعد از اتصال Family Core فعال می‌شود.");
-  const quiz = await createQuizSession(ctx);
-  if (!quiz) return sendMessage(chatId, "فعلاً کوئیز آماده نشد؛ دوباره امتحان کن.");
-  const buttons = quiz.options.map((option, index) => [{ text: option, callback_data: `quiz:${quiz.id}:${index}` }]);
-  return sendMessage(chatId, `🧠 کوئیز خانوادگی\n\n${quiz.prompt}\n\n🏆 جایزه: ${formatNumber(quiz.reward_coins)} سکه`, { reply_markup: { inline_keyboard: buttons } });
-}
-
-async function handleCallback(update: NonNullable<Update["callback_query"]>) {
-  const callbackId = update.id;
-  const data = update.data || "";
-  const message = update.message;
-  const chatId = message?.chat?.id;
-  const user = update.from;
-  if (!callbackId || !chatId || !user?.id) return;
-  const ctx = await buildContext(chatId, message?.chat?.title, user);
-
-  if (data.startsWith("quiz:")) {
-    const [, sessionId, optionRaw] = data.split(":");
-    const result = ctx ? await resolveQuiz(sessionId, user.id, Number(optionRaw), ctx) : { ok: false as const, reason: "disabled" };
-    if (result.ok) {
-      await answerCallbackQuery(callbackId, `درسته! +${result.reward} سکه 🎉`, true);
-      await sendMessage(chatId, `🎉 ${user.first_name || "آفرین"}! جواب درست بود و ${formatNumber(result.reward)} سکه بردی.`);
-    } else {
-      const text = result.reason === "wrong" ? "نه، این گزینه درست نبود 😄" : result.reason === "expired" ? "زمان این سؤال تموم شده ⏳" : "این سؤال قبلاً جواب داده شده.";
-      await answerCallbackQuery(callbackId, text, result.reason !== "wrong");
-    }
-    return;
-  }
-
-  await answerCallbackQuery(callbackId);
-  if (data === "menu:profile") return sendProfile(chatId, ctx);
-  if (data === "menu:rank") return sendRank(chatId, ctx);
-  if (data === "menu:daily") return daily(chatId, ctx);
-  if (data === "menu:ai") return sendMessage(chatId, "🤖 Family AI داخل Mini App هم تایپی و هم صوتی آماده است 🎙️", { reply_markup: openMiniAppKeyboard() });
-  if (data === "menu:rules") return sendMessage(chatId, RULES);
-  if (data === "menu:games") return sendMessage(chatId, "🎮 چی بازی کنیم؟", { reply_markup: { inline_keyboard: [[{ text: "🧠 کوئیز", callback_data: "game:quiz" }, { text: "🎲 تاس", callback_data: "game:dice" }], [{ text: "🪙 شیر یا خط", callback_data: "game:coin" }, { text: "✊ سنگ کاغذ قیچی", callback_data: "game:rps" }]] } });
-  if (data === "menu:miniapp") return sendMessage(chatId, "🏠 از دکمه زیر وارد Family Bot شو.", { reply_markup: openMiniAppKeyboard() });
-  if (data === "game:quiz") return startQuiz(chatId, ctx);
-  if (data === "game:dice") return sendMessage(chatId, `🎲 تاس تو: ${Math.floor(Math.random() * 6) + 1}`);
-  if (data === "game:coin") return sendMessage(chatId, Math.random() < .5 ? "🪙 شیر!" : "🪙 خط!");
-  if (data === "game:rps") return sendMessage(chatId, "✊ انتخابت رو بزن:", { reply_markup: { inline_keyboard: [["سنگ", "کاغذ", "قیچی"].map((v, i) => ({ text: v, callback_data: `rps:${i}` }))] } });
-  if (data.startsWith("rps:")) {
-    const choice = Number(data.split(":")[1]);
-    const bot = Math.floor(Math.random() * 3);
-    const names = ["سنگ", "کاغذ", "قیچی"];
-    const result = choice === bot ? "مساوی شد 😄" : (choice - bot + 3) % 3 === 1 ? "تو بردی! 🎉" : "این دست من بردم 🤖";
-    return sendMessage(chatId, `تو: ${names[choice]}\nFamily Bot: ${names[bot]}\n\n${result}`);
-  }
-}
-
-export async function POST(req: NextRequest) {
-  const expected = process.env.BALE_WEBHOOK_SECRET;
-  const received = req.headers.get("x-bale-bot-api-secret-token") ?? req.nextUrl.searchParams.get("secret");
-  if (expected && received !== expected) return NextResponse.json({ ok: false }, { status: 401 });
-
-  const update = (await req.json()) as Update;
-  if (update.callback_query) {
-    await handleCallback(update.callback_query);
-    return NextResponse.json({ ok: true });
-  }
-
-  const message = update.message;
-  const chatId = message?.chat?.id;
-  const userId = message?.from?.id;
-  if (!message || !chatId) return NextResponse.json({ ok: true });
-  const ctx = await buildContext(chatId, message.chat?.title, message.from);
-  const settings = ctx ? await readAdminSettings(ctx.family.id).catch(()=>null) : null;
-
-  if (message.new_chat_members?.length && settings?.welcome_enabled !== false) {
-    const names = message.new_chat_members.map((u) => u.first_name || "عضو جدید").join("، ");
-    await sendMessage(chatId, `💜 ${names} خوش اومدی!\nاینجا خونه دیجیتال خانواده‌ست؛ بازی، خاطره، برنامه و Family AI همه کنار هم هستن.`, { reply_markup: mainMenuKeyboard() });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (message.web_app_data?.data) {
-    await sendMessage(chatId, "✅ اطلاعات Mini App دریافت شد و با Family Bot همگام می‌شود.");
-    return NextResponse.json({ ok: true });
-  }
-
-  const text = message.text?.trim() ?? "";
-  const [commandRaw = "", ...args] = text.split(/\s+/);
-  const command = commandRaw.toLowerCase().split("@")[0];
-  const isCommand = command.startsWith("/");
-
-  if(ctx&&userId&&settings){
-    const admin=await isAdmin(chatId,userId).catch(()=>false);
-    const locked=admin?null:lockedContent(message,settings);
-    if(locked){
-      if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-      await logModeration(ctx.family.id,undefined,userId,"content_lock",locked);
-      await sendMessage(chatId,`🔒 ارسال ${locked} در حال حاضر برای اعضای عادی قفل است.`);
-      return NextResponse.json({ok:true});
-    }
-  }
-
-  if (ctx && userId && text && !isCommand) {
-    const admin = await isAdmin(chatId, userId).catch(() => false);
-    if (!admin && settings?.anti_link && hasExternalLink(text)) {
-      if (message.message_id) await baleApi("deleteMessage", { chat_id: chatId, message_id: message.message_id }).catch(() => undefined);
-      const count = await addWarning(ctx.family.id, 0, userId, "ارسال لینک در حالت قفل لینک");
-      await sendMessage(chatId, `🔗 لینک حذف شد. اخطار فعال: ${formatNumber(count)}`);
-      if (count >= settings.warn_limit) {
-        await mute(chatId, userId, settings.flood_mute_minutes);
-        await clearWarnings(ctx.family.id, userId);
-        await logModeration(ctx.family.id, undefined, userId, "auto_mute", "warn limit reached");
-        await sendMessage(chatId, `🔇 به دلیل رسیدن به ${formatNumber(settings.warn_limit)} اخطار، کاربر ${formatNumber(settings.flood_mute_minutes)} دقیقه ساکت شد.`);
-      }
-      return NextResponse.json({ ok: true });
-    }
-    if (!admin && settings?.anti_flood) {
-      const flood = await recordFloodEvent(ctx.family.id, userId, settings);
-      if (flood.exceeded) {
-        if (message.message_id) await baleApi("deleteMessage", { chat_id: chatId, message_id: message.message_id }).catch(() => undefined);
-        await mute(chatId, userId, settings.flood_mute_minutes);
-        await logModeration(ctx.family.id, undefined, userId, "anti_flood_mute", `${flood.count} messages in ${settings.flood_window_seconds}s`);
-        await sendMessage(chatId, `🛡 ضداسپم فعال شد؛ ارسال سریع پیام تشخیص داده شد و کاربر ${formatNumber(settings.flood_mute_minutes)} دقیقه ساکت شد.`);
-        return NextResponse.json({ ok: true });
-      }
-    }
-    try { await addActivityReward(ctx, "message", 1); } catch (error) { console.error("activity reward failed", error); }
-  }
-
-  if (["/start", "/family", "/menu"].includes(command)) {
-    await sendMessage(chatId, "🏡 به Family Bot خوش اومدی!\nمدیریت، بازی، خاطرات، برنامه‌ریزی و هوش مصنوعی خانواده، همه یکجا.", { reply_markup: mainMenuKeyboard() });
-  } else if (command === "/help") {
-    await sendMessage(chatId, HELP, { reply_markup: openMiniAppKeyboard() });
-  } else if (command === "/admin") {
-    if(!userId||!ctx||!(await isAdmin(chatId,userId))){await sendMessage(chatId,"⛔ پنل مدیریت فقط برای مدیرهای همین گروه باز می‌شود.");return NextResponse.json({ok:true});}
-    const token=createAdminSession({familyId:ctx.family.id,chatId,userId},900);
-    await sendMessage(chatId,"🛡 مرکز مدیریت Family Bot آماده است.\nاین لینک ۱۵ دقیقه اعتبار دارد و مخصوص مدیر درخواست‌کننده است.",{reply_markup:adminKeyboard(token)});
-  } else if (command === "/profile") {
-    await sendProfile(chatId, ctx);
-  } else if (command === "/rank") {
-    await sendRank(chatId, ctx);
-  } else if (command === "/daily") {
-    await daily(chatId, ctx);
-  } else if (command === "/games") {
-    await sendMessage(chatId, "🎮 مرکز بازی Family Bot", { reply_markup: { inline_keyboard: [[{ text: "🧠 کوئیز", callback_data: "game:quiz" }, { text: "🎲 تاس", callback_data: "game:dice" }], [{ text: "🪙 شیر یا خط", callback_data: "game:coin" }, { text: "✊ سنگ کاغذ قیچی", callback_data: "game:rps" }]] } });
-  } else if (command === "/quiz") {
-    await startQuiz(chatId, ctx);
-  } else if (command === "/dice") {
-    await sendMessage(chatId, `🎲 تاس تو: ${Math.floor(Math.random() * 6) + 1}`);
-  } else if (command === "/coin") {
-    await sendMessage(chatId, Math.random() < .5 ? "🪙 شیر!" : "🪙 خط!");
-  } else if (command === "/rps") {
-    await sendMessage(chatId, "✊ انتخابت رو بزن:", { reply_markup: { inline_keyboard: [["سنگ", "کاغذ", "قیچی"].map((v, i) => ({ text: v, callback_data: `rps:${i}` }))] } });
-  } else if (command === "/ai") {
-    await sendMessage(chatId, "🤖 Family AI آماده است. داخل Mini App می‌تونی تایپ کنی یا با من حرف بزنی 🎙️", { reply_markup: openMiniAppKeyboard() });
-  } else if (command === "/rules") {
-    await sendMessage(chatId, RULES);
-  } else if (["/warn", "/unwarn", "/ban", "/unban", "/mute", "/pin"].includes(command)) {
-    if (!userId || !(await isAdmin(chatId, userId))) {
-      await sendMessage(chatId, "⛔ این فرمان فقط برای مدیرهای گروه است.");
-      return NextResponse.json({ ok: true });
-    }
-    const targetId = message.reply_to_message?.from?.id;
-    const reason = args.join(" ").trim();
-    if (!targetId && command !== "/pin") {
-      await sendMessage(chatId, "↩️ این فرمان را روی پیام عضو موردنظر Reply کن.");
-      return NextResponse.json({ ok: true });
-    }
-
-    if (command === "/warn") {
-      const count = ctx ? await addWarning(ctx.family.id, userId, targetId!, reason) : null;
-      if (ctx) await logModeration(ctx.family.id, userId, targetId, "warn", reason);
-      await sendMessage(chatId, `⚠️ اخطار ثبت شد${count ? ` — اخطار فعال: ${formatNumber(count)}` : ""}${reason ? `\nدلیل: ${reason}` : ""}`);
-      if (ctx && settings && count && count >= settings.warn_limit) {
-        await mute(chatId, targetId!, settings.flood_mute_minutes);
-        await clearWarnings(ctx.family.id, targetId!);
-        await logModeration(ctx.family.id, userId, targetId, "auto_mute", "warn limit reached");
-        await sendMessage(chatId, `🔇 سقف اخطار پر شد؛ کاربر ${formatNumber(settings.flood_mute_minutes)} دقیقه ساکت شد و اخطارها ریست شدند.`);
-      }
-      return NextResponse.json({ ok: true });
-    }
-    if (command === "/unwarn") {
-      if (ctx) {await clearWarnings(ctx.family.id, targetId!);await logModeration(ctx.family.id,userId,targetId,"unwarn");}
-      await sendMessage(chatId, "🧹 اخطارهای فعال این عضو پاک شد.");
-      return NextResponse.json({ ok: true });
-    }
-    if (command === "/ban") await baleApi("banChatMember", { chat_id: chatId, user_id: targetId });
-    if (command === "/unban") await baleApi("unbanChatMember", { chat_id: chatId, user_id: targetId, only_if_banned: true });
-    if (command === "/mute") await mute(chatId, targetId!, Math.max(1, Math.min(10080, Number(args[0]) || 10)));
-    if (command === "/pin") {
-      const messageId = message.reply_to_message?.message_id;
-      if (!messageId) {
-        await sendMessage(chatId, "↩️ برای پین کردن، روی پیام موردنظر Reply کن.");
-        return NextResponse.json({ ok: true });
-      }
-      await baleApi("pinChatMessage", { chat_id: chatId, message_id: messageId, disable_notification: true });
-    }
-    if (ctx) await logModeration(ctx.family.id, userId, targetId, command.slice(1), reason);
-    await sendMessage(chatId, "✅ انجام شد.");
-  }
-
-  return NextResponse.json({ ok: true });
-}
-
-export async function GET() {
-  return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.4.0", familyCore: familyCoreEnabled() });
-}
+export async function GET(){return NextResponse.json({ok:true,service:"familybot-bale-webhook",version:"0.5.0",familyCore:familyCoreEnabled()})}
