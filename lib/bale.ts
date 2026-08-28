@@ -56,20 +56,24 @@ export function openMiniAppKeyboard() {
   if (!url) return undefined;
   return {
     inline_keyboard: [
-      [{ text: "🏠 ورود به Family Bot", web_app: { url } }],
+      [{ text: "🏠 باز کردن Family Bot", web_app: { url } }],
       [{ text: "🎮 بازی‌ها", callback_data: "menu:games" }, { text: "👤 پروفایل", callback_data: "menu:profile" }],
     ],
   };
 }
 
-export function mainMenuKeyboard() {
-  return {
-    inline_keyboard: [
-      [{ text: "🎮 بازی و سرگرمی", callback_data: "menu:games" }, { text: "🏆 رتبه‌بندی", callback_data: "menu:rank" }],
-      [{ text: "🎁 جایزه روزانه", callback_data: "menu:daily" }, { text: "🤖 Family AI", callback_data: "menu:ai" }],
-      [{ text: "📜 قوانین", callback_data: "menu:rules" }, { text: "🏠 Mini App", callback_data: "menu:miniapp" }],
-    ],
-  };
+export function mainMenuKeyboard(canManage = false) {
+  const rows: BaleInlineButton[][] = [
+    [{ text: "🏠 Mini App", callback_data: "menu:miniapp" }],
+    [{ text: "👨‍👩‍👧‍👦 خانواده", callback_data: "menu:family" }, { text: "📅 برنامه‌ریز", callback_data: "menu:planner" }],
+    [{ text: "🖼 خاطرات", callback_data: "menu:memories" }, { text: "🛍 فروشگاه", callback_data: "menu:store" }],
+    [{ text: "🏅 دستاوردها", callback_data: "menu:achievements" }, { text: "🎮 بازی و سرگرمی", callback_data: "menu:games" }],
+    [{ text: "🤖 Family AI", callback_data: "menu:ai" }, { text: "👤 پروفایل", callback_data: "menu:profile" }],
+    [{ text: "🏆 رتبه‌بندی", callback_data: "menu:rank" }, { text: "🎁 جایزه روزانه", callback_data: "menu:daily" }],
+    [{ text: "📜 قوانین", callback_data: "menu:rules" }, { text: "❓ راهنما", callback_data: "menu:help" }],
+  ];
+  if (canManage) rows.push([{ text: "🛡 مدیریت گروه", callback_data: "menu:admin" }]);
+  return { inline_keyboard: rows };
 }
 
 export async function isAdmin(chatId: string | number, userId: string | number) {
