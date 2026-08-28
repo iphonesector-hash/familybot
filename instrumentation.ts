@@ -1,14 +1,11 @@
 const PATCH_MARKER = Symbol.for("familybot.supabase.profile-fetch");
-const PUBLIC_SUPABASE_URL = "https://ouuyarzxlusoebjiphgm.supabase.co";
-const PUBLIC_APP_URL = "https://familybot-gray.vercel.app";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||= PUBLIC_SUPABASE_URL;
-  process.env.NEXT_PUBLIC_APP_URL ||= PUBLIC_APP_URL;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+  if (!base) return;
 
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || PUBLIC_SUPABASE_URL).replace(/\/$/, "");
   const globalState = globalThis as typeof globalThis & { [PATCH_MARKER]?: boolean };
   if (globalState[PATCH_MARKER]) return;
 
