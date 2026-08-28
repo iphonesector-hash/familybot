@@ -1,3 +1,4 @@
+import UserGreeting from "./UserGreeting";
 import { Icon, IconName, IconOrb, Mascot } from "./ui";
 
 const featureCards: Array<{icon:IconName; title:string; text:string; href:string; tone:"violet"|"blue"|"pink"|"gold"|"cyan"}> = [
@@ -14,7 +15,7 @@ export default function HomePage(){
     <div className="ambient ambientA"/><div className="ambient ambientB"/><div className="starField"/>
     <header className="appHeader">
       <button className="roundButton notification" aria-label="اعلان‌ها"><Icon name="reminder" size={21}/><i/></button>
-      <div className="wordmark"><b>Family Bot</b><span>سلام، خوش برگشتی <em>💜</em></span></div>
+      <div className="wordmark"><b>Family Bot</b><UserGreeting/></div>
       <a className="profileAvatar" href="/section/leaderboard" aria-label="پروفایل"><Icon name="profile" size={23}/></a>
     </header>
 
