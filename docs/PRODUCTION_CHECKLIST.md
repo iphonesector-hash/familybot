@@ -30,12 +30,14 @@ Before production, rotate every secret that has ever been pasted into a chat, sc
 1. Back up the target Supabase database.
 2. Apply the approved release migrations in filename order.
 3. Run `20260828_final_schema_reconciliation.sql`, then the later uniquely timestamped release reconciliation files.
-4. Verify the atomic RPC functions for XP, coins, daily claim, task completion, purchases, transfers, Owner gifts and Lucky Wheel exist.
+4. Verify the atomic RPC functions for XP, coins, daily claim, task completion, purchases, transfers, Owner gifts, mission claims, achievement claims and Lucky Wheel exist.
 5. Verify `daily_spin_claims` exists and `family_claim_daily_spin_atomic` enforces the 24-hour cooldown while locking the member row before enabling the feature.
 6. Verify `bale_updates` exists before enabling the live webhook so update retries cannot duplicate rewards or moderation actions.
 7. Verify `family_fund_memberships`, `owner_gift_log` and `briefing_deliveries` exist.
 8. Verify the `family-avatars` Storage bucket is PRIVATE. New family photos must be returned through short-lived signed URLs only.
 9. Treat `20260828235500_release_rewards_fund_briefing.sql` as the canonical reconciliation for Wheel/Fund/Owner-Gift/Briefing dependencies.
+10. Apply `20260828235930_achievement_reward_atomic.sql` and `20260829000200_mission_atomic_and_rpc_acl.sql` before enabling rewards.
+11. Verify economic `SECURITY DEFINER` RPCs reject `public`, `anon` and `authenticated` execution and are executable only by `service_role`.
 
 ## 3. Bale Mini App
 
@@ -49,9 +51,11 @@ Expected behavior:
 - `Bale.WebApp.ready()` and `expand()` run;
 - server validates `initData` before issuing a Family Member Session;
 - family selection works for users who belong to multiple families;
+- bootstrap/family chooser uses the premium safe-area overlay rather than exposing raw page content;
 - admin controls are hidden for members;
 - admin panel can bootstrap from the clicking user's own Member Session;
 - admin API calls require both a matching Admin Session and the current signed Member Session, then re-check live Bale admin status;
+- Bale SettingsButton receives the short-lived admin token from `/api/family/admin-link`, stores it in `sessionStorage`, and opens `/admin` without placing the token in the URL;
 - copying an old/admin URL to a different Bale account does not grant access.
 
 ## 4. Bot buttons
@@ -78,7 +82,7 @@ Verify every visible button on a real Bale account:
 - Daily reward
 - Rules / Help
 
-Verify `Management` is visible only to a current group admin. Verify Owner-only gifting is visible and executable only by the real group creator/owner, not a regular admin.
+Verify `Management` is visible only to a current group admin. Verify Owner-only gifting is visible and executable only by the real group creator/owner, not a regular admin. Verify the Owner gift card is visible inside Admin Center only for the owner.
 
 ## 5. Moderation QA
 
@@ -100,8 +104,9 @@ Test with separate owner, regular-admin and normal-member accounts:
 Verify with real rows, not demo data:
 - profile edit and birthday
 - visual family tree with photo upload, relationship creation/removal and relationship editing
+- no legacy/public relationship mutation endpoint remains usable; relationship writes go through the admin-checked Tree API
 - private avatar URLs cannot be fetched after signed URL expiry or from another family
-- tasks and rewards
+- tasks and rewards; non-admins cannot create rewarded tasks
 - events/calendar
 - polls and live results
 - memories: family/private/selected viewers
@@ -113,7 +118,7 @@ Verify with real rows, not demo data:
 - favorite places + GPS/OpenStreetMap preview
 - expense split and shopping list
 - Secret Gift private assignment
-- missions/achievements
+- missions/achievements; refresh/double-submit cannot create a badge/claim without its matching ledger reward
 - Entertainment hub: Hafez, jokes, riddles, facts, truth/dare, question and motivation
 - Utilities hub: weather, translator, BMI, calculator, unit conversion and age
 
@@ -145,6 +150,10 @@ On a real iPhone inside Bale:
 - browser TTS fallback when provider fails
 - task/event/poll/coin actions only with a valid Member Session
 - private family context never returned across families
+- direct unauthenticated POST to `/api/ai/chat` returns 401 and never calls Groq
+- direct unauthenticated POST to `/api/voice/tts` returns 401 and never calls ElevenLabs
+- AI page disables server-backed chat/TTS/quick actions outside a valid Family Session
+- “انتقال سکه” is presented as a member-to-member transfer, not confused with Owner Gift
 
 ## 9. Scheduled jobs QA
 
@@ -174,6 +183,7 @@ Vercel Hobby cron frequency is limited. Do not rely on high-frequency Vercel Cro
 - inspect `npm audit` output; do not use `npm audit fix --force` blindly.
 - no real API token exists in repository history, `.env.example`, client bundle, logs or screenshots committed to the repo.
 - sensitive API responses use `Cache-Control: no-store` where applicable.
+- browser anon credentials cannot invoke server-only economy/reward RPCs directly.
 
 ## 11. Final release sequence
 
