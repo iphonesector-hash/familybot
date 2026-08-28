@@ -29,14 +29,15 @@ function reminderMinutes(value:unknown,fallback:number){const n=Number(value);re
 export async function readAdminSettings(familyId:string){const {data,error}=await db().from("group_settings").select(columns).eq("family_id",familyId).maybeSingle();if(error)throw error;return {...defaults,...(data??{})} as AdminGroupSettings}
 
 export async function writeAdminSettings(familyId:string,input:Partial<AdminGroupSettings>){
+  const current=await readAdminSettings(familyId);const merged={...current,...input};
   const clean:AdminGroupSettings={
-    anti_flood:Boolean(input.anti_flood),anti_link:Boolean(input.anti_link),
-    lock_photo:Boolean(input.lock_photo),lock_video:Boolean(input.lock_video),lock_document:Boolean(input.lock_document),lock_forward:Boolean(input.lock_forward),
-    lock_sticker:Boolean(input.lock_sticker),lock_gif:Boolean(input.lock_gif),lock_voice:Boolean(input.lock_voice),lock_audio:Boolean(input.lock_audio),lock_text:Boolean(input.lock_text),
-    welcome_enabled:Boolean(input.welcome_enabled),welcome_message:String(input.welcome_message||defaults.welcome_message).slice(0,1500),
-    flood_limit:Math.max(3,Math.min(20,Number(input.flood_limit)||5)),flood_window_seconds:Math.max(2,Math.min(30,Number(input.flood_window_seconds)||5)),flood_mute_minutes:Math.max(1,Math.min(10080,Number(input.flood_mute_minutes)||10)),warn_limit:Math.max(1,Math.min(10,Number(input.warn_limit)||3)),
-    timezone:validTimezone(input.timezone),task_reminders_enabled:Boolean(input.task_reminders_enabled),event_reminders_enabled:Boolean(input.event_reminders_enabled),birthday_reminders_enabled:Boolean(input.birthday_reminders_enabled),
-    task_reminder_minutes:reminderMinutes(input.task_reminder_minutes,60),event_reminder_minutes:reminderMinutes(input.event_reminder_minutes,60),birthday_hour:Math.max(0,Math.min(23,Number(input.birthday_hour)||9))
+    anti_flood:Boolean(merged.anti_flood),anti_link:Boolean(merged.anti_link),
+    lock_photo:Boolean(merged.lock_photo),lock_video:Boolean(merged.lock_video),lock_document:Boolean(merged.lock_document),lock_forward:Boolean(merged.lock_forward),
+    lock_sticker:Boolean(merged.lock_sticker),lock_gif:Boolean(merged.lock_gif),lock_voice:Boolean(merged.lock_voice),lock_audio:Boolean(merged.lock_audio),lock_text:Boolean(merged.lock_text),
+    welcome_enabled:Boolean(merged.welcome_enabled),welcome_message:String(merged.welcome_message||defaults.welcome_message).slice(0,1500),
+    flood_limit:Math.max(3,Math.min(20,Number(merged.flood_limit)||5)),flood_window_seconds:Math.max(2,Math.min(30,Number(merged.flood_window_seconds)||5)),flood_mute_minutes:Math.max(1,Math.min(10080,Number(merged.flood_mute_minutes)||10)),warn_limit:Math.max(1,Math.min(10,Number(merged.warn_limit)||3)),
+    timezone:validTimezone(merged.timezone),task_reminders_enabled:Boolean(merged.task_reminders_enabled),event_reminders_enabled:Boolean(merged.event_reminders_enabled),birthday_reminders_enabled:Boolean(merged.birthday_reminders_enabled),
+    task_reminder_minutes:reminderMinutes(merged.task_reminder_minutes,current.task_reminder_minutes),event_reminder_minutes:reminderMinutes(merged.event_reminder_minutes,current.event_reminder_minutes),birthday_hour:Math.max(0,Math.min(23,Number(merged.birthday_hour)))
   };
   const {data,error}=await db().from("group_settings").upsert({family_id:familyId,...clean,updated_at:new Date().toISOString()},{onConflict:"family_id"}).select(columns).single();if(error)throw error;return data as AdminGroupSettings
 }
