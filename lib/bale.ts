@@ -62,23 +62,22 @@ export function openMiniAppKeyboard() {
   };
 }
 
+function webAppButton(base:string|undefined,path:string,text:string,fallback:string):BaleInlineButton{
+  return base?{text,web_app:{url:new URL(path,base).toString()}}:{text,callback_data:fallback};
+}
+
 export function mainMenuKeyboard(canManage = false) {
   const base = process.env.NEXT_PUBLIC_APP_URL;
-  const financeButton: BaleInlineButton = base
-    ? { text: "💳 حساب خانواده", web_app: { url: new URL("/section/finance", base).toString() } }
-    : { text: "💳 حساب خانواده", callback_data: "menu:finance" };
-  const communityButton: BaleInlineButton = base
-    ? { text: "🌍 چالش و سفر", web_app: { url: new URL("/section/community", base).toString() } }
-    : { text: "🌍 چالش و سفر", callback_data: "menu:community" };
-  const secretGiftButton: BaleInlineButton = base
-    ? { text: "🎁 Secret Gift", web_app: { url: new URL("/section/secret-gift", base).toString() } }
-    : { text: "🎁 Secret Gift", callback_data: "menu:secretgift" };
-  const funButton: BaleInlineButton = base
-    ? { text: "😄 سرگرمی خانواده", web_app: { url: new URL("/section/fun", base).toString() } }
-    : { text: "😄 سرگرمی خانواده", callback_data: "menu:fun" };
+  const financeButton=webAppButton(base,"/section/finance","💳 حساب خانواده","menu:finance");
+  const communityButton=webAppButton(base,"/section/community","🌍 چالش و سفر","menu:community");
+  const secretGiftButton=webAppButton(base,"/section/secret-gift","🎁 Secret Gift","menu:secretgift");
+  const funButton=webAppButton(base,"/section/fun","😄 سرگرمی خانواده","menu:fun");
+  const wheelButton=webAppButton(base,"/section/wheel","🎡 گردونه شانس","menu:wheel");
+  const fundButton=webAppButton(base,"/section/fund","🏦 صندوق خانوادگی","menu:fund");
   const rows: BaleInlineButton[][] = [
     [{ text: "🏠 Mini App", callback_data: "menu:miniapp" }],
     [{ text: "👨‍👩‍👧‍👦 خانواده", callback_data: "menu:family" }, { text: "📅 برنامه‌ریز", callback_data: "menu:planner" }],
+    [wheelButton,fundButton],
     [{ text: "🖼 خاطرات", callback_data: "menu:memories" }, financeButton],
     [communityButton, secretGiftButton],
     [{ text: "🛍 فروشگاه", callback_data: "menu:store" }, { text: "🏅 دستاوردها", callback_data: "menu:achievements" }],
