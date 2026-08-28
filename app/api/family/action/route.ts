@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
 import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, saveRelationship, updateOwnProfile } from "@/lib/familyMutations";
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, readPollsAndEvents, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
+import { claimMission } from "@/lib/missionClaims";
 
 function getSession(req:NextRequest){const auth=req.headers.get("authorization")||"";const token=auth.startsWith("Bearer ")?auth.slice(7):"";return token?verifyFamilySession(token):null}
 
@@ -23,9 +24,10 @@ export async function POST(req:NextRequest){
       case "coins.transfer":data=await transferFamilyCoins(session.familyId,session.userId,{targetUserId:p.targetUserId?Number(p.targetUserId):undefined,targetMemberId:p.targetMemberId?String(p.targetMemberId):undefined,amount:Number(p.amount),note:p.note as string});break;
       case "achievements.evaluate":data=await evaluateAchievements(session.familyId,session.userId);break;
       case "missions.read":data=await readMissions(session.familyId,session.userId);break;
+      case "mission.claim":data=await claimMission(session.familyId,session.userId,String(p.missionId||""));break;
       case "planner.read":data=await readPollsAndEvents(session.familyId);break;
       default:return NextResponse.json({ok:false,error:"unknown_action"},{status:400});
     }
     return NextResponse.json({ok:true,data});
-  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
+  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed","mission_not_complete"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
 }
