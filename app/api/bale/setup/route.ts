@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "NEXT_PUBLIC_APP_URL must be a public HTTPS URL" }, { status: 400, headers:{"cache-control":"no-store"} });
   }
 
-  const webhookSecret = process.env.BALE_WEBHOOK_SECRET;
-  if(!webhookSecret)return NextResponse.json({ok:false,error:"BALE_WEBHOOK_SECRET is not configured"},{status:500,headers:{"cache-control":"no-store"}});
-  const webhookUrl = `${appUrl}/api/bale/webhook?secret=${encodeURIComponent(webhookSecret)}`;
+  const webhookToken = process.env.BALE_WEBHOOK_PATH_TOKEN || process.env.BALE_WEBHOOK_SECRET;
+  if(!webhookToken)return NextResponse.json({ok:false,error:"webhook_path_token_not_configured"},{status:500,headers:{"cache-control":"no-store"}});
+  const webhookUrl = `${appUrl}/api/bale/webhook?secret=${encodeURIComponent(webhookToken)}`;
   const result = await baleApi("setWebhook", { url: webhookUrl });
   const info = await baleApi("getWebhookInfo");
   return NextResponse.json({ ok: true, configured: result, webhook: info },{headers:{"cache-control":"no-store"}});
