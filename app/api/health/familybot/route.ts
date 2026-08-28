@@ -6,6 +6,9 @@ export async function GET(){
   const supabaseUrl=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/\/$/,"");
   const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
   const ref=supabaseUrl.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i)?.[1]||null;
+  const aiProvider=process.env.AI_PROVIDER||"groq";
+  const aiBaseUrl=(process.env.AI_BASE_URL||"https://api.groq.com/openai/v1").replace(/\/$/,"");
+  const aiModel=process.env.AI_MODEL||"llama-3.3-70b-versatile";
   let database={ok:false,error:"not_configured",familiesCount:null as number|null};
   if(supabaseUrl&&serviceKey){
     try{
@@ -20,12 +23,24 @@ export async function GET(){
     appUrlMatchesExpected:appUrl==="https://familybot-gray.vercel.app",
     supabaseProjectRef:ref,
     matchesLoveHub:ref==="ouuyarzxlusoebjiphgm",
+    ai:{
+      provider:aiProvider,
+      baseUrl:aiBaseUrl,
+      model:aiModel,
+      keyConfigured:Boolean(process.env.GROQ_API_KEY||process.env.AI_API_KEY)
+    },
+    voice:{
+      elevenLabsKeyConfigured:Boolean(process.env.ELEVENLABS_API_KEY),
+      voiceIdConfigured:Boolean(process.env.ELEVENLABS_VOICE_ID),
+      model:process.env.ELEVENLABS_MODEL_ID||"eleven_multilingual_v2"
+    },
     configured:{
       botToken:Boolean(process.env.BALE_BOT_TOKEN),
       webhookSecret:Boolean(process.env.BALE_WEBHOOK_PATH_TOKEN||process.env.BALE_WEBHOOK_SECRET),
       memberSession:Boolean(process.env.FAMILY_MEMBER_SESSION_SECRET),
       adminSession:Boolean(process.env.FAMILY_ADMIN_SESSION_SECRET),
       supabaseUrl:Boolean(supabaseUrl),
+      supabaseAnon:Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
       supabaseService:Boolean(serviceKey)
     },
     database
