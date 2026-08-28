@@ -15,9 +15,7 @@ export async function POST(req: NextRequest) {
     const canManage = await isAdmin(session.chatId, session.userId).catch(() => false);
     if (!canManage) return NextResponse.json({ ok: false, error: "admin_required" }, { status: 403 });
     const token = createAdminSession({ familyId: session.familyId, chatId: session.chatId, userId: session.userId }, 15 * 60);
-    const url = new URL("/admin", req.nextUrl.origin);
-    url.searchParams.set("session", token);
-    return NextResponse.json({ ok: true, url: url.pathname + url.search, expiresIn: 900 });
+    return NextResponse.json({ ok: true, token, expiresIn: 900 }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error("admin launcher failed", error);
     return NextResponse.json({ ok: false, error: "admin_link_unavailable" }, { status: 500 });
