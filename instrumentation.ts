@@ -1,7 +1,16 @@
+import crypto from "node:crypto";
+
 const PATCH_MARKER = Symbol.for("familybot.supabase.profile-fetch");
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  if (!process.env.BALE_WEBHOOK_PATH_TOKEN && !process.env.BALE_WEBHOOK_SECRET && process.env.FAMILY_MEMBER_SESSION_SECRET) {
+    process.env.BALE_WEBHOOK_SECRET = crypto
+      .createHmac("sha256", process.env.FAMILY_MEMBER_SESSION_SECRET)
+      .update("familybot:bale:webhook:v1")
+      .digest("hex");
+  }
 
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   if (!base) return;
