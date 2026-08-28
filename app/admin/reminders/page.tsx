@@ -2,7 +2,7 @@
 
 import {useEffect,useState} from "react";
 import {Icon,IconOrb,Mascot} from "../../ui";
-import {adminHeaders,captureAdminSession,clearAdminSession} from "../adminClientSession";
+import {adminHeaders,bootstrapAdminSession,clearAdminSession} from "../adminClientSession";
 
 type Settings={timezone:string;task_reminders_enabled:boolean;event_reminders_enabled:boolean;birthday_reminders_enabled:boolean;task_reminder_minutes:number;event_reminder_minutes:number;birthday_hour:number};
 const fallback:Settings={timezone:"Asia/Tehran",task_reminders_enabled:true,event_reminders_enabled:true,birthday_reminders_enabled:true,task_reminder_minutes:60,event_reminder_minutes:60,birthday_hour:9};
@@ -11,12 +11,12 @@ const timings=[{value:15,label:"۱۵ دقیقه قبل"},{value:60,label:"۱ س�
 
 export default function ReminderAdminPage(){
   const[session,setSession]=useState("");const[sessionReady,setSessionReady]=useState(false);const[settings,setSettings]=useState<Settings>(fallback);const[authorized,setAuthorized]=useState<boolean|null>(null);const[saving,setSaving]=useState(false);const[message,setMessage]=useState("");
-  useEffect(()=>{setSession(captureAdminSession());setSessionReady(true)},[]);
+  useEffect(()=>{void bootstrapAdminSession().then(token=>{setSession(token);setSessionReady(true)})},[]);
   useEffect(()=>{if(!sessionReady)return;if(!session){setAuthorized(false);return}fetch("/api/admin/settings",{headers:adminHeaders(session),cache:"no-store"}).then(async r=>({status:r.status,data:await r.json()})).then(({status,data})=>{if(data.ok){setAuthorized(true);setSettings({timezone:data.settings.timezone,task_reminders_enabled:data.settings.task_reminders_enabled,event_reminders_enabled:data.settings.event_reminders_enabled,birthday_reminders_enabled:data.settings.birthday_reminders_enabled,task_reminder_minutes:data.settings.task_reminder_minutes,event_reminder_minutes:data.settings.event_reminder_minutes,birthday_hour:data.settings.birthday_hour})}else{if(status===403)clearAdminSession();setAuthorized(false)}}).catch(()=>setAuthorized(false))},[session,sessionReady]);
   function patch<K extends keyof Settings>(key:K,value:Settings[K]){setSettings(s=>({...s,[key]:value}))}
   async function save(){if(!session||!authorized)return;setSaving(true);setMessage("");try{const r=await fetch("/api/admin/settings",{method:"PUT",headers:{"content-type":"application/json",...adminHeaders(session)},body:JSON.stringify(settings)});const d=await r.json();if(!d.ok){if(r.status===403){clearAdminSession();setAuthorized(false)}throw new Error()}setMessage("تنظیمات اعلان ذخیره شد ✨")}catch{setMessage("ذخیره تنظیمات انجام نشد.")}finally{setSaving(false)}}
   if(!sessionReady||authorized===null)return <main className="appShell adminScreen"><section className="adminHero premiumPanel"><div><h1>در حال بررسی مجوز مدیریت...</h1><p>Family Bot نقش Admin را مستقیم از بله تأیید می‌کند.</p></div><Mascot small mood="thinking"/></section></main>;
-  if(!authorized)return <main className="appShell adminScreen"><div className="ambient ambientA"/><div className="starField"/><section className="adminHero premiumPanel"><div><span className="eyebrow"><Icon name="shield" size={15}/> دسترسی محدود</span><h1>این بخش فقط برای مدیرهای گروه است</h1><p>برای ورود، از دکمه مدیریت Family Bot داخل همان گروه بله استفاده کن.</p><a className="primaryCta" href="/">بازگشت به خانه</a></div><Mascot small mood="idle"/></section></main>;
+  if(!authorized)return <main className="appShell adminScreen"><div className="ambient ambientA"/><div className="starField"/><section className="adminHero premiumPanel"><div><span className="eyebrow"><Icon name="shield" size={15}/> دسترسی محدود</span><h1>این بخش فقط برای مدیرهای گروه است</h1><p>برای ورود، Mini App را از همان گروه بله باز کن تا هویت حساب فعلی دوباره بررسی شود.</p><a className="primaryCta" href="/">بازگشت به خانه</a></div><Mascot small mood="idle"/></section></main>;
   const toggle=(key:keyof Pick<Settings,"task_reminders_enabled"|"event_reminders_enabled"|"birthday_reminders_enabled">,title:string,text:string,icon:"tasks"|"calendar"|"birthday")=><article className="adminCard"><div className="adminCardHead"><IconOrb name={icon} tone="violet"/><button className={`switch${settings[key]?" on":""}`} onClick={()=>patch(key,!settings[key])}><i/></button></div><h2>{title}</h2><p>{text}</p></article>;
   return <main className="appShell adminScreen"><div className="ambient ambientA"/><div className="ambient ambientB"/><div className="starField"/>
     <header className="appHeader"><a className="roundButton" href="/admin">←</a><div className="wordmark"><b>اعلان‌ها و زمان‌بندی</b><span>Admin only</span></div><span className="profileAvatar"><Icon name="reminder"/></span></header>
