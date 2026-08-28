@@ -177,11 +177,17 @@ create table if not exists group_settings (
   lock_video boolean not null default false,
   lock_document boolean not null default false,
   lock_forward boolean not null default false,
+  lock_sticker boolean not null default false,
+  lock_gif boolean not null default false,
+  lock_voice boolean not null default false,
+  lock_audio boolean not null default false,
+  lock_text boolean not null default false,
   flood_limit integer not null default 5,
   flood_window_seconds integer not null default 5,
   flood_mute_minutes integer not null default 10,
   warn_limit integer not null default 3,
   welcome_enabled boolean not null default true,
+  welcome_message text not null default '💜 {name} خوش اومدی!\nاینجا خونه دیجیتال خانواده‌ست؛ بازی، خاطره، برنامه و Family AI همه کنار هم هستن.',
   updated_at timestamptz not null default now()
 );
 
@@ -189,6 +195,20 @@ alter table group_settings add column if not exists lock_photo boolean not null 
 alter table group_settings add column if not exists lock_video boolean not null default false;
 alter table group_settings add column if not exists lock_document boolean not null default false;
 alter table group_settings add column if not exists lock_forward boolean not null default false;
+alter table group_settings add column if not exists lock_sticker boolean not null default false;
+alter table group_settings add column if not exists lock_gif boolean not null default false;
+alter table group_settings add column if not exists lock_voice boolean not null default false;
+alter table group_settings add column if not exists lock_audio boolean not null default false;
+alter table group_settings add column if not exists lock_text boolean not null default false;
+alter table group_settings add column if not exists welcome_message text not null default '💜 {name} خوش اومدی!\nاینجا خونه دیجیتال خانواده‌ست؛ بازی، خاطره، برنامه و Family AI همه کنار هم هستن.';
+
+create table if not exists moderation_whitelist (
+  family_id uuid not null references families(id) on delete cascade,
+  bale_user_id bigint not null,
+  label text,
+  created_at timestamptz not null default now(),
+  primary key(family_id,bale_user_id)
+);
 
 create table if not exists flood_events (
   id bigserial primary key,
@@ -220,3 +240,4 @@ create index if not exists warnings_family_target_idx on warnings(family_id, tar
 create index if not exists activity_family_time_idx on activity_log(family_id, created_at desc);
 create index if not exists flood_family_user_time_idx on flood_events(family_id, bale_user_id, created_at desc);
 create index if not exists game_sessions_family_status_idx on game_sessions(family_id, status, created_at desc);
+create index if not exists whitelist_family_idx on moderation_whitelist(family_id,created_at desc);
