@@ -89,7 +89,7 @@ export async function claimDaily(ctx: FamilyContext) {
 
 export async function addWarning(familyId: string, actorId: number, targetId: number, reason?: string) {
   const supabase = db();
-  if (!supabase) return null;
+  if (!supabase) return 0;
   const row = await supabase.from("warnings").insert({ family_id: familyId, actor_bale_user_id: actorId, target_bale_user_id: targetId, reason: reason || null }).select("id").single();
   if (row.error) throw row.error;
   return countWarnings(familyId, targetId);
