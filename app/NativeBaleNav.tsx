@@ -14,16 +14,20 @@ export default function NativeBaleNav(){
     const back=webApp.BackButton;
     const settings=webApp.SettingsButton;
     const onBack=()=>{
-      if(pathname==="/")webApp.close?.();
+      if(pathname==="/"){webApp.close?.();return}
+      if(window.history.length>1)window.history.back();
       else window.location.assign("/");
     };
     const onSettings=async()=>{
       const session=sessionStorage.getItem("familybot.session");
       if(!session)return;
       try{
-        const r=await fetch("/api/family/admin-link",{method:"POST",headers:{authorization:`Bearer ${session}`}});
+        const r=await fetch("/api/family/admin-link",{method:"POST",headers:{authorization:`Bearer ${session}`},cache:"no-store"});
         const d=await r.json();
-        if(d.ok&&d.url)window.location.assign(d.url);
+        if(r.ok&&d.ok&&d.token){
+          sessionStorage.setItem("familybot.adminSession",String(d.token));
+          window.location.assign("/admin");
+        }
       }catch{}
     };
 
