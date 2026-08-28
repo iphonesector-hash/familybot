@@ -4,6 +4,13 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
 
+function callSafe(target:unknown,method:string,...args:unknown[]){
+  try{
+    const fn=target&&typeof target==="object"?(target as Record<string,unknown>)[method]:undefined;
+    if(typeof fn==="function")return fn.apply(target,args);
+  }catch{}
+}
+
 export default function NativeBaleNav(){
   const pathname=usePathname();
   const {webApp,inBale,supported,isIframe}=useBaleMiniApp();
@@ -14,7 +21,7 @@ export default function NativeBaleNav(){
     const back=webApp.BackButton;
     const settings=webApp.SettingsButton;
     const onBack=()=>{
-      if(pathname==="/"){webApp.close?.();return}
+      if(pathname==="/"){callSafe(webApp,"close");return}
       if(window.history.length>1)window.history.back();
       else window.location.assign("/");
     };
@@ -31,8 +38,8 @@ export default function NativeBaleNav(){
       }catch{}
     };
 
-    if(isIframe||pathname==="/")back?.hide?.();else{back?.show?.();back?.onClick?.(onBack)}
-    settings?.hide?.();
+    if(isIframe||pathname==="/")callSafe(back,"hide");else{callSafe(back,"show");callSafe(back,"onClick",onBack)}
+    callSafe(settings,"hide");
     const session=sessionStorage.getItem("familybot.session");
     if(session){
       fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"})
@@ -41,16 +48,16 @@ export default function NativeBaleNav(){
           if(cancelled)return;
           const canManage=Boolean(d?.ok&&d?.dashboard?.permissions?.canManage);
           sessionStorage.setItem("familybot.canManage",canManage?"1":"0");
-          if(canManage){settings?.show?.();settings?.onClick?.(onSettings)}else settings?.hide?.();
+          if(canManage){callSafe(settings,"show");callSafe(settings,"onClick",onSettings)}else callSafe(settings,"hide");
         })
-        .catch(()=>settings?.hide?.());
+        .catch(()=>callSafe(settings,"hide"));
     }
-    try{webApp.setHeaderColor?.("#09051f")}catch{}
+    callSafe(webApp,"setHeaderColor","#09051f");
 
     return()=>{
       cancelled=true;
-      back?.offClick?.(onBack);
-      settings?.offClick?.(onSettings);
+      callSafe(back,"offClick",onBack);
+      callSafe(settings,"offClick",onSettings);
     };
   },[webApp,inBale,isIframe,pathname]);
 
