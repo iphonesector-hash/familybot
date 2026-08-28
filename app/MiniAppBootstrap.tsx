@@ -2,6 +2,7 @@
 
 import { useEffect,useState } from "react";
 import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
+import { sessionGet,sessionSet } from "@/lib/safeSessionStorage";
 
 type FamilyChoice={id:string;name:string;chatId:number};
 
@@ -24,26 +25,26 @@ export default function MiniAppBootstrap(){
       const d=await r.json();
       if(!d.ok)throw new Error(d.error||"bootstrap_failed");
       if(d.status==="ready"&&d.session){
-        sessionStorage.setItem("familybot.session",d.session);
-        sessionStorage.setItem("familybot.canManage",d.canManage?"1":"0");
-        if(d.family?.id)sessionStorage.setItem("familybot.familyId",String(d.family.id));
+        if(!sessionSet("familybot.session",String(d.session)))throw new Error("session_storage_unavailable");
+        sessionSet("familybot.canManage",d.canManage?"1":"0");
+        if(d.family?.id)sessionSet("familybot.familyId",String(d.family.id));
         window.location.reload();return;
       }
       if(d.status==="choose_family"){setChoices(d.families||[]);return}
       if(d.status==="needs_family"){setError("هنوز خانواده‌ای برای این حساب ثبت نشده. بازو را به گروه خانواده اضافه کن و داخل همان گروه /start بزن؛ بعد دوباره Mini App را باز کن.");return}
-    }catch{setError("ورود امن Mini App انجام نشد. بله را به آخرین نسخه به‌روزرسانی کن و دوباره وارد شو.")}
+    }catch(error){
+      setError(error instanceof Error&&error.message==="session_storage_unavailable"?"ذخیره‌سازی امن داخل WebView بله در دسترس نیست. بله را به آخرین نسخه به‌روزرسانی و Mini App را دوباره باز کن.":"ورود امن Mini App انجام نشد. بله را به آخرین نسخه به‌روزرسانی کن و دوباره وارد شو.")
+    }
     finally{setBusy(false);setBooting(false)}
   }
 
   useEffect(()=>{
-    try{
-      if(!inBale||!initData||sessionStorage.getItem("familybot.session"))return;
-      setBooting(true);
-      if(!supported){setError("این نسخه بله از Mini App پشتیبانی کامل نمی‌کند. بله را به آخرین نسخه به‌روزرسانی کن.");setBooting(false);return}
-      const direct=startParam.startsWith("family_")?startParam.slice(7):"";
-      const remembered=sessionStorage.getItem("familybot.familyId")||"";
-      void bootstrap(direct||remembered||undefined);
-    }catch{setBooting(false)}
+    if(!inBale||!initData||sessionGet("familybot.session"))return;
+    setBooting(true);
+    if(!supported){setError("این نسخه بله از Mini App پشتیبانی کامل نمی‌کند. بله را به آخرین نسخه به‌روزرسانی کن.");setBooting(false);return}
+    const direct=startParam.startsWith("family_")?startParam.slice(7):"";
+    const remembered=sessionGet("familybot.familyId")||"";
+    void bootstrap(direct||remembered||undefined);
   },[inBale,initData,startParam,supported]);
 
   useEffect(()=>{if(!webApp)return;callSafe(webApp,"ready");callSafe(webApp,"expand")},[webApp]);

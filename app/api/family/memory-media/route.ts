@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
 
-const BUCKET="family-memories";
+const BUCKET="familybot-memories";
 const MAX_BYTES=20*1024*1024;
 const TYPES=new Map<string,string>([
   ["image/jpeg","jpg"],

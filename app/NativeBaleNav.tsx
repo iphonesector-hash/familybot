@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
+import { sessionGet,sessionSet } from "@/lib/safeSessionStorage";
 
 function callSafe(target:unknown,method:string,...args:unknown[]){
   try{
@@ -26,13 +27,13 @@ export default function NativeBaleNav(){
       else window.location.assign("/");
     };
     const onSettings=async()=>{
-      const session=sessionStorage.getItem("familybot.session");
+      const session=sessionGet("familybot.session");
       if(!session)return;
       try{
         const r=await fetch("/api/family/admin-link",{method:"POST",headers:{authorization:`Bearer ${session}`},cache:"no-store"});
         const d=await r.json();
         if(r.ok&&d.ok&&d.token){
-          sessionStorage.setItem("familybot.adminSession",String(d.token));
+          sessionSet("familybot.adminSession",String(d.token));
           window.location.assign("/admin");
         }
       }catch{}
@@ -40,14 +41,14 @@ export default function NativeBaleNav(){
 
     if(isIframe||pathname==="/")callSafe(back,"hide");else{callSafe(back,"show");callSafe(back,"onClick",onBack)}
     callSafe(settings,"hide");
-    const session=sessionStorage.getItem("familybot.session");
+    const session=sessionGet("familybot.session");
     if(session){
       fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"})
         .then(r=>r.json())
         .then(d=>{
           if(cancelled)return;
           const canManage=Boolean(d?.ok&&d?.dashboard?.permissions?.canManage);
-          sessionStorage.setItem("familybot.canManage",canManage?"1":"0");
+          sessionSet("familybot.canManage",canManage?"1":"0");
           if(canManage){callSafe(settings,"show");callSafe(settings,"onClick",onSettings)}else callSafe(settings,"hide");
         })
         .catch(()=>callSafe(settings,"hide"));
