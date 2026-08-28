@@ -211,19 +211,15 @@ create table if not exists group_settings (
   warn_limit integer not null default 3,
   welcome_enabled boolean not null default true,
   welcome_message text not null default '💜 {name} خوش اومدی!\nاینجا خونه دیجیتال خانواده‌ست؛ بازی، خاطره، برنامه و Family AI همه کنار هم هستن.',
+  timezone text not null default 'Asia/Tehran',
+  task_reminders_enabled boolean not null default true,
+  event_reminders_enabled boolean not null default true,
+  birthday_reminders_enabled boolean not null default true,
+  task_reminder_minutes integer not null default 60 check (task_reminder_minutes in (15,60,1440)),
+  event_reminder_minutes integer not null default 60 check (event_reminder_minutes in (15,60,1440)),
+  birthday_hour integer not null default 9 check (birthday_hour between 0 and 23),
   updated_at timestamptz not null default now()
 );
-
-alter table group_settings add column if not exists lock_photo boolean not null default false;
-alter table group_settings add column if not exists lock_video boolean not null default false;
-alter table group_settings add column if not exists lock_document boolean not null default false;
-alter table group_settings add column if not exists lock_forward boolean not null default false;
-alter table group_settings add column if not exists lock_sticker boolean not null default false;
-alter table group_settings add column if not exists lock_gif boolean not null default false;
-alter table group_settings add column if not exists lock_voice boolean not null default false;
-alter table group_settings add column if not exists lock_audio boolean not null default false;
-alter table group_settings add column if not exists lock_text boolean not null default false;
-alter table group_settings add column if not exists welcome_message text not null default '💜 {name} خوش اومدی!\nاینجا خونه دیجیتال خانواده‌ست؛ بازی، خاطره، برنامه و Family AI همه کنار هم هستن.';
 
 create table if not exists moderation_whitelist (
   family_id uuid not null references families(id) on delete cascade,
@@ -255,6 +251,23 @@ create table if not exists game_sessions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists notification_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  kind text not null check (kind in ('task','event','birthday')),
+  reference_id text not null,
+  delivery_slot text not null,
+  delivered_at timestamptz not null default now(),
+  unique(family_id,kind,reference_id,delivery_slot)
+);
+
+create table if not exists bale_updates (
+  update_id bigint primary key,
+  chat_id bigint,
+  payload_kind text,
+  received_at timestamptz not null default now()
+);
+
 create index if not exists members_family_xp_idx on members(family_id, xp desc);
 create index if not exists events_family_time_idx on family_events(family_id, starts_at);
 create index if not exists tasks_family_status_idx on tasks(family_id, status);
@@ -266,3 +279,5 @@ create index if not exists game_sessions_family_status_idx on game_sessions(fami
 create index if not exists whitelist_family_idx on moderation_whitelist(family_id,created_at desc);
 create index if not exists member_items_family_idx on member_items(family_id,created_at desc);
 create index if not exists mission_claims_family_member_idx on mission_claims(family_id,member_id,claimed_at desc);
+create index if not exists notification_deliveries_family_time_idx on notification_deliveries(family_id,delivered_at desc);
+create index if not exists bale_updates_received_idx on bale_updates(received_at desc);
