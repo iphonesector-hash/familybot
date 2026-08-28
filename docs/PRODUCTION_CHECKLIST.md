@@ -7,7 +7,9 @@ Do not deploy or switch the live Bale webhook until every item below is complete
 Set these only in the server environment. Never commit their real values.
 
 - `BALE_BOT_TOKEN`
-- `BALE_WEBHOOK_SECRET`
+- `BALE_WEBHOOK_SETUP_SECRET` — only for `/api/bale/setup` and `/api/bale/doctor`; never put it in a URL
+- `BALE_WEBHOOK_PATH_TOKEN` — dedicated inbound webhook URL token
+- `ALLOW_BALE_WEBHOOK_SETUP=false` by default; enable only during the one-time setup operation
 - `FAMILY_ADMIN_SESSION_SECRET`
 - `FAMILY_MEMBER_SESSION_SECRET`
 - `NEXT_PUBLIC_APP_URL`
@@ -22,6 +24,8 @@ Set these only in the server environment. Never commit their real values.
 - `ELEVENLABS_VOICE_ID`
 - `ELEVENLABS_MODEL_ID=eleven_multilingual_v2`
 - `CRON_SECRET`
+
+`BALE_WEBHOOK_SECRET` is a temporary backward-compatibility fallback only. Do not use it for a new production setup once `BALE_WEBHOOK_PATH_TOKEN` is configured.
 
 Before production, rotate every secret that has ever been pasted into a chat, screenshot, log, terminal history, or temporary environment.
 
@@ -53,10 +57,11 @@ Expected behavior:
 - family selection works for users who belong to multiple families;
 - bootstrap/family chooser uses the premium safe-area overlay rather than exposing raw page content;
 - admin controls are hidden for members;
-- admin panel can bootstrap from the clicking user's own Member Session;
+- bot `web_app` buttons use clean URLs and never contain `session=` bearer tokens;
+- `/admin` bootstraps from the clicking user's current Member Session, then `/api/family/admin-link` performs a live Bale admin check before issuing an Admin Session;
 - admin API calls require both a matching Admin Session and the current signed Member Session, then re-check live Bale admin status;
-- Bale SettingsButton receives the short-lived admin token from `/api/family/admin-link`, stores it in `sessionStorage`, and opens `/admin` without placing the token in the URL;
-- copying an old/admin URL to a different Bale account does not grant access.
+- Bale SettingsButton stores any short-lived admin token in `sessionStorage` and opens `/admin` without placing the token in the URL;
+- copying an admin URL to a different Bale account does not grant access.
 
 ## 4. Bot buttons
 
@@ -87,7 +92,7 @@ Verify `Management` is visible only to a current group admin. Verify Owner-only 
 ## 5. Moderation QA
 
 Test with separate owner, regular-admin and normal-member accounts:
-- anti-link
+- anti-link including links in captions
 - anti-flood
 - filtered words
 - newcomer guard
@@ -180,25 +185,31 @@ Vercel Hobby cron frequency is limited. Do not rely on high-frequency Vercel Cro
 ## 10. Dependency/security QA
 
 - Next.js must resolve to a currently patched Maintenance-LTS release (minimum `15.5.24` for the August 2026 advisories).
-- inspect `npm audit` output; do not use `npm audit fix --force` blindly.
+- `postcss` is pinned through `overrides` to `8.5.24` or later patched 8.5.x; `npm audit --omit=dev --audit-level=moderate` must report zero vulnerabilities on the exact release SHA.
+- CI must fail on any new Moderate/High/Critical production dependency advisory; do not use `npm audit fix --force` blindly.
 - no real API token exists in repository history, `.env.example`, client bundle, logs or screenshots committed to the repo.
+- no signed Family/Admin session is placed in bot web_app URLs or normal navigation URLs.
+- `/api/bale/setup` and `/api/bale/doctor` use `BALE_WEBHOOK_SETUP_SECRET`, separate from the inbound webhook token.
+- inbound webhook authentication uses `BALE_WEBHOOK_PATH_TOKEN`; remove the legacy `BALE_WEBHOOK_SECRET` fallback after the production environment is migrated.
+- CSP allows Bale framing and official Mini App SDK while blocking plugins/object embedding; do not add `X-Frame-Options` because Bale Web may use an iframe.
 - sensitive API responses use `Cache-Control: no-store` where applicable.
 - browser anon credentials cannot invoke server-only economy/reward RPCs directly.
 
 ## 11. Final release sequence
 
-1. GitHub CI: typecheck + production build must be green on the exact release SHA.
+1. GitHub CI: production dependency audit + typecheck + production build must be green on the exact release SHA.
 2. Run database backup and the approved release/reconciliation migrations.
 3. Verify private Storage bucket and signed avatar behavior.
-4. Configure final production environment variables.
-5. Rotate temporary Bale/Groq/ElevenLabs secrets.
+4. Configure final production environment variables, including separate `BALE_WEBHOOK_SETUP_SECRET` and `BALE_WEBHOOK_PATH_TOKEN`.
+5. Rotate temporary Bale/Groq/ElevenLabs and all webhook/session secrets.
 6. Perform one final production deployment.
 7. Set BotFather Main Mini App URL to the final production origin.
-8. Run read-only webhook doctor.
+8. Run read-only webhook doctor with `BALE_WEBHOOK_SETUP_SECRET`.
 9. Enable webhook setup gate only for the setup operation.
-10. Set the Bale webhook once to `/api/bale/webhook`.
+10. Set the Bale webhook once to `/api/bale/webhook` using the dedicated `BALE_WEBHOOK_PATH_TOKEN`.
 11. Disable the webhook setup gate again.
-12. Enable Supabase scheduler jobs only after the new production version is verified healthy.
-13. Test `/start`, every button menu, Mini App, Admin/Owner isolation, Wheel, Tree uploads, AI/voice and one moderation action from real Bale accounts.
+12. Remove the legacy `BALE_WEBHOOK_SECRET` fallback from production configuration after the dedicated path token is verified.
+13. Enable Supabase scheduler jobs only after the new production version is verified healthy.
+14. Test `/start`, every button menu, Mini App, Admin/Owner isolation, Wheel, Tree uploads, AI/voice and one moderation action from real Bale accounts.
 
 If any security, database, Bale WebView, role, scheduler, market-data or privacy test fails, stop the release and keep the PR in Draft.
