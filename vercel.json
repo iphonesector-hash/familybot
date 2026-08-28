@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "env": {
+    "NEXT_PUBLIC_APP_URL": "https://familybot-gray.vercel.app",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://ouuyarzxlusoebjiphgm.supabase.co"
+  },
   "git": {
     "deploymentEnabled": {
       "revive-premium-ui": true
@@ -12,4 +16,3 @@
     }
   ]
 }
-
