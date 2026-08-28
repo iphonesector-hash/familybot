@@ -15,6 +15,9 @@ const HELP = `🌍 Family Bot\n\nهمه امکانات اصلی از منوی د
 const RULES = "📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
 const fmt = (v: number | string | null | undefined) => new Intl.NumberFormat("fa-IR").format(Number(v || 0));
 const hasExternalLink = (text: string) => /(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
+const normalizedText = (message:BaleMessage) => `${message.text || ""}\n${message.caption || ""}`.trim().toLocaleLowerCase("fa-IR");
+function matchingFilteredWord(text:string,words:string[]){return words.find(word=>word&&text.includes(word.toLocaleLowerCase("fa-IR")))||null}
+function newcomerRestrictedContent(message:BaleMessage,text:string){return hasExternalLink(text)||Boolean(message.photo?.length||message.video||message.document||message.sticker||message.animation||message.voice||message.audio||message.forward_origin||message.forward_from||message.forward_from_chat)}
 
 function adminKeyboard(token: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL;
@@ -146,12 +149,34 @@ async function processUpdate(update:Update){
   if (message.web_app_data?.data) { await sendMessage(chatId, "✅ اطلاعات Mini App دریافت شد و با Family Bot همگام می‌شود."); return NextResponse.json({ ok: true }); }
 
   const text = message.text?.trim() ?? "";
+  const fullText = normalizedText(message);
   const [commandRaw = "", ...args] = text.split(/\s+/);
   const command = commandRaw.toLowerCase().split("@")[0], isCommand = command.startsWith("/");
   let privileged = currentAdmin;
   if (ctx && userId && settings) {
     const whitelisted = !currentAdmin && await isWhitelisted(ctx.family.id, userId).catch(() => false);
     privileged = currentAdmin || whitelisted;
+    if (!privileged && !isCommand && settings.new_member_restrict_minutes>0) {
+      const ageMs=Date.now()-new Date(ctx.member.created_at).getTime();
+      const guardMs=settings.new_member_restrict_minutes*60_000;
+      if (Number.isFinite(ageMs)&&ageMs>=0&&ageMs<guardMs&&newcomerRestrictedContent(message,fullText)) {
+        if (message.message_id) await baleApi("deleteMessage", { chat_id: chatId, message_id: message.message_id }).catch(() => undefined);
+        await logModeration(ctx.family.id, undefined, userId, "new_member_guard", `${settings.new_member_restrict_minutes}m newcomer window`);
+        await sendMessage(chatId, `🛡 برای امنیت گروه، عضوهای تازه تا ${fmt(settings.new_member_restrict_minutes)} دقیقه نمی‌تونن لینک یا رسانه بفرستن.`);
+        return NextResponse.json({ok:true});
+      }
+    }
+    if (!privileged && !isCommand && fullText && settings.filtered_words.length) {
+      const matched=matchingFilteredWord(fullText,settings.filtered_words);
+      if (matched) {
+        if (message.message_id) await baleApi("deleteMessage", { chat_id: chatId, message_id: message.message_id }).catch(() => undefined);
+        await logModeration(ctx.family.id, undefined, userId, "filtered_word", matched);
+        const count=await addWarning(ctx.family.id,0,userId,"استفاده از کلمه فیلترشده");
+        await sendMessage(chatId, `🚫 پیام به‌دلیل کلمه فیلترشده حذف شد. اخطار فعال: ${fmt(count)}`);
+        if (count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId);await logModeration(ctx.family.id,undefined,userId,"auto_mute","filtered word warn limit");await sendMessage(chatId,`🔇 سقف اخطار پر شد؛ کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`)}
+        return NextResponse.json({ok:true});
+      }
+    }
     const locked = privileged ? null : lockedContent(message, settings, isCommand);
     if (locked) { if (message.message_id) await baleApi("deleteMessage", { chat_id: chatId, message_id: message.message_id }).catch(() => undefined); await logModeration(ctx.family.id, undefined, userId, "content_lock", locked); await sendMessage(chatId, `🔒 ارسال ${locked} در حال حاضر برای اعضای عادی قفل است.`); return NextResponse.json({ ok: true }); }
   }
@@ -219,4 +244,4 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() { return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.8.0", familyCore: familyCoreEnabled() }); }
+export async function GET() { return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.9.0", familyCore: familyCoreEnabled() }); }
