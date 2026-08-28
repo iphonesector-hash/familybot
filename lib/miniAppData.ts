@@ -23,7 +23,10 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   for(const result of [familyRes,profileRes,membersRes,allMembersRes,leaderboardRes,birthdaysRes,tasksRes,eventsRes,memoriesVisibilityRes,memoriesListRes,relationsRes,ownedRes])if(result.error)throw result.error;
   const family=familyRes.data;if(!family)throw new Error("Family not found");
   const ownMemberId=profileRes.data?.id||"";
-  const visibleMemory=(row:{creator_member_id?:string|null;visibility?:string|null})=>row.visibility!=="private"||row.creator_member_id===ownMemberId;
+  const viewerRes=ownMemberId?await supabase.from("memory_viewers").select("memory_id").eq("member_id",ownMemberId):{data:[],error:null};
+  if(viewerRes.error)throw viewerRes.error;
+  const allowedMemoryIds=new Set((viewerRes.data||[]).map(row=>row.memory_id));
+  const visibleMemory=(row:{id?:string;creator_member_id?:string|null;visibility?:string|null})=>row.visibility==="family"||row.creator_member_id===ownMemberId||(row.visibility==="selected"&&Boolean(row.id&&allowedMemoryIds.has(row.id)));
   const visibleMemories=(memoriesListRes.data??[]).filter(visibleMemory).slice(0,24);
   const visibleMemoriesCount=(memoriesVisibilityRes.data??[]).filter(visibleMemory).length;
   const birthdays=(birthdaysRes.data??[]).map(row=>({...row,...nextBirthday(row.birthday as string)})).sort((a,b)=>a.days-b.days).slice(0,12);
