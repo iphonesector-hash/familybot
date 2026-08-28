@@ -88,9 +88,9 @@ export async function guessTwentyQuestions(familyId:string,userId:number,gameId:
   const joined=await s.from("multiplayer_players").select("member_id").eq("game_id",gameId).eq("member_id",m.id).maybeSingle();
   if(joined.error)throw joined.error;
   if(!joined.data)throw new Error("twenty_join_required");
+  if(g.data.status==="finished"&&String((g.data.public_state as {winnerMemberId?:unknown}|null)?.winnerMemberId||"")!==m.id)throw new Error("twenty_game_closed");
   const secret=norm((g.data.secret_state as {secret?:unknown}|null)?.secret);
   if(value!==secret)return{correct:false};
-  if(g.data.status==="finished"&&String((g.data.public_state as {winnerMemberId?:unknown}|null)?.winnerMemberId||"")!==m.id)throw new Error("twenty_game_closed");
   const settled=await s.rpc("family_finish_twenty_questions_atomic",{p_family_id:familyId,p_game_id:gameId,p_winner_member_id:m.id,p_reward:30});
   if(settled.error)throw settled.error;
   const row=(settled.data||{}) as {reward?:number;alreadyRewarded?:boolean;coins?:number};
