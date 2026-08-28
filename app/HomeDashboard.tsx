@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import UserGreeting from "./UserGreeting";
 import { Icon, IconName, IconOrb, Mascot } from "./ui";
+import { sessionGet } from "@/lib/safeSessionStorage";
 
 type Birthday = { display_name?: string | null; first_name?: string | null; days: number };
 type Profile = { display_name?: string | null; first_name?: string | null; level: number; xp: number; coins: number; streak: number; rank?: number | null } | null;
@@ -11,7 +12,7 @@ type Tone="violet"|"blue"|"pink"|"gold"|"cyan";type FeatureCard={icon:IconName;t
 const fallback:Dashboard={family:{name:"خانواده ما",level:1,xp:0,coins:0,houseLevel:1,membersCount:0,upcomingEventsCount:0,upcomingBirthdaysCount:0,memoriesCount:0,levelProgress:{current:0,target:500}},profile:null,birthdays:[],tasks:[],permissions:{canManage:false}};
 function fa(value:number){return new Intl.NumberFormat("fa-IR").format(value)}
 function birthdayText(item?:Birthday){if(!item)return"فعلاً تولدی ثبت نشده";const name=item.display_name||item.first_name||"عضو خانواده";if(item.days===0)return`${name} · امروز 🎉`;if(item.days===1)return`${name} · فردا`;return`${name} · ${fa(item.days)} روز دیگر`}
-export default function HomeDashboard(){const[dashboard,setDashboard]=useState<Dashboard>(fallback);const[live,setLive]=useState(false);useEffect(()=>{const session=sessionStorage.getItem("familybot.session");if(!session)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"}).then(r=>r.json()).then(data=>{if(data.ok&&data.dashboard){setDashboard(data.dashboard);setLive(true)}}).catch(()=>undefined)},[]);const cards=useMemo<FeatureCard[]>(()=>[
+export default function HomeDashboard(){const[dashboard,setDashboard]=useState<Dashboard>(fallback);const[live,setLive]=useState(false);useEffect(()=>{const session=sessionGet("familybot.session");if(!session)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"}).then(r=>r.json()).then(data=>{if(data.ok&&data.dashboard){setDashboard(data.dashboard);setLive(true)}}).catch(()=>undefined)},[]);const cards=useMemo<FeatureCard[]>(()=>[
 {icon:"birthday",title:"تولد بعدی",text:birthdayText(dashboard.birthdays[0]),href:"/section/occasions",tone:"pink"},
 {icon:"tree",title:"شجره‌نامه",text:"درخت تصویری، عکس اعضا و روابط خانواده",href:"/section/tree",tone:"violet"},
 {icon:"spark",title:"گردونه شانس",text:"هر ۲۴ ساعت یک شانس برای Coin و XP",href:"/section/wheel",tone:"gold"},
