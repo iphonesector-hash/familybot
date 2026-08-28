@@ -173,6 +173,10 @@ create table if not exists group_settings (
   family_id uuid primary key references families(id) on delete cascade,
   anti_flood boolean not null default true,
   anti_link boolean not null default false,
+  lock_photo boolean not null default false,
+  lock_video boolean not null default false,
+  lock_document boolean not null default false,
+  lock_forward boolean not null default false,
   flood_limit integer not null default 5,
   flood_window_seconds integer not null default 5,
   flood_mute_minutes integer not null default 10,
@@ -180,6 +184,11 @@ create table if not exists group_settings (
   welcome_enabled boolean not null default true,
   updated_at timestamptz not null default now()
 );
+
+alter table group_settings add column if not exists lock_photo boolean not null default false;
+alter table group_settings add column if not exists lock_video boolean not null default false;
+alter table group_settings add column if not exists lock_document boolean not null default false;
+alter table group_settings add column if not exists lock_forward boolean not null default false;
 
 create table if not exists flood_events (
   id bigserial primary key,
