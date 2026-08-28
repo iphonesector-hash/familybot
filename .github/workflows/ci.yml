@@ -17,6 +17,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Supabase migration versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          declare -A seen=()
+          files=(supabase/migrations/*.sql)
+          for file in "${files[@]}"; do
+            base="$(basename "$file")"
+            version="${base%%_*}"
+            if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
+              echo "Invalid migration version (must be 14 digits): $base"
+              exit 1
+            fi
+            if [[ -n "${seen[$version]:-}" ]]; then
+              echo "Duplicate migration version $version: ${seen[$version]} and $base"
+              exit 1
+            fi
+            seen[$version]="$base"
+          done
+          echo "Validated ${#files[@]} unique migration versions."
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
