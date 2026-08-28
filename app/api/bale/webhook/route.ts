@@ -4,10 +4,11 @@ import { createAdminSession } from "@/lib/adminSession";
 import { createFamilySession } from "@/lib/familySession";
 import { isWhitelisted, readAdminSettings } from "@/lib/adminSettings";
 import { addActivityReward, addWarning, claimDaily, clearWarnings, createQuizSession, ensureFamilyMember, familyCoreEnabled, getLeaderboard, getProfile, logModeration, recordFloodEvent, resolveQuiz } from "@/lib/familyCore";
+import { claimBaleUpdate, completeBaleUpdate, releaseBaleUpdate } from "@/lib/baleUpdateStore";
 
 type BaleUser = { id?: number; first_name?: string; last_name?: string; username?: string };
 type BaleMessage = { message_id?: number; text?: string; caption?: string; chat?: { id?: number; type?: string; title?: string }; from?: BaleUser; new_chat_members?: BaleUser[]; web_app_data?: { data?: string; button_text?: string }; reply_to_message?: { from?: BaleUser; message_id?: number }; photo?: unknown[]; video?: unknown; document?: unknown; sticker?: unknown; animation?: unknown; voice?: unknown; audio?: unknown; forward_origin?: unknown; forward_from?: BaleUser; forward_from_chat?: { id?: number } };
-type Update = { message?: BaleMessage; callback_query?: { id?: string; from?: BaleUser; data?: string; message?: BaleMessage } };
+type Update = { update_id?: number; message?: BaleMessage; callback_query?: { id?: string; from?: BaleUser; data?: string; message?: BaleMessage } };
 type Ctx = Awaited<ReturnType<typeof buildContext>>;
 
 const HELP = `🌍 Family Bot\n\nهمه امکانات اصلی از منوی دکمه‌ای در دسترسه.\n🏠 Mini App\n👨‍👩‍👧‍👦 خانواده و شجره‌نامه\n📅 برنامه‌ریز، کارها و نظرسنجی\n🖼 خاطرات\n🛍 فروشگاه و Family Coin\n🏅 دستاوردها و مأموریت‌ها\n🎮 بازی و سرگرمی\n🤖 Family AI صوتی و متنی\n👤 پروفایل و رتبه‌بندی\n🎁 جایزه روزانه\n\nمدیریت فقط برای Adminهای گروه نمایش داده می‌شود و فرمان‌های مدیریتی هم سمت سرور دوباره بررسی می‌شوند.`;
@@ -128,11 +129,7 @@ async function handleCallback(query: NonNullable<Update["callback_query"]>) {
   if (data.startsWith("rps:")) { const choice = Number(data.split(":")[1]), bot = Math.floor(Math.random() * 3), names = ["سنگ", "کاغذ", "قیچی"]; const result = choice === bot ? "مساوی شد 😄" : (choice - bot + 3) % 3 === 1 ? "تو بردی! 🎉" : "این دست من بردم 🤖"; return sendMessage(chatId, `تو: ${names[choice]}\nFamily Bot: ${names[bot]}\n\n${result}`); }
 }
 
-export async function POST(req: NextRequest) {
-  const expected = process.env.BALE_WEBHOOK_SECRET;
-  const received = req.headers.get("x-bale-bot-api-secret-token") ?? req.nextUrl.searchParams.get("secret");
-  if (expected && received !== expected) return NextResponse.json({ ok: false }, { status: 401 });
-  const update = (await req.json()) as Update;
+async function processUpdate(update:Update){
   if (update.callback_query) { await handleCallback(update.callback_query); return NextResponse.json({ ok: true }); }
   const message = update.message, chatId = message?.chat?.id, userId = message?.from?.id;
   if (!message || !chatId) return NextResponse.json({ ok: true });
@@ -201,4 +198,25 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-export async function GET() { return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.7.0", familyCore: familyCoreEnabled() }); }
+export async function POST(req: NextRequest) {
+  const expected = process.env.BALE_WEBHOOK_SECRET;
+  const received = req.headers.get("x-bale-bot-api-secret-token") ?? req.nextUrl.searchParams.get("secret");
+  if (expected && received !== expected) return NextResponse.json({ ok: false }, { status: 401 });
+  const update = (await req.json()) as Update;
+  const updateId=Number(update.update_id);
+  const kind=update.callback_query?"callback_query":update.message?"message":"unknown";
+  const chatId=update.callback_query?.message?.chat?.id??update.message?.chat?.id;
+  const claimed=Number.isSafeInteger(updateId)?await claimBaleUpdate(updateId,kind,chatId):{tracked:false,duplicate:false};
+  if(claimed.duplicate)return NextResponse.json({ok:true,duplicate:true});
+  try{
+    const response=await processUpdate(update);
+    if(claimed.tracked)await completeBaleUpdate(updateId);
+    return response;
+  }catch(error){
+    if(claimed.tracked)await releaseBaleUpdate(updateId,error);
+    console.error("Bale webhook processing failed",error);
+    return NextResponse.json({ok:false,error:"processing_failed"},{status:500});
+  }
+}
+
+export async function GET() { return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.8.0", familyCore: familyCoreEnabled() }); }
