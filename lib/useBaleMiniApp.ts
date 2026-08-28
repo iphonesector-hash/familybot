@@ -37,6 +37,24 @@ type BaleWebApp = {
 
 declare global { interface Window { Bale?: { WebApp?: BaleWebApp } } }
 
+function callSafe(target: unknown, method: string, ...args: unknown[]) {
+  try {
+    const fn = target && typeof target === "object" ? (target as Record<string, unknown>)[method] : undefined;
+    if (typeof fn === "function") return fn.apply(target, args);
+  } catch (error) {
+    console.warn(`Bale WebApp ${method} failed`, error);
+  }
+}
+
+function readWebApp(): BaleWebApp | null {
+  try {
+    const app = window.Bale?.WebApp;
+    return app && typeof app === "object" ? app : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useBaleMiniApp() {
   const [webApp, setWebApp] = useState<BaleWebApp | null>(null);
   const [user, setUser] = useState<BaleUser | null>(null);
@@ -45,41 +63,48 @@ export function useBaleMiniApp() {
     let cancelled = false;
     let tries = 0;
     const connect = () => {
-      const app = window.Bale?.WebApp ?? null;
+      const app = readWebApp();
       if (app) {
-        app.ready?.();
-        app.expand?.();
+        callSafe(app, "ready");
+        callSafe(app, "expand");
         if (!cancelled) {
           setWebApp(app);
-          setUser(app.initDataUnsafe?.user ?? null);
+          try { setUser(app.initDataUnsafe?.user ?? null); } catch { setUser(null); }
         }
         return;
       }
-      if (!cancelled && tries++ < 20) window.setTimeout(connect, 50);
+      if (!cancelled && tries++ < 40) window.setTimeout(connect, 75);
     };
     connect();
     return () => { cancelled = true; };
   }, []);
 
-  function sendData(payload: unknown) { webApp?.sendData?.(JSON.stringify(payload)); }
+  function sendData(payload: unknown) { callSafe(webApp, "sendData", JSON.stringify(payload)); }
   function haptic(kind: "tap"|"success"|"warning"|"error" = "tap") {
-    if (kind === "tap") webApp?.HapticFeedback?.impactOccurred?.("light");
-    else webApp?.HapticFeedback?.notificationOccurred?.(kind);
+    try {
+      const feedback = webApp?.HapticFeedback;
+      if (kind === "tap") callSafe(feedback, "impactOccurred", "light");
+      else callSafe(feedback, "notificationOccurred", kind);
+    } catch {}
   }
 
-  const startParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tgWebAppStartParam") ?? "" : "";
+  let startParam = "";
+  if (typeof window !== "undefined") {
+    try { startParam = new URLSearchParams(window.location.search).get("tgWebAppStartParam") ?? ""; } catch {}
+  }
 
-  return {
-    webApp,
-    user,
-    sendData,
-    haptic,
-    inBale: Boolean(webApp),
-    supported: webApp?.isMiniAppSupported !== false,
-    version: webApp?.version ?? "",
-    isIframe: Boolean(webApp?.isIframe),
-    initData: webApp?.initData ?? "",
-    startParam,
-    theme: webApp?.themeParams ?? {},
-  };
+  let initData = "";
+  let theme: BaleTheme = {};
+  let version = "";
+  let isIframe = false;
+  let supported = true;
+  try {
+    initData = typeof webApp?.initData === "string" ? webApp.initData : "";
+    theme = webApp?.themeParams && typeof webApp.themeParams === "object" ? webApp.themeParams : {};
+    version = typeof webApp?.version === "string" ? webApp.version : "";
+    isIframe = Boolean(webApp?.isIframe);
+    supported = webApp?.isMiniAppSupported !== false;
+  } catch {}
+
+  return { webApp, user, sendData, haptic, inBale: Boolean(webApp), supported, version, isIframe, initData, startParam, theme };
 }
