@@ -16,6 +16,6 @@ export function captureAdminSession(){
   }
   return sessionStorage.getItem(KEY)||"";
 }
-
+export function storeAdminSession(token:string){if(typeof window!=="undefined"&&token)sessionStorage.setItem(KEY,token);return token}
 export function clearAdminSession(){if(typeof window!=="undefined")sessionStorage.removeItem(KEY)}
 export function adminHeaders(session:string){const member=typeof window!=="undefined"?(sessionStorage.getItem("familybot.session")||""):"";return {authorization:`Bearer ${session}`,"x-family-member-session":member}}
