@@ -128,6 +128,36 @@ create table if not exists coin_ledger (
   created_at timestamptz not null default now()
 );
 
+create table if not exists daily_claims (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  member_id uuid not null references members(id) on delete cascade,
+  claim_date date not null,
+  reward_coins integer not null default 25,
+  created_at timestamptz not null default now(),
+  unique(member_id, claim_date)
+);
+
+create table if not exists warnings (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  actor_bale_user_id bigint,
+  target_bale_user_id bigint not null,
+  reason text,
+  cleared_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists activity_log (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  member_id uuid references members(id) on delete set null,
+  activity_type text not null,
+  xp_delta integer not null default 0,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists moderation_actions (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references families(id) on delete cascade,
@@ -143,3 +173,5 @@ create index if not exists members_family_xp_idx on members(family_id, xp desc);
 create index if not exists events_family_time_idx on family_events(family_id, starts_at);
 create index if not exists tasks_family_status_idx on tasks(family_id, status);
 create index if not exists moderation_family_time_idx on moderation_actions(family_id, created_at desc);
+create index if not exists warnings_family_target_idx on warnings(family_id, target_bale_user_id, created_at desc);
+create index if not exists activity_family_time_idx on activity_log(family_id, created_at desc);
