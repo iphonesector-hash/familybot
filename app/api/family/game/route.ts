@@ -1,6 +1,7 @@
 import { NextRequest,NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyFamilySession } from "@/lib/familySession";
+import { sendMessage } from "@/lib/bale";
 
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const auth=req.headers.get("authorization")||"";return auth.startsWith("Bearer ")?verifyFamilySession(auth.slice(7)):null}
@@ -27,6 +28,11 @@ export async function POST(req:NextRequest){
     }
     if(action==="quiz.start"){
       const q=quizBank[Math.floor(Math.random()*quizBank.length)];const ins=await s.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"mini_quiz",prompt:q.q,answer:String(q.answer),options:q.options,reward_coins:15,expires_at:new Date(Date.now()+120000).toISOString()}).select("id,prompt,options,reward_coins,expires_at").single();if(ins.error)throw ins.error;return NextResponse.json({ok:true,result:ins.data});
+    }
+    if(action==="speed.start"){
+      const q=quizBank[Math.floor(Math.random()*quizBank.length)];const ins=await s.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"speed_quiz",prompt:q.q,answer:String(q.answer),options:q.options,reward_coins:20,expires_at:new Date(Date.now()+120000).toISOString()}).select("id,prompt,options,reward_coins").single();if(ins.error)throw ins.error;
+      await sendMessage(session.chatId,`🏁 مسابقه سرعت خانوادگی\n\n${ins.data.prompt}\n\nاولین جواب درست، ${ins.data.reward_coins} Family Coin می‌بره!`,{reply_markup:{inline_keyboard:ins.data.options.map((option:string,index:number)=>[{text:option,callback_data:`quiz:${ins.data.id}:${index}`}])}});
+      return NextResponse.json({ok:true,result:{sent:true,reward:ins.data.reward_coins}})
     }
     if(action==="quiz.answer"){
       const id=String(body?.sessionId||"");const option=Math.floor(Number(body?.option));const q=await s.from("game_sessions").select("id,answer,reward_coins,status,expires_at").eq("id",id).eq("family_id",session.familyId).eq("game_type","mini_quiz").single();if(q.error)throw q.error;if(q.data.status!=="open")return NextResponse.json({ok:false,error:"quiz_closed"},{status:409});if(q.data.expires_at&&new Date(q.data.expires_at).getTime()<Date.now()){await s.from("game_sessions").update({status:"closed"}).eq("id",id);return NextResponse.json({ok:false,error:"quiz_expired"},{status:409})}if(String(option)!==String(q.data.answer))return NextResponse.json({ok:true,result:{correct:false}});
