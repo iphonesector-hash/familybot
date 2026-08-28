@@ -25,6 +25,9 @@ jobs:
       - name: Install
         run: npm install
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev || true
+
       - name: Typecheck
         run: npm run typecheck
 
