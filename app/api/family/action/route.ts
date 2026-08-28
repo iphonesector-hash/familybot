@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
 import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, saveRelationship, updateOwnProfile } from "@/lib/familyMutations";
-import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, readPollsAndEvents, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
+import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
+import { readPlannerData } from "@/lib/plannerData";
 
 function getSession(req:NextRequest){const auth=req.headers.get("authorization")||"";const token=auth.startsWith("Bearer ")?auth.slice(7):"";return token?verifyFamilySession(token):null}
 
@@ -25,7 +26,7 @@ export async function POST(req:NextRequest){
       case "achievements.evaluate":data=await evaluateAchievements(session.familyId,session.userId);break;
       case "missions.read":data=await readMissions(session.familyId,session.userId);break;
       case "mission.claim":data=await claimMission(session.familyId,session.userId,String(p.missionId||""));break;
-      case "planner.read":data=await readPollsAndEvents(session.familyId);break;
+      case "planner.read":data=await readPlannerData(session.familyId);break;
       default:return NextResponse.json({ok:false,error:"unknown_action"},{status:400});
     }
     return NextResponse.json({ok:true,data});
