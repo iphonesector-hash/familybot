@@ -6,9 +6,10 @@ import {sendMessage} from "@/lib/bale";
 function db(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!u||!k)throw new Error('Family Core database is not configured');return createClient(u,k,{auth:{persistSession:false,autoRefreshToken:false}})}
 function allowed(req:NextRequest){const expected=process.env.CRON_SECRET||'';const bearer=(req.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');const header=req.headers.get('x-cron-secret')||'';return Boolean(expected&&(bearer===expected||header===expected))}
 function tehranDate(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+const noStore={"cache-control":"no-store"};
 
 export async function POST(req:NextRequest){
-  if(!allowed(req))return NextResponse.json({ok:false,error:'unauthorized'},{status:401});
+  if(!allowed(req))return NextResponse.json({ok:false,error:'unauthorized'},{status:401,headers:noStore});
   try{
     const body=await req.json().catch(()=>({}));const slot=body?.slot==='evening'?'evening':'morning';
     const supabase=db();
@@ -28,7 +29,7 @@ export async function POST(req:NextRequest){
         results.push({familyId:family.id,chatId:family.bale_chat_id,ok:false,error:error instanceof Error?error.message:'send_failed'});
       }
     }
-    return NextResponse.json({ok:true,slot,date,total:results.length,sent:results.filter(x=>x.ok&&!x.duplicate).length,duplicates:results.filter(x=>x.duplicate).length,failed:results.filter(x=>!x.ok).length});
-  }catch(error){console.error('daily briefing cron failed',error);return NextResponse.json({ok:false,error:'daily_briefing_failed'},{status:500})}
+    return NextResponse.json({ok:true,slot,date,total:results.length,sent:results.filter(x=>x.ok&&!x.duplicate).length,duplicates:results.filter(x=>x.duplicate).length,failed:results.filter(x=>!x.ok).length},{headers:noStore});
+  }catch(error){console.error('daily briefing cron failed',error);return NextResponse.json({ok:false,error:'daily_briefing_failed'},{status:500,headers:noStore})}
 }
-export async function GET(){return NextResponse.json({ok:true,service:'familybot-daily-briefing',schedule:'09:00 and 21:00 Asia/Tehran; activate via Supabase pg_cron after final deploy'})}
+export async function GET(){return NextResponse.json({ok:true,service:'familybot-daily-briefing',schedule:'09:00 and 21:00 Asia/Tehran; activate via Supabase pg_cron after final deploy'},{headers:noStore})}
