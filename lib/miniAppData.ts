@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
+const MEMORY_BUCKET="family-memories";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
 
 function nextBirthday(dateText:string){const birthday=new Date(`${dateText}T00:00:00Z`),now=new Date();let next=new Date(Date.UTC(now.getUTCFullYear(),birthday.getUTCMonth(),birthday.getUTCDate()));if(next.getTime()<Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))next=new Date(Date.UTC(now.getUTCFullYear()+1,birthday.getUTCMonth(),birthday.getUTCDate()));const days=Math.ceil((next.getTime()-Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))/86400000);return{next:next.toISOString(),days}}
+async function signedMemoryMedia(supabase:ReturnType<typeof db>,value:string|null|undefined){if(!value)return null;if(!value.startsWith("storage:"))return value;const path=value.slice(8);const signed=await supabase.storage.from(MEMORY_BUCKET).createSignedUrl(path,60*30);return signed.error?null:signed.data.signedUrl}
 
 export async function readMiniAppDashboard(familyId:string,userId:number){
   const supabase=db(),now=new Date().toISOString();
@@ -27,7 +29,8 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   if(viewerRes.error)throw viewerRes.error;
   const allowedMemoryIds=new Set((viewerRes.data||[]).map(row=>row.memory_id));
   const visibleMemory=(row:{id?:string;creator_member_id?:string|null;visibility?:string|null})=>row.visibility==="family"||row.creator_member_id===ownMemberId||(row.visibility==="selected"&&Boolean(row.id&&allowedMemoryIds.has(row.id)));
-  const visibleMemories=(memoriesListRes.data??[]).filter(visibleMemory).slice(0,24);
+  const rawVisibleMemories=(memoriesListRes.data??[]).filter(visibleMemory).slice(0,24);
+  const visibleMemories=await Promise.all(rawVisibleMemories.map(async row=>({...row,media_url:await signedMemoryMedia(supabase,row.media_url)})));
   const visibleMemoriesCount=(memoriesVisibilityRes.data??[]).filter(visibleMemory).length;
   const birthdays=(birthdaysRes.data??[]).map(row=>({...row,...nextBirthday(row.birthday as string)})).sort((a,b)=>a.days-b.days).slice(0,12);
   const leaderboard=leaderboardRes.data??[],allMembers=allMembersRes.data??[],ownXp=Number(profileRes.data?.xp||0),rank=profileRes.data?allMembers.filter(row=>Number(row.xp||0)>ownXp).length+1:null;
