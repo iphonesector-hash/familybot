@@ -4,6 +4,7 @@ import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, 
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
 import { readPlannerData } from "@/lib/plannerData";
+import { cancelOwnEvent, closeOwnPoll } from "@/lib/plannerManagement";
 
 function getSession(req:NextRequest){const auth=req.headers.get("authorization")||"";const token=auth.startsWith("Bearer ")?auth.slice(7):"";return token?verifyFamilySession(token):null}
 
@@ -20,8 +21,10 @@ export async function POST(req:NextRequest){
       case "relationship.save":data=await saveRelationship(session.familyId,session.userId,{toMemberId:String(p.toMemberId||""),relationType:String(p.relationType||"")});break;
       case "store.purchase":data=await purchaseStoreItem(session.familyId,session.userId,String(p.itemId||""));break;
       case "event.create":data=await createFamilyEvent(session.familyId,session.userId,{title:p.title as string,description:p.description as string,startsAt:p.startsAt as string,endsAt:(p.endsAt as string)||null,location:p.location as string,eventType:p.eventType as string});break;
+      case "event.cancel":data=await cancelOwnEvent(session.familyId,session.userId,String(p.eventId||""));break;
       case "poll.create":data=await createFamilyPoll(session.familyId,session.userId,{question:p.question as string,options:Array.isArray(p.options)?p.options.map(String):[],anonymous:Boolean(p.anonymous),closesAt:(p.closesAt as string)||null});break;
       case "poll.vote":data=await voteFamilyPoll(session.familyId,session.userId,String(p.pollId||""),Number(p.optionIndex));break;
+      case "poll.close":data=await closeOwnPoll(session.familyId,session.userId,String(p.pollId||""));break;
       case "coins.transfer":data=await transferFamilyCoins(session.familyId,session.userId,{targetUserId:p.targetUserId?Number(p.targetUserId):undefined,targetMemberId:p.targetMemberId?String(p.targetMemberId):undefined,amount:Number(p.amount),note:p.note as string});break;
       case "achievements.evaluate":data=await evaluateAchievements(session.familyId,session.userId);break;
       case "missions.read":data=await readMissions(session.familyId,session.userId);break;
@@ -30,5 +33,5 @@ export async function POST(req:NextRequest){
       default:return NextResponse.json({ok:false,error:"unknown_action"},{status:400});
     }
     return NextResponse.json({ok:true,data});
-  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed","mission_not_complete"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
+  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed","mission_not_complete","poll_not_owned","event_not_owned"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
 }
