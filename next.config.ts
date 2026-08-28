@@ -5,7 +5,7 @@ const nextConfig:NextConfig={
     return [{
       source:"/:path*",
       headers:[
-        {key:"Content-Security-Policy",value:"frame-src https://*.bale.ai; frame-ancestors https://*.bale.ai https://ble.ir"},
+        {key:"Content-Security-Policy",value:"frame-src https://*.bale.ai https://www.openstreetmap.org; frame-ancestors https://*.bale.ai https://ble.ir"},
         {key:"Referrer-Policy",value:"strict-origin-when-cross-origin"},
       ],
     }];
