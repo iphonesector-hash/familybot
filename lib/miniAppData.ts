@@ -37,6 +37,9 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
     if (result.error) throw result.error;
   }
 
+  const family = familyRes.data;
+  if (!family) throw new Error("Family not found");
+
   const birthdays = (birthdaysRes.data ?? [])
     .map((row) => ({ ...row, ...nextBirthday(row.birthday as string) }))
     .sort((a, b) => a.days - b.days)
@@ -44,7 +47,6 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
 
   const leaderboard = leaderboardRes.data ?? [];
   const rankIndex = leaderboard.findIndex((row) => Number(row.bale_user_id) === Number(userId));
-  const family = familyRes.data;
   const familyXp = Number(family.xp || 0);
   const levelBase = Math.max(1, Number(family.level || 1));
   const levelFloor = Math.max(0, (levelBase - 1) * 500);
