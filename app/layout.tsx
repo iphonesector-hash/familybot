@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import BaleBridge from "./BaleBridge";
 import BirthdayMode from "./BirthdayMode";
+import SessionBridge from "./SessionBridge";
 import "./globals.css";
 import "./motion.css";
 import "./platform.css";
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
-      <body><BaleBridge/><BirthdayMode/>{children}</body>
+      <body><SessionBridge/><BaleBridge/><BirthdayMode/>{children}</body>
     </html>
   );
 }
