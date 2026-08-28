@@ -13,6 +13,9 @@ export default function BaleBridge(){
     if(user?.first_name) root.dataset.baleFirstName=user.first_name;
     else delete root.dataset.baleFirstName;
 
+    const session=new URLSearchParams(window.location.search).get("session");
+    if(session?.startsWith("m.")) sessionStorage.setItem("familybot.session",session);
+
     const vars:Record<string,string|undefined>={
       "--bale-bg":theme.bg_color,
       "--bale-text":theme.text_color,
