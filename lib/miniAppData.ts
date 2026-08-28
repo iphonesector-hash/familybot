@@ -22,10 +22,11 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
   const supabase = db();
   const now = new Date().toISOString();
 
-  const [familyRes, profileRes, membersRes, leaderboardRes, birthdaysRes, tasksRes, eventsRes, memoriesRes] = await Promise.all([
+  const [familyRes, profileRes, membersRes, allMembersRes, leaderboardRes, birthdaysRes, tasksRes, eventsRes, memoriesRes] = await Promise.all([
     supabase.from("families").select("id,name,level,xp,coins,house_level").eq("id", familyId).single(),
     supabase.from("members").select("id,display_name,first_name,relation_label,avatar_url,xp,coins,level,streak,birthday").eq("family_id", familyId).eq("bale_user_id", userId).maybeSingle(),
     supabase.from("members").select("id", { count: "exact", head: true }).eq("family_id", familyId),
+    supabase.from("members").select("bale_user_id,xp").eq("family_id", familyId),
     supabase.from("members").select("bale_user_id,display_name,first_name,avatar_url,xp,coins,level").eq("family_id", familyId).order("xp", { ascending: false }).limit(10),
     supabase.from("members").select("display_name,first_name,avatar_url,birthday").eq("family_id", familyId).not("birthday", "is", null),
     supabase.from("tasks").select("id,title,status,due_at,reward_coins,assignee_member_id").eq("family_id", familyId).in("status", ["open", "doing"]).order("due_at", { ascending: true, nullsFirst: false }).limit(6),
@@ -33,7 +34,7 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
     supabase.from("memories").select("id", { count: "exact", head: true }).eq("family_id", familyId),
   ]);
 
-  for (const result of [familyRes, profileRes, membersRes, leaderboardRes, birthdaysRes, tasksRes, eventsRes, memoriesRes]) {
+  for (const result of [familyRes, profileRes, membersRes, allMembersRes, leaderboardRes, birthdaysRes, tasksRes, eventsRes, memoriesRes]) {
     if (result.error) throw result.error;
   }
 
@@ -46,9 +47,14 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
     .slice(0, 5);
 
   const leaderboard = leaderboardRes.data ?? [];
-  const rankIndex = leaderboard.findIndex((row) => Number(row.bale_user_id) === Number(userId));
-  const familyXp = Number(family.xp || 0);
-  const levelBase = Math.max(1, Number(family.level || 1));
+  const allMembers = allMembersRes.data ?? [];
+  const ownXp = Number(profileRes.data?.xp || 0);
+  const rank = profileRes.data ? allMembers.filter((row) => Number(row.xp || 0) > ownXp).length + 1 : null;
+
+  const memberXpTotal = allMembers.reduce((sum, row) => sum + Number(row.xp || 0), 0);
+  const familyXp = Math.max(Number(family.xp || 0), memberXpTotal);
+  const derivedLevel = Math.max(1, Math.floor(familyXp / 500) + 1);
+  const levelBase = Math.max(Number(family.level || 1), derivedLevel);
   const levelFloor = Math.max(0, (levelBase - 1) * 500);
   const levelCeil = levelBase * 500;
 
@@ -59,7 +65,7 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
       level: levelBase,
       xp: familyXp,
       coins: Number(family.coins || 0),
-      houseLevel: Number(family.house_level || 1),
+      houseLevel: Math.max(Number(family.house_level || 1), levelBase),
       membersCount: membersRes.count ?? 0,
       upcomingEventsCount: eventsRes.data?.length ?? 0,
       upcomingBirthdaysCount: birthdays.filter((b) => b.days <= 30).length,
@@ -69,7 +75,7 @@ export async function readMiniAppDashboard(familyId: string, userId: number) {
         target: Math.max(1, levelCeil - levelFloor),
       },
     },
-    profile: profileRes.data ? { ...profileRes.data, rank: rankIndex >= 0 ? rankIndex + 1 : null } : null,
+    profile: profileRes.data ? { ...profileRes.data, rank } : null,
     leaderboard,
     birthdays,
     tasks: tasksRes.data ?? [],
