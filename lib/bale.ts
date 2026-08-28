@@ -72,6 +72,7 @@ export function mainMenuKeyboard(canManage = false) {
   const communityButton=webAppButton(base,"/section/community","🌍 چالش و سفر","menu:community");
   const secretGiftButton=webAppButton(base,"/section/secret-gift","🎁 Secret Gift","menu:secretgift");
   const funButton=webAppButton(base,"/section/fun","😄 سرگرمی خانواده","menu:fun");
+  const toolsButton=webAppButton(base,"/section/tools","🧰 ابزارهای کاربردی","menu:tools");
   const wheelButton=webAppButton(base,"/section/wheel","🎡 گردونه شانس","menu:wheel");
   const fundButton=webAppButton(base,"/section/fund","🏦 صندوق خانوادگی","menu:fund");
   const rows: BaleInlineButton[][] = [
@@ -82,9 +83,10 @@ export function mainMenuKeyboard(canManage = false) {
     [communityButton, secretGiftButton],
     [{ text: "🛍 فروشگاه", callback_data: "menu:store" }, { text: "🏅 دستاوردها", callback_data: "menu:achievements" }],
     [{ text: "🎮 بازی‌ها", callback_data: "menu:games" }, funButton],
-    [{ text: "🤖 Family AI", callback_data: "menu:ai" }, { text: "👤 پروفایل", callback_data: "menu:profile" }],
-    [{ text: "🏆 رتبه‌بندی", callback_data: "menu:rank" }, { text: "🎁 جایزه روزانه", callback_data: "menu:daily" }],
-    [{ text: "📜 قوانین", callback_data: "menu:rules" }, { text: "❓ راهنما", callback_data: "menu:help" }],
+    [toolsButton,{ text: "🤖 Family AI", callback_data: "menu:ai" }],
+    [{ text: "👤 پروفایل", callback_data: "menu:profile" },{ text: "🏆 رتبه‌بندی", callback_data: "menu:rank" }],
+    [{ text: "🎁 جایزه روزانه", callback_data: "menu:daily" },{ text: "📜 قوانین", callback_data: "menu:rules" }],
+    [{ text: "❓ راهنما", callback_data: "menu:help" }],
   ];
   if (canManage) rows.push([{ text: "🛡 مدیریت گروه", callback_data: "menu:admin" }]);
   return { inline_keyboard: rows };
