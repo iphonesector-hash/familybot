@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from "next/server";
 import { baleApi } from "@/lib/bale";
 
 function authorized(req:NextRequest){
-  const secret=process.env.BALE_WEBHOOK_SECRET;
+  const secret=process.env.BALE_WEBHOOK_SETUP_SECRET;
   if(!secret)return false;
   const auth=req.headers.get("authorization")||"";
   const supplied=auth.startsWith("Bearer ")?auth.slice(7):req.headers.get("x-familybot-doctor-secret")||"";
@@ -10,7 +10,7 @@ function authorized(req:NextRequest){
 }
 
 export async function GET(req:NextRequest){
-  if(!authorized(req))return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+  if(!authorized(req))return NextResponse.json({ok:false,error:"unauthorized"},{status:401,headers:{"cache-control":"no-store"}});
   try{
     const info=await baleApi<any>("getWebhookInfo",{});
     const result=info?.result??{};
@@ -30,9 +30,9 @@ export async function GET(req:NextRequest){
         maxConnections:result.max_connections||null,
         allowedUpdates:result.allowed_updates||null
       }
-    });
+    },{headers:{"cache-control":"no-store"}});
   }catch(error){
     console.error("Bale webhook doctor failed",error);
-    return NextResponse.json({ok:false,error:"doctor_failed"},{status:500});
+    return NextResponse.json({ok:false,error:"doctor_failed"},{status:500,headers:{"cache-control":"no-store"}});
   }
 }
