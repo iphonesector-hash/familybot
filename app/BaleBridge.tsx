@@ -3,6 +3,13 @@
 import { useEffect } from "react";
 import { useBaleMiniApp } from "../lib/useBaleMiniApp";
 
+function callSafe(target:unknown,method:string,...args:unknown[]){
+  try{
+    const fn=target&&typeof target==="object"?(target as Record<string,unknown>)[method]:undefined;
+    if(typeof fn==="function")return fn.apply(target,args);
+  }catch{}
+}
+
 export default function BaleBridge(){
   const { webApp, user, inBale, supported, theme } = useBaleMiniApp();
 
@@ -20,9 +27,9 @@ export default function BaleBridge(){
     };
     Object.entries(vars).forEach(([key,value])=>value?root.style.setProperty(key,value):root.style.removeProperty(key));
 
-    webApp?.ready?.();
-    webApp?.expand?.();
-    if(theme.header_bg_color)webApp?.setHeaderColor?.(theme.header_bg_color);
+    callSafe(webApp,"ready");
+    callSafe(webApp,"expand");
+    if(theme.header_bg_color)callSafe(webApp,"setHeaderColor",theme.header_bg_color);
 
     const syncViewport=()=>{const height=window.visualViewport?.height||window.innerHeight;root.style.setProperty("--app-vh",`${Math.round(height)}px`)};
     syncViewport();
