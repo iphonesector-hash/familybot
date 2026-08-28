@@ -1,0 +1,42 @@
+"use client";
+
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
+
+export default function NativeBaleNav(){
+  const pathname=usePathname();
+  const {webApp,inBale,supported}=useBaleMiniApp();
+
+  useEffect(()=>{
+    if(!webApp||!inBale)return;
+    const back=webApp.BackButton;
+    const settings=webApp.SettingsButton;
+    const onBack=()=>{
+      if(pathname==="/")webApp.close?.();
+      else window.location.assign("/");
+    };
+    const onSettings=async()=>{
+      const session=sessionStorage.getItem("familybot.session");
+      if(!session)return;
+      try{
+        const r=await fetch("/api/family/admin-link",{method:"POST",headers:{authorization:`Bearer ${session}`}});
+        const d=await r.json();
+        if(d.ok&&d.url)window.location.assign(d.url);
+      }catch{}
+    };
+
+    if(pathname==="/")back?.hide?.();else{back?.show?.();back?.onClick?.(onBack)}
+    const canManage=sessionStorage.getItem("familybot.canManage")==="1";
+    if(canManage){settings?.show?.();settings?.onClick?.(onSettings)}else settings?.hide?.();
+    try{webApp.setHeaderColor?.("#09051f")}catch{}
+
+    return()=>{
+      back?.offClick?.(onBack);
+      settings?.offClick?.(onSettings);
+    };
+  },[webApp,inBale,pathname]);
+
+  if(inBale&&!supported)return <div className="miniappCompatibilityNotice">نسخه بله شما قدیمی است؛ برای استفاده کامل از Family Bot بله را به آخرین نسخه به‌روزرسانی کنید.</div>;
+  return null;
+}
