@@ -52,9 +52,8 @@ export async function ensureFamilyMember(chatId: number, chatTitle: string | und
 export async function addActivityReward(ctx: FamilyContext, reason = "message", amountXp = 1) {
   const supabase = db();
   if (!supabase || amountXp <= 0) return;
-  const nextXp = Number(ctx.member.xp || 0) + amountXp;
-  const nextLevel = Math.max(1, Math.floor(Math.sqrt(nextXp / 50)) + 1);
-  await supabase.from("members").update({ xp: nextXp, level: nextLevel, last_active_at: new Date().toISOString() }).eq("id", ctx.member.id);
+  const reward = await supabase.rpc("family_add_member_xp", { p_member_id: ctx.member.id, p_delta: amountXp });
+  if (reward.error) throw reward.error;
   await supabase.from("activity_log").insert({ family_id: ctx.family.id, member_id: ctx.member.id, activity_type: reason, xp_delta: amountXp });
 }
 
@@ -76,15 +75,11 @@ export async function claimDaily(ctx: FamilyContext) {
   const supabase = db();
   if (!supabase) return { ok: false as const, reason: "disabled" };
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const existing = await supabase.from("daily_claims").select("id").eq("member_id", ctx.member.id).eq("claim_date", day).maybeSingle();
-  if (existing.data) return { ok: false as const, reason: "claimed" };
-  const reward = 25;
-  const nextCoins = Number(ctx.member.coins || 0) + reward;
-  const insert = await supabase.from("daily_claims").insert({ family_id: ctx.family.id, member_id: ctx.member.id, claim_date: day, reward_coins: reward });
-  if (insert.error) throw insert.error;
-  await supabase.from("members").update({ coins: nextCoins }).eq("id", ctx.member.id);
-  await supabase.from("coin_ledger").insert({ family_id: ctx.family.id, member_id: ctx.member.id, amount: reward, reason: "daily_reward" });
-  return { ok: true as const, reward, coins: nextCoins };
+  const result = await supabase.rpc("family_claim_daily_atomic", { p_family_id: ctx.family.id, p_member_id: ctx.member.id, p_claim_date: day, p_reward: 25 });
+  if (result.error) throw result.error;
+  const row = result.data as { claimed?: boolean; reward?: number; coins?: number } | null;
+  if (!row?.claimed) return { ok: false as const, reason: "claimed" };
+  return { ok: true as const, reward: Number(row.reward || 25), coins: Number(row.coins || 0) };
 }
 
 export async function addWarning(familyId: string, actorId: number, targetId: number, reason?: string) {
@@ -160,12 +155,11 @@ export async function resolveQuiz(sessionId: string, userId: number, optionIndex
     return { ok: false as const, reason: "expired" };
   }
   if (String(optionIndex) !== String(session.answer)) return { ok: false as const, reason: "wrong" };
-  const profile = await getProfile(ctx);
   const reward = Number(session.reward_coins || 15);
-  const nextCoins = Number(profile.coins || 0) + reward;
   const won = await supabase.from("game_sessions").update({ status: "closed", winner_bale_user_id: userId }).eq("id", sessionId).eq("status", "open").select("id").maybeSingle();
   if (!won.data) return { ok: false as const, reason: "closed" };
-  await supabase.from("members").update({ coins: nextCoins }).eq("id", ctx.member.id);
+  const balance = await supabase.rpc("family_add_member_coins", { p_member_id: ctx.member.id, p_delta: reward });
+  if (balance.error) throw balance.error;
   await supabase.from("coin_ledger").insert({ family_id: ctx.family.id, member_id: ctx.member.id, amount: reward, reason: "quiz_win", reference_type: "game_session", reference_id: sessionId });
   await addActivityReward(ctx, "quiz_win", 10);
   return { ok: true as const, reward };
