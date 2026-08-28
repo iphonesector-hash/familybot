@@ -138,6 +138,29 @@ create table if not exists daily_claims (
   unique(member_id, claim_date)
 );
 
+create table if not exists member_items (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  member_id uuid not null references members(id) on delete cascade,
+  item_id text not null,
+  item_name text not null,
+  item_kind text not null,
+  price_paid integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique(member_id,item_id)
+);
+
+create table if not exists mission_claims (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  member_id uuid not null references members(id) on delete cascade,
+  mission_id text not null,
+  period_key text not null,
+  reward_coins integer not null default 0,
+  claimed_at timestamptz not null default now(),
+  unique(member_id,mission_id,period_key)
+);
+
 create table if not exists warnings (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references families(id) on delete cascade,
@@ -241,3 +264,5 @@ create index if not exists activity_family_time_idx on activity_log(family_id, c
 create index if not exists flood_family_user_time_idx on flood_events(family_id, bale_user_id, created_at desc);
 create index if not exists game_sessions_family_status_idx on game_sessions(family_id, status, created_at desc);
 create index if not exists whitelist_family_idx on moderation_whitelist(family_id,created_at desc);
+create index if not exists member_items_family_idx on member_items(family_id,created_at desc);
+create index if not exists mission_claims_family_member_idx on mission_claims(family_id,member_id,claimed_at desc);
