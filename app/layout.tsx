@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import BaleBridge from "./BaleBridge";
+import BirthdayMode from "./BirthdayMode";
 import "./globals.css";
 import "./motion.css";
 import "./platform.css";
 import "./admin.css";
+import "./birthday.css";
 
 export const metadata: Metadata = {
   title: "Family Bot | خانواده بزرگ جهانی",
@@ -16,7 +18,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: "#09051f",
 };
@@ -24,7 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
-      <body><BaleBridge/>{children}</body>
+      <body><BaleBridge/><BirthdayMode/>{children}</body>
     </html>
   );
 }
