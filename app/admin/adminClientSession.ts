@@ -16,6 +16,21 @@ export function captureAdminSession(){
   }
   return sessionStorage.getItem(KEY)||"";
 }
+
 export function storeAdminSession(token:string){if(typeof window!=="undefined"&&token)sessionStorage.setItem(KEY,token);return token}
 export function clearAdminSession(){if(typeof window!=="undefined")sessionStorage.removeItem(KEY)}
 export function adminHeaders(session:string){const member=typeof window!=="undefined"?(sessionStorage.getItem("familybot.session")||""):"";return {authorization:`Bearer ${session}`,"x-family-member-session":member}}
+
+export async function bootstrapAdminSession(){
+  if(typeof window==="undefined")return "";
+  const existing=captureAdminSession();
+  if(existing)return existing;
+  const member=sessionStorage.getItem("familybot.session")||"";
+  if(!member)return "";
+  try{
+    const response=await fetch("/api/family/admin-link",{method:"POST",headers:{authorization:`Bearer ${member}`},cache:"no-store"});
+    const data=await response.json();
+    if(!response.ok||!data?.ok||!data?.token)return "";
+    return storeAdminSession(String(data.token));
+  }catch{return ""}
+}
