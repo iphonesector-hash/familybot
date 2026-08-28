@@ -63,10 +63,14 @@ export function openMiniAppKeyboard() {
 }
 
 export function mainMenuKeyboard(canManage = false) {
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  const financeButton: BaleInlineButton = base
+    ? { text: "💳 حساب خانواده", web_app: { url: new URL("/section/finance", base).toString() } }
+    : { text: "💳 حساب خانواده", callback_data: "menu:finance" };
   const rows: BaleInlineButton[][] = [
     [{ text: "🏠 Mini App", callback_data: "menu:miniapp" }],
     [{ text: "👨‍👩‍👧‍👦 خانواده", callback_data: "menu:family" }, { text: "📅 برنامه‌ریز", callback_data: "menu:planner" }],
-    [{ text: "🖼 خاطرات", callback_data: "menu:memories" }, { text: "💳 حساب خانواده", callback_data: "menu:finance" }],
+    [{ text: "🖼 خاطرات", callback_data: "menu:memories" }, financeButton],
     [{ text: "🛍 فروشگاه", callback_data: "menu:store" }, { text: "🏅 دستاوردها", callback_data: "menu:achievements" }],
     [{ text: "🎮 بازی و سرگرمی", callback_data: "menu:games" }, { text: "🤖 Family AI", callback_data: "menu:ai" }],
     [{ text: "👤 پروفایل", callback_data: "menu:profile" }, { text: "🏆 رتبه‌بندی", callback_data: "menu:rank" }],
