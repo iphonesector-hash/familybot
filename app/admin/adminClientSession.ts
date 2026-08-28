@@ -18,4 +18,4 @@ export function captureAdminSession(){
 }
 
 export function clearAdminSession(){if(typeof window!=="undefined")sessionStorage.removeItem(KEY)}
-export function adminHeaders(session:string){return {authorization:`Bearer ${session}`}}
+export function adminHeaders(session:string){const member=typeof window!=="undefined"?(sessionStorage.getItem("familybot.session")||""):"";return {authorization:`Bearer ${session}`,"x-family-member-session":member}}
