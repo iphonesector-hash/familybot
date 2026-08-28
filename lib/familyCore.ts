@@ -4,7 +4,7 @@ type BaleIdentity = { id: number; first_name?: string; last_name?: string; usern
 
 type FamilyContext = {
   family: { id: string; bale_chat_id: number; name: string; level: number; xp: number; coins: number };
-  member: { id: string; bale_user_id: number; display_name: string | null; first_name: string | null; xp: number; coins: number; level: number; streak: number };
+  member: { id: string; bale_user_id: number; display_name: string | null; first_name: string | null; xp: number; coins: number; level: number; streak: number; created_at: string };
 };
 
 export type GroupSettings = {
@@ -43,7 +43,7 @@ export async function ensureFamilyMember(chatId: number, chatTitle: string | und
   }
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `عضو ${user.id}`;
   const memberPayload = { family_id: family.id, bale_user_id: user.id, first_name: user.first_name ?? null, last_name: user.last_name ?? null, username: user.username ?? null, display_name: displayName, last_active_at: new Date().toISOString() };
-  const upserted = await supabase.from("members").upsert(memberPayload, { onConflict: "family_id,bale_user_id" }).select("id,bale_user_id,display_name,first_name,xp,coins,level,streak").single();
+  const upserted = await supabase.from("members").upsert(memberPayload, { onConflict: "family_id,bale_user_id" }).select("id,bale_user_id,display_name,first_name,xp,coins,level,streak,created_at").single();
   if (upserted.error) throw upserted.error;
   await supabase.from("group_settings").upsert({ family_id: family.id }, { onConflict: "family_id", ignoreDuplicates: true });
   return { family, member: upserted.data } as FamilyContext;
