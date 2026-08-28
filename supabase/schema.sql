@@ -169,9 +169,45 @@ create table if not exists moderation_actions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists group_settings (
+  family_id uuid primary key references families(id) on delete cascade,
+  anti_flood boolean not null default true,
+  anti_link boolean not null default false,
+  flood_limit integer not null default 5,
+  flood_window_seconds integer not null default 5,
+  flood_mute_minutes integer not null default 10,
+  warn_limit integer not null default 3,
+  welcome_enabled boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists flood_events (
+  id bigserial primary key,
+  family_id uuid not null references families(id) on delete cascade,
+  bale_user_id bigint not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists game_sessions (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  chat_id bigint not null,
+  game_type text not null,
+  prompt text not null,
+  answer text not null,
+  options jsonb not null default '[]'::jsonb,
+  reward_coins integer not null default 10,
+  status text not null default 'open' check (status in ('open','closed')),
+  expires_at timestamptz,
+  winner_bale_user_id bigint,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists members_family_xp_idx on members(family_id, xp desc);
 create index if not exists events_family_time_idx on family_events(family_id, starts_at);
 create index if not exists tasks_family_status_idx on tasks(family_id, status);
 create index if not exists moderation_family_time_idx on moderation_actions(family_id, created_at desc);
 create index if not exists warnings_family_target_idx on warnings(family_id, target_bale_user_id, created_at desc);
 create index if not exists activity_family_time_idx on activity_log(family_id, created_at desc);
+create index if not exists flood_family_user_time_idx on flood_events(family_id, bale_user_id, created_at desc);
+create index if not exists game_sessions_family_status_idx on game_sessions(family_id, status, created_at desc);
