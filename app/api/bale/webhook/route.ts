@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { answerCallbackQuery, baleApi, isAdmin, mainMenuKeyboard, openMiniAppKeyboard, sendMessage } from "@/lib/bale";
-import { addActivityReward, addWarning, claimDaily, clearWarnings, createQuizSession, ensureFamilyMember, familyCoreEnabled, getGroupSettings, getLeaderboard, getProfile, logModeration, recordFloodEvent, resolveQuiz } from "@/lib/familyCore";
+import { createAdminSession } from "@/lib/adminSession";
+import { readAdminSettings } from "@/lib/adminSettings";
+import { addActivityReward, addWarning, claimDaily, clearWarnings, createQuizSession, ensureFamilyMember, familyCoreEnabled, getLeaderboard, getProfile, logModeration, recordFloodEvent, resolveQuiz } from "@/lib/familyCore";
 
 type BaleUser = { id?: number; first_name?: string; last_name?: string; username?: string };
 type BaleMessage = {
@@ -11,13 +13,19 @@ type BaleMessage = {
   new_chat_members?: BaleUser[];
   web_app_data?: { data?: string; button_text?: string };
   reply_to_message?: { from?: BaleUser; message_id?: number };
+  photo?: unknown[];
+  video?: unknown;
+  document?: unknown;
+  forward_origin?: unknown;
+  forward_from?: BaleUser;
+  forward_from_chat?: { id?: number };
 };
 type Update = {
   message?: BaleMessage;
   callback_query?: { id?: string; from?: BaleUser; data?: string; message?: BaleMessage };
 };
 
-const HELP = `🌍 Family Bot\n\n🏠 /start — منوی اصلی و Mini App\n👤 /profile — پروفایل من\n🏆 /rank — رتبه‌بندی خانواده\n🎁 /daily — جایزه روزانه\n🎮 /games — مرکز بازی\n🧠 /quiz — کوئیز دکمه‌ای\n🎲 /dice — تاس\n🪙 /coin — شیر یا خط\n✊ /rps — سنگ کاغذ قیچی\n🤖 /ai — هوش مصنوعی\n📜 /rules — قوانین\n\nمدیریت با Reply:\n⚠️ /warn [دلیل]\n🧹 /unwarn\n🔇 /mute [دقیقه]\n⛔ /ban\n✅ /unban\n📌 /pin`;
+const HELP = `🌍 Family Bot\n\n🏠 /start — منوی اصلی و Mini App\n👤 /profile — پروفایل من\n🏆 /rank — رتبه‌بندی خانواده\n🎁 /daily — جایزه روزانه\n🎮 /games — مرکز بازی\n🧠 /quiz — کوئیز دکمه‌ای\n🎲 /dice — تاس\n🪙 /coin — شیر یا خط\n✊ /rps — سنگ کاغذ قیچی\n🤖 /ai — هوش مصنوعی\n📜 /rules — قوانین\n🛡 /admin — پنل مدیریت\n\nمدیریت با Reply:\n⚠️ /warn [دلیل]\n🧹 /unwarn\n🔇 /mute [دقیقه]\n⛔ /ban\n✅ /unban\n📌 /pin`;
 
 const RULES = "📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
 
@@ -27,6 +35,22 @@ function formatNumber(value: number | string | null | undefined) {
 
 function hasExternalLink(text: string) {
   return /(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
+}
+
+function adminKeyboard(token:string){
+  const base=process.env.NEXT_PUBLIC_APP_URL;
+  if(!base)return undefined;
+  const url=new URL("/admin",base);
+  url.searchParams.set("session",token);
+  return {inline_keyboard:[[{text:"🛡 باز کردن مرکز مدیریت",web_app:{url:url.toString()}}]]};
+}
+
+function lockedContent(message:BaleMessage,settings:Awaited<ReturnType<typeof readAdminSettings>>){
+  if(settings.lock_photo&&message.photo?.length)return "عکس";
+  if(settings.lock_video&&message.video)return "ویدیو";
+  if(settings.lock_document&&message.document)return "فایل";
+  if(settings.lock_forward&&(message.forward_origin||message.forward_from||message.forward_from_chat))return "فوروارد";
+  return null;
 }
 
 async function mute(chatId: number, userId: number, minutes: number) {
@@ -131,7 +155,7 @@ export async function POST(req: NextRequest) {
   const userId = message?.from?.id;
   if (!message || !chatId) return NextResponse.json({ ok: true });
   const ctx = await buildContext(chatId, message.chat?.title, message.from);
-  const settings = ctx ? await getGroupSettings(ctx.family.id) : null;
+  const settings = ctx ? await readAdminSettings(ctx.family.id).catch(()=>null) : null;
 
   if (message.new_chat_members?.length && settings?.welcome_enabled !== false) {
     const names = message.new_chat_members.map((u) => u.first_name || "عضو جدید").join("، ");
@@ -148,6 +172,17 @@ export async function POST(req: NextRequest) {
   const [commandRaw = "", ...args] = text.split(/\s+/);
   const command = commandRaw.toLowerCase().split("@")[0];
   const isCommand = command.startsWith("/");
+
+  if(ctx&&userId&&settings){
+    const admin=await isAdmin(chatId,userId).catch(()=>false);
+    const locked=admin?null:lockedContent(message,settings);
+    if(locked){
+      if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
+      await logModeration(ctx.family.id,undefined,userId,"content_lock",locked);
+      await sendMessage(chatId,`🔒 ارسال ${locked} در حال حاضر برای اعضای عادی قفل است.`);
+      return NextResponse.json({ok:true});
+    }
+  }
 
   if (ctx && userId && text && !isCommand) {
     const admin = await isAdmin(chatId, userId).catch(() => false);
@@ -180,6 +215,10 @@ export async function POST(req: NextRequest) {
     await sendMessage(chatId, "🏡 به Family Bot خوش اومدی!\nمدیریت، بازی، خاطرات، برنامه‌ریزی و هوش مصنوعی خانواده، همه یکجا.", { reply_markup: mainMenuKeyboard() });
   } else if (command === "/help") {
     await sendMessage(chatId, HELP, { reply_markup: openMiniAppKeyboard() });
+  } else if (command === "/admin") {
+    if(!userId||!ctx||!(await isAdmin(chatId,userId))){await sendMessage(chatId,"⛔ پنل مدیریت فقط برای مدیرهای همین گروه باز می‌شود.");return NextResponse.json({ok:true});}
+    const token=createAdminSession({familyId:ctx.family.id,chatId,userId},900);
+    await sendMessage(chatId,"🛡 مرکز مدیریت Family Bot آماده است.\nاین لینک ۱۵ دقیقه اعتبار دارد و مخصوص مدیر درخواست‌کننده است.",{reply_markup:adminKeyboard(token)});
   } else if (command === "/profile") {
     await sendProfile(chatId, ctx);
   } else if (command === "/rank") {
@@ -225,7 +264,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     if (command === "/unwarn") {
-      if (ctx) await clearWarnings(ctx.family.id, targetId!);
+      if (ctx) {await clearWarnings(ctx.family.id, targetId!);await logModeration(ctx.family.id,userId,targetId,"unwarn");}
       await sendMessage(chatId, "🧹 اخطارهای فعال این عضو پاک شد.");
       return NextResponse.json({ ok: true });
     }
@@ -248,5 +287,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.3.0", familyCore: familyCoreEnabled() });
+  return NextResponse.json({ ok: true, service: "familybot-bale-webhook", version: "0.4.0", familyCore: familyCoreEnabled() });
 }
