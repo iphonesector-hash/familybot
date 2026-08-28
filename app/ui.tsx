@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 export type IconName = "home"|"family"|"games"|"ai"|"profile"|"birthday"|"memories"|"reminder"|"gift"|"store"|"tasks"|"trophy"|"coins"|"calendar"|"tree"|"poll"|"shield"|"spark";
+export type MascotMood = "idle"|"listening"|"thinking"|"speaking"|"celebrate"|"sleepy"|"love";
 
 const paths: Record<IconName, ReactNode> = {
   home:<><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/><path d="M9.5 9.3 12 11l2.5-1.7"/></>,
@@ -31,8 +32,13 @@ export function IconOrb({name,tone="violet"}:{name:IconName,tone?:"violet"|"blue
   return <span className={`iconOrb ${tone}`}><Icon name={name}/></span>;
 }
 
-export function Mascot({small=false}:{small?:boolean}){
-  return <div className={`mascotVisual${small?" small":""}`}>
-    <span className="mascotHalo"/><img src="/brand/familybot-mark.svg" alt="Family Bot"/><span className="mascotShadow"/>
+export function Mascot({small=false,mood="idle",label}:{small?:boolean;mood?:MascotMood;label?:string}){
+  return <div className={`mascotVisual${small?" small":""} mascot-${mood}`} aria-label={label??`Family Bot - ${mood}`}>
+    <span className="mascotHalo"/>
+    <span className="mascotOrbit orbitOne"/><span className="mascotOrbit orbitTwo"/>
+    <img src="/brand/familybot-mark.svg" alt="Family Bot"/>
+    <span className="mascotMoodBadge" aria-hidden="true">{mood==="listening"?"⌁":mood==="thinking"?"…":mood==="speaking"?"♫":mood==="celebrate"?"✦":mood==="sleepy"?"zZ":mood==="love"?"♥":""}</span>
+    <span className="mascotSpark s1"/><span className="mascotSpark s2"/><span className="mascotSpark s3"/>
+    <span className="mascotShadow"/>
   </div>;
 }
