@@ -5,6 +5,7 @@ import {verifyFamilySession} from "@/lib/familySession";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const auth=req.headers.get("authorization")||"";return auth.startsWith("Bearer ")?verifyFamilySession(auth.slice(7)):null}
 function shuffle<T>(items:T[]){return [...items].sort(()=>Math.random()-.5)}
+function memberName(row:{display_name?:string|null;first_name?:string|null}){return String(row.display_name||row.first_name||"").trim()}
 
 export async function POST(req:NextRequest){
   try{
@@ -13,15 +14,19 @@ export async function POST(req:NextRequest){
     const member=await supabase.from("members").select("id").eq("family_id",session.familyId).eq("bale_user_id",session.userId).single();if(member.error)throw member.error;
     if(body.action==="start"){
       const rows=await supabase.from("members").select("id,display_name,first_name,relation_label,birthday").eq("family_id",session.familyId).limit(50);if(rows.error)throw rows.error;
-      const members=(rows.data||[]).filter(x=>x.display_name||x.first_name);if(members.length<3)return NextResponse.json({ok:false,error:"trivia_needs_three_members"},{status:409});
-      const relationCandidates=members.filter(x=>x.relation_label);
-      const birthdayCandidates=members.filter(x=>x.birthday);
-      let target=relationCandidates.length?relationCandidates[Math.floor(Math.random()*relationCandidates.length)]:members[Math.floor(Math.random()*members.length)];
-      let prompt="",answerName=target.display_name||target.first_name||"عضو";
-      if(target.relation_label){prompt=`کدام عضو خانواده با نسبت «${target.relation_label}» ثبت شده؟`}
-      else if(birthdayCandidates.length){target=birthdayCandidates[Math.floor(Math.random()*birthdayCandidates.length)];answerName=target.display_name||target.first_name||"عضو";const date=new Date(`${target.birthday}T00:00:00Z`).toLocaleDateString("fa-IR",{month:"long",day:"numeric"});prompt=`تولد کدام عضو در ${date} ثبت شده؟`}
-      else prompt=`کدام گزینه یکی از اعضای همین خانواده است؟`;
-      const distractors=shuffle(members.filter(x=>x.id!==target.id)).slice(0,3).map(x=>x.display_name||x.first_name||"عضو");const options=shuffle([answerName,...distractors]);const answer=String(options.indexOf(answerName));
+      const members=(rows.data||[]).filter(x=>memberName(x));if(members.length<3)return NextResponse.json({ok:false,error:"trivia_needs_three_members"},{status:409});
+      const nameCounts=new Map<string,number>();for(const m of members){const n=memberName(m);nameCounts.set(n,(nameCounts.get(n)||0)+1)}
+      const usable=members.filter(m=>(nameCounts.get(memberName(m))||0)===1);if(usable.length<3)return NextResponse.json({ok:false,error:"trivia_needs_unique_names"},{status:409});
+      const relationCounts=new Map<string,number>();const birthdayCounts=new Map<string,number>();for(const m of usable){if(m.relation_label)relationCounts.set(m.relation_label,(relationCounts.get(m.relation_label)||0)+1);if(m.birthday)birthdayCounts.set(m.birthday,(birthdayCounts.get(m.birthday)||0)+1)}
+      const relationCandidates=usable.filter(x=>x.relation_label&&relationCounts.get(x.relation_label)===1);
+      const birthdayCandidates=usable.filter(x=>x.birthday&&birthdayCounts.get(x.birthday)===1);
+      const useRelation=relationCandidates.length>0&&(birthdayCandidates.length===0||Math.random()<.6);
+      const pool=useRelation?relationCandidates:birthdayCandidates;
+      if(!pool.length)return NextResponse.json({ok:false,error:"trivia_needs_profile_data"},{status:409});
+      const target=pool[Math.floor(Math.random()*pool.length)],answerName=memberName(target);let prompt="";
+      if(useRelation)prompt=`کدام عضو خانواده با نسبت «${target.relation_label}» ثبت شده؟`;
+      else {const date=new Date(`${target.birthday}T00:00:00Z`).toLocaleDateString("fa-IR",{month:"long",day:"numeric"});prompt=`تولد کدام عضو در ${date} ثبت شده؟`}
+      const distractors=shuffle(usable.filter(x=>x.id!==target.id)).slice(0,3).map(memberName);const options=shuffle([answerName,...distractors]);const answer=String(options.findIndex(x=>x===answerName));
       const ins=await supabase.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"family_trivia",prompt,answer,options,reward_coins:12,expires_at:new Date(Date.now()+120000).toISOString()}).select("id,prompt,options,reward_coins,expires_at").single();if(ins.error)throw ins.error;
       return NextResponse.json({ok:true,result:ins.data});
     }
