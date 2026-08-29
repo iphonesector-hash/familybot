@@ -1,0 +1,3 @@
+import {NextRequest,NextResponse} from "next/server";import {requireLiveAdmin} from "@/lib/adminAuth";import {readGroupRules,writeGroupRules} from "@/lib/groupRules";
+export async function GET(req:NextRequest){const s=await requireLiveAdmin(req).catch(()=>null);if(!s)return NextResponse.json({ok:false,error:"admin_required"},{status:403});return NextResponse.json({ok:true,rules:await readGroupRules(s.familyId)})}
+export async function PUT(req:NextRequest){const s=await requireLiveAdmin(req).catch(()=>null);if(!s)return NextResponse.json({ok:false,error:"admin_required"},{status:403});const body=await req.json().catch(()=>({}));return NextResponse.json({ok:true,rules:await writeGroupRules(s.familyId,String(body.rules||""))})}
