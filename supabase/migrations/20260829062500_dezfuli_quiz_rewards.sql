@@ -1,0 +1,13 @@
+create table if not exists familybot.dezfuli_quiz_claims(
+ id uuid primary key default gen_random_uuid(), family_id uuid not null references familybot.families(id) on delete cascade, member_id uuid not null references familybot.members(id) on delete cascade, word_id text not null, claim_date date not null default (now() at time zone 'Asia/Tehran')::date, xp_reward integer not null default 10, coin_reward integer not null default 3, created_at timestamptz not null default now(), unique(member_id,word_id,claim_date)
+);
+alter table familybot.dezfuli_quiz_claims enable row level security; revoke all on familybot.dezfuli_quiz_claims from anon,authenticated; grant select,insert on familybot.dezfuli_quiz_claims to service_role;
+create or replace function familybot.family_claim_dezfuli_quiz_atomic(p_family_id uuid,p_member_id uuid,p_word_id text,p_xp integer default 10,p_coins integer default 3)
+returns jsonb language plpgsql security definer set search_path='familybot','pg_temp' as $$
+declare vi uuid; vf boolean; vc bigint; vx bigint; begin
+ if p_xp<0 or p_xp>50 or p_coins<0 or p_coins>20 then raise exception 'invalid_reward'; end if; select is_founder into vf from familybot.members where id=p_member_id and family_id=p_family_id for update; if vf is null then raise exception 'member_not_found'; end if;
+ insert into familybot.dezfuli_quiz_claims(family_id,member_id,word_id,xp_reward,coin_reward) values(p_family_id,p_member_id,p_word_id,p_xp,p_coins) on conflict(member_id,word_id,claim_date) do nothing returning id into vi; if vi is null then return jsonb_build_object('claimed',false,'alreadyClaimed',true,'founder',vf); end if;
+ if not vf then update familybot.members set xp=xp+p_xp,coins=coins+p_coins where id=p_member_id returning xp,coins into vx,vc; else select xp,coins into vx,vc from familybot.members where id=p_member_id; end if;
+ insert into familybot.activity_log(family_id,member_id,activity_type,xp_delta,metadata) values(p_family_id,p_member_id,'dezfuli_quiz',case when vf then 0 else p_xp end,jsonb_build_object('wordId',p_word_id,'coins',case when vf then 0 else p_coins end)); if not vf then insert into familybot.coin_ledger(family_id,member_id,amount,reason,reference_type,reference_id) values(p_family_id,p_member_id,p_coins,'dezfuli_quiz','word',p_word_id); end if;
+ return jsonb_build_object('claimed',true,'xp',vx,'coins',vc,'xpReward',p_xp,'coinReward',p_coins,'founder',vf); end $$;
+revoke all on function familybot.family_claim_dezfuli_quiz_atomic(uuid,uuid,text,integer,integer) from public,anon,authenticated; grant execute on function familybot.family_claim_dezfuli_quiz_atomic(uuid,uuid,text,integer,integer) to service_role;
