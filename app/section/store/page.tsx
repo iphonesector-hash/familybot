@@ -30,10 +30,10 @@ export default function StorePage(){
  return <main className="appShell storePage">
   <div className="ambient ambientA"/><div className="starField"/>
   <header className="appHeader"><a className="roundButton" href="/">←</a><div className="wordmark"><b>فروشگاه جهانی</b><span>{founder?"∞":fa(Number(profile.coins||0))} Family Coin</span></div><IconOrb name="store" tone="violet"/></header>
-  <section className="premiumPanel storeHero storeShowcaseHero">
-   <img src={show.asset} alt={show.title} className="storeShowcaseImage"/>
-   <div className="storeShowcaseShade"/>
-   <div className="storeShowcaseCopy"><span className="eyebrow"><Icon name="coins" size={14}/> موجودی {founder?"∞":fa(Number(profile.coins||0))}</span><h1>{show.title}</h1><p>{show.sub}</p></div>
+  <section className="premiumPanel storeHero" style={{position:"relative",minHeight:278,padding:0,overflow:"hidden",isolation:"isolate",display:"flex",alignItems:"flex-end"}}>
+   <img src={show.asset} alt={show.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:"center",zIndex:-3}}/>
+   <div aria-hidden="true" style={{position:"absolute",inset:0,zIndex:-2,background:"linear-gradient(180deg,rgba(2,5,18,.03) 24%,rgba(5,8,28,.28) 56%,rgba(5,8,28,.92) 100%)"}}/>
+   <div style={{position:"relative",zIndex:2,width:"100%",padding:"24px 20px 21px",textShadow:"0 2px 16px rgba(0,0,0,.8)"}}><span className="eyebrow"><Icon name="coins" size={14}/> موجودی {founder?"∞":fa(Number(profile.coins||0))}</span><h1 style={{fontSize:27,margin:"10px 0 5px"}}>{show.title}</h1><p style={{margin:0,fontSize:12,color:"#f0ecff"}}>{show.sub}</p></div>
    <div className="storeHeroStars"><i/><i/><i/></div>
   </section>
   <div className="storeTabs"><button className={tab==="house"?"active":""} onClick={()=>setTab("house")}>خانه</button><button className={tab==="sagool"?"active":""} onClick={()=>setTab("sagool")}>سگول</button><button className={tab==="profile"?"active":""} onClick={()=>setTab("profile")}>پروفایل</button></div>
