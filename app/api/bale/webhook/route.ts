@@ -1,285 +1,60 @@
-import { NextRequest, NextResponse } from "next/server";
-import { answerCallbackQuery, baleApi, isAdmin, mainMenuKeyboard, openMiniAppKeyboard, sendMessage } from "@/lib/bale";
-import { isWhitelisted, readAdminSettings } from "@/lib/adminSettings";
-import { addActivityReward, addWarning, claimDaily, clearWarnings, createQuizSession, ensureFamilyMember, familyCoreEnabled, getLeaderboard, getProfile, logModeration, recordFloodEvent, resolveQuiz } from "@/lib/familyCore";
-import { claimBaleUpdate, completeBaleUpdate, releaseBaleUpdate } from "@/lib/baleUpdateStore";
+import {NextRequest,NextResponse} from "next/server";
+import {answerCallbackQuery,baleApi,isAdmin,mainMenuKeyboard,openMiniAppKeyboard,sendMessage} from "@/lib/bale";
+import {isWhitelisted,readAdminSettings} from "@/lib/adminSettings";
+import {addActivityReward,addWarning,claimDaily,clearWarnings,createQuizSession,ensureFamilyMember,familyCoreEnabled,getLeaderboard,getProfile,isFounder,logModeration,recordFloodEvent,resolveQuiz} from "@/lib/familyCore";
+import {claimBaleUpdate,completeBaleUpdate,releaseBaleUpdate} from "@/lib/baleUpdateStore";
+import {answerSectorInGroup} from "@/lib/groupSectorAi";
 
-type BaleUser = { id?: number; first_name?: string; last_name?: string; username?: string };
-type BaleMessage = { message_id?: number; text?: string; caption?: string; chat?: { id?: number; type?: string; title?: string }; from?: BaleUser; new_chat_members?: BaleUser[]; web_app_data?: { data?: string; button_text?: string }; reply_to_message?: { from?: BaleUser; message_id?: number }; photo?: unknown[]; video?: unknown; document?: unknown; sticker?: unknown; animation?: unknown; voice?: unknown; audio?: unknown; forward_origin?: unknown; forward_from?: BaleUser; forward_from_chat?: { id?: number } };
-type Update = { update_id?: number; message?: BaleMessage; callback_query?: { id?: string; from?: BaleUser; data?: string; message?: BaleMessage } };
-type Ctx = Awaited<ReturnType<typeof buildContext>>;
-
-const HELP = `🌍 Family Bot\n\nهمه امکانات اصلی از منوی دکمه‌ای در دسترسه.\n🏠 Mini App\n👨‍👩‍👧‍👦 خانواده و شجره‌نامه\n📅 برنامه‌ریز، کارها و نظرسنجی\n🖼 خاطرات\n🎡 گردونه شانس\n🏦 صندوق خانوادگی\n🛍 فروشگاه و Family Coin\n🏅 دستاوردها و مأموریت‌ها\n🎮 بازی و سرگرمی\n🤖 Family AI صوتی و متنی\n👤 پروفایل و رتبه‌بندی\n🎁 جایزه روزانه\n\nمدیریت فقط برای Adminهای گروه نمایش داده می‌شود و فرمان‌های مدیریتی هم سمت سرور دوباره بررسی می‌شوند.`;
-const RULES = "📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
-const fmt = (v: number | string | null | undefined) => new Intl.NumberFormat("fa-IR").format(Number(v || 0));
-const hasExternalLink = (text: string) => /(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
-const normalizedText = (message:BaleMessage) => `${message.text || ""}\n${message.caption || ""}`.trim().toLocaleLowerCase("fa-IR");
-function matchingFilteredWord(text:string,words:string[]){return words.find(word=>word&&text.includes(word.toLocaleLowerCase("fa-IR")))||null}
-function newcomerRestrictedContent(message:BaleMessage,text:string){return hasExternalLink(text)||Boolean(message.photo?.length||message.video||message.document||message.sticker||message.animation||message.voice||message.audio||message.forward_origin||message.forward_from||message.forward_from_chat)}
-
-function cleanWebAppUrl(path="/"){
-  const base=process.env.NEXT_PUBLIC_APP_URL;
-  if(!base)return null;
-  return new URL(path,base).toString();
-}
-
-function adminKeyboard(){
-  const admin=cleanWebAppUrl("/admin");
-  if(!admin)return undefined;
-  return {inline_keyboard:[[{text:"🛡 مرکز مدیریت",web_app:{url:admin}}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]};
-}
-
-function memberMiniAppKeyboard(_ctx:Exclude<Ctx,null>){
-  const home=cleanWebAppUrl("/");
-  if(!home)return openMiniAppKeyboard();
-  return {inline_keyboard:[[{text:"🏠 باز کردن Family Bot",web_app:{url:home}}],[{text:"🎮 بازی‌ها",callback_data:"menu:games"},{text:"👤 پروفایل",callback_data:"menu:profile"}]]};
-}
-
-function featureKeyboard(_ctx:Exclude<Ctx,null>,path:string,label:string){
-  const url=cleanWebAppUrl(path);
-  return url?{inline_keyboard:[[{text:label,web_app:{url}}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}:openMiniAppKeyboard();
-}
-
-function lockedContent(message:BaleMessage,settings:Awaited<ReturnType<typeof readAdminSettings>>,isCommand:boolean){
-  if(settings.lock_photo&&message.photo?.length)return "عکس";
-  if(settings.lock_video&&message.video)return "ویدیو";
-  if(settings.lock_document&&message.document)return "فایل";
-  if(settings.lock_forward&&(message.forward_origin||message.forward_from||message.forward_from_chat))return "فوروارد";
-  if(settings.lock_sticker&&message.sticker)return "استیکر";
-  if(settings.lock_gif&&message.animation)return "GIF";
-  if(settings.lock_voice&&message.voice)return "ویس";
-  if(settings.lock_audio&&message.audio)return "موزیک";
-  if(settings.lock_text&&message.text&&!isCommand)return "متن";
-  return null;
-}
-
-async function mute(chatId:number,userId:number,minutes:number){
-  await baleApi("restrictChatMember",{chat_id:chatId,user_id:userId,permissions:{can_send_messages:false},until_date:Math.floor(Date.now()/1000)+minutes*60});
-}
-
-async function buildContext(chatId:number,title:string|undefined,user?:BaleUser){
-  if(!user?.id||!familyCoreEnabled())return null;
-  try{return await ensureFamilyMember(chatId,title,{id:user.id,first_name:user.first_name,last_name:user.last_name,username:user.username})}
-  catch(error){console.error("Family Core bootstrap failed",error);return null}
-}
-
-async function sendProfile(chatId:number,ctx:Ctx){
-  if(!ctx)return sendMessage(chatId,"👤 برای داده‌های زنده، Family Core باید به Supabase متصل باشد.");
-  const p=await getProfile(ctx);
-  return sendMessage(chatId,`👤 ${p.display_name||p.first_name||"عضو خانواده"}\n⭐ Level ${fmt(p.level)}\n✨ XP: ${fmt(p.xp)}\n🪙 Family Coin: ${fmt(p.coins)}\n🔥 Streak: ${fmt(p.streak)} روز`,{reply_markup:memberMiniAppKeyboard(ctx)});
-}
-
-async function sendRank(chatId:number,ctx:Ctx){
-  if(!ctx)return sendMessage(chatId,"🏆 رتبه‌بندی بعد از اتصال Family Core فعال می‌شود.");
-  const rows=await getLeaderboard(ctx.family.id,10);
-  const body=rows.length?rows.map((r,i)=>`${i+1}. ${r.display_name||r.first_name||"عضو خانواده"} — Lv.${fmt(r.level)} · ${fmt(r.xp)} XP`).join("\n"):"هنوز امتیازی ثبت نشده.";
-  return sendMessage(chatId,`🏆 رتبه‌بندی خانواده\n\n${body}`,{reply_markup:memberMiniAppKeyboard(ctx)});
-}
-
-async function daily(chatId:number,ctx:Ctx){
-  if(!ctx)return sendMessage(chatId,"🎁 جایزه روزانه بعد از اتصال Family Core فعال می‌شود.");
-  const result=await claimDaily(ctx);
-  if(result.ok)return sendMessage(chatId,`🎁 جایزه امروز دریافت شد!\n+${fmt(result.reward)} 🪙\nموجودی جدید: ${fmt(result.coins)} سکه`,{reply_markup:memberMiniAppKeyboard(ctx)});
-  if(result.reason==="claimed")return sendMessage(chatId,"⏳ جایزه امروز رو قبلاً گرفتی. فردا دوباره سر بزن 💜",{reply_markup:memberMiniAppKeyboard(ctx)});
-  return sendMessage(chatId,"🎁 موتور جایزه روزانه هنوز کامل فعال نشده.");
-}
-
-async function startQuiz(chatId:number,ctx:Ctx){
-  if(!ctx)return sendMessage(chatId,"🧠 کوئیز بعد از اتصال Family Core فعال می‌شود.");
-  const quiz=await createQuizSession(ctx);
-  if(!quiz)return sendMessage(chatId,"فعلاً کوئیز آماده نشد؛ دوباره امتحان کن.");
-  return sendMessage(chatId,`🧠 کوئیز خانوادگی\n\n${quiz.prompt}\n\n🏆 جایزه: ${fmt(quiz.reward_coins)} سکه`,{reply_markup:{inline_keyboard:quiz.options.map((option,index)=>[{text:option,callback_data:`quiz:${quiz.id}:${index}`}])}});
-}
-
-async function handleCallback(query:NonNullable<Update["callback_query"]>){
-  const callbackId=query.id,data=query.data||"",message=query.message,chatId=message?.chat?.id,user=query.from;
-  if(!callbackId||!chatId||!user?.id)return;
-  const ctx=await buildContext(chatId,message?.chat?.title,user);
-  const canManage=await isAdmin(chatId,user.id).catch(()=>false);
-  if(data.startsWith("quiz:")){
-    const[,sessionId,optionRaw]=data.split(":");
-    const result=ctx?await resolveQuiz(sessionId,user.id,Number(optionRaw),ctx):{ok:false as const,reason:"disabled"};
-    if(result.ok){await answerCallbackQuery(callbackId,`درسته! +${result.reward} سکه 🎉`,true);await sendMessage(chatId,`🎉 ${user.first_name||"آفرین"}! جواب درست بود و ${fmt(result.reward)} سکه بردی.`)}
-    else{const text=result.reason==="wrong"?"نه، این گزینه درست نبود 😄":result.reason==="expired"?"زمان این سؤال تموم شده ⏳":"این سؤال قبلاً جواب داده شده.";await answerCallbackQuery(callbackId,text,result.reason!=="wrong")}
-    return;
-  }
-  await answerCallbackQuery(callbackId);
-  if(data==="menu:home")return sendMessage(chatId,"🌍 منوی Family Bot",{reply_markup:mainMenuKeyboard(canManage)});
-  if(data==="menu:profile")return sendProfile(chatId,ctx);
-  if(data==="menu:rank")return sendRank(chatId,ctx);
-  if(data==="menu:daily")return daily(chatId,ctx);
-  if(data==="menu:help")return sendMessage(chatId,HELP,{reply_markup:mainMenuKeyboard(canManage)});
-  if(data==="menu:rules")return sendMessage(chatId,RULES,{reply_markup:mainMenuKeyboard(canManage)});
-  if(data==="menu:admin"){
-    if(!canManage||!ctx)return answerCallbackQuery(callbackId,"این بخش فقط برای مدیرهای همین گروه است.",true);
-    return sendMessage(chatId,"🛡 مرکز مدیریت آماده است. هویت مدیر بعد از باز شدن Mini App دوباره از خود بله تأیید می‌شود.",{reply_markup:adminKeyboard()});
-  }
-  if(data==="menu:miniapp"&&ctx)return sendMessage(chatId,"🏠 Family Bot داخل Mini App بله باز می‌شود.",{reply_markup:featureKeyboard(ctx,"/","🏠 باز کردن Mini App")});
-  if(data==="menu:family"&&ctx)return sendMessage(chatId,"👨‍👩‍👧‍👦 اعضا، شجره‌نامه و مناسبت‌ها",{reply_markup:featureKeyboard(ctx,"/section/family","👨‍👩‍👧‍👦 باز کردن خانواده")});
-  if(data==="menu:planner"&&ctx)return sendMessage(chatId,"📅 کارها، تقویم، نظرسنجی و Family Coin",{reply_markup:featureKeyboard(ctx,"/section/planner","📅 باز کردن برنامه‌ریز")});
-  if(data==="menu:memories"&&ctx)return sendMessage(chatId,"🖼 آلبوم و خط زمانی خاطرات",{reply_markup:featureKeyboard(ctx,"/section/memories","🖼 باز کردن خاطرات")});
-  if(data==="menu:store"&&ctx)return sendMessage(chatId,"🛍 فروشگاه و آیتم‌های Family House",{reply_markup:featureKeyboard(ctx,"/section/store","🛍 باز کردن فروشگاه")});
-  if(data==="menu:achievements"&&ctx)return sendMessage(chatId,"🏅 نشان‌ها و مأموریت‌های روزانه/هفتگی",{reply_markup:featureKeyboard(ctx,"/section/achievements","🏅 باز کردن دستاوردها")});
-  if(data==="menu:ai"&&ctx)return sendMessage(chatId,"🤖 Family AI تایپی و صوتی",{reply_markup:featureKeyboard(ctx,"/ai","🤖 باز کردن Family AI")});
-  if(data==="menu:games"){
-    const gameCenter=ctx?cleanWebAppUrl("/section/games"):null;
-    return sendMessage(chatId,"🎮 چی بازی کنیم؟",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}],...(gameCenter?[[{text:"🎮 مرکز بازی Mini App",web_app:{url:gameCenter}}]]:[]),[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}});
-  }
-  if(data==="game:quiz")return startQuiz(chatId,ctx);
-  if(data==="game:dice")return sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);
-  if(data==="game:coin")return sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");
-  if(data==="game:rps")return sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});
-  if(data.startsWith("rps:")){
-    const choice=Number(data.split(":")[1]),bot=Math.floor(Math.random()*3),names=["سنگ","کاغذ","قیچی"];
-    const result=choice===bot?"مساوی شد 😄":(choice-bot+3)%3===1?"تو بردی! 🎉":"این دست من بردم 🤖";
-    return sendMessage(chatId,`تو: ${names[choice]}\nFamily Bot: ${names[bot]}\n\n${result}`);
-  }
-}
-
-async function processUpdate(update:Update){
-  if(update.callback_query){await handleCallback(update.callback_query);return NextResponse.json({ok:true})}
-  const message=update.message,chatId=message?.chat?.id,userId=message?.from?.id;
-  if(!message||!chatId)return NextResponse.json({ok:true});
-  const ctx=await buildContext(chatId,message.chat?.title,message.from);
-  const settings=ctx?await readAdminSettings(ctx.family.id).catch(()=>null):null;
-  const currentAdmin=userId?await isAdmin(chatId,userId).catch(()=>false):false;
-
-  if(message.new_chat_members?.length&&settings?.welcome_enabled!==false){
-    const names=message.new_chat_members.map(u=>u.first_name||"عضو جدید").join("، ");
-    const template=settings?.welcome_message||"💜 {name} خوش اومدی!";
-    await sendMessage(chatId,template.replaceAll("{name}",names),{reply_markup:mainMenuKeyboard(false)});
-    return NextResponse.json({ok:true});
-  }
-  if(message.web_app_data?.data){await sendMessage(chatId,"✅ اطلاعات Mini App دریافت شد و با Family Bot همگام می‌شود.");return NextResponse.json({ok:true})}
-
-  const text=message.text?.trim()??"";
-  const fullText=normalizedText(message);
-  const[commandRaw="",...args]=text.split(/\s+/);
-  const command=commandRaw.toLowerCase().split("@")[0],isCommand=command.startsWith("/");
-  let privileged=currentAdmin;
-  if(ctx&&userId&&settings){
-    const whitelisted=!currentAdmin&&await isWhitelisted(ctx.family.id,userId).catch(()=>false);
-    privileged=currentAdmin||whitelisted;
-    if(!privileged&&!isCommand&&settings.new_member_restrict_minutes>0){
-      const ageMs=Date.now()-new Date(ctx.member.created_at).getTime();
-      const guardMs=settings.new_member_restrict_minutes*60_000;
-      if(Number.isFinite(ageMs)&&ageMs>=0&&ageMs<guardMs&&newcomerRestrictedContent(message,fullText)){
-        if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-        await logModeration(ctx.family.id,undefined,userId,"new_member_guard",`${settings.new_member_restrict_minutes}m newcomer window`);
-        await sendMessage(chatId,`🛡 برای امنیت گروه، عضوهای تازه تا ${fmt(settings.new_member_restrict_minutes)} دقیقه نمی‌تونن لینک یا رسانه بفرستن.`);
-        return NextResponse.json({ok:true});
-      }
-    }
-    if(!privileged&&!isCommand&&fullText&&settings.filtered_words.length){
-      const matched=matchingFilteredWord(fullText,settings.filtered_words);
-      if(matched){
-        if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-        await logModeration(ctx.family.id,undefined,userId,"filtered_word",matched);
-        const count=await addWarning(ctx.family.id,0,userId,"استفاده از کلمه فیلترشده");
-        await sendMessage(chatId,`🚫 پیام به‌دلیل کلمه فیلترشده حذف شد. اخطار فعال: ${fmt(count)}`);
-        if(count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId);await logModeration(ctx.family.id,undefined,userId,"auto_mute","filtered word warn limit");await sendMessage(chatId,`🔇 سقف اخطار پر شد؛ کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`)}
-        return NextResponse.json({ok:true});
-      }
-    }
-    const locked=privileged?null:lockedContent(message,settings,isCommand);
-    if(locked){
-      if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-      await logModeration(ctx.family.id,undefined,userId,"content_lock",locked);
-      await sendMessage(chatId,`🔒 ارسال ${locked} در حال حاضر برای اعضای عادی قفل است.`);
-      return NextResponse.json({ok:true});
-    }
-  }
-
-  if(ctx&&userId&&!isCommand&&!privileged){
-    if(settings?.anti_link&&hasExternalLink(fullText)){
-      if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-      await logModeration(ctx.family.id,undefined,userId,"anti_link_delete","link removed");
-      const count=await addWarning(ctx.family.id,0,userId,"ارسال لینک در حالت قفل لینک");
-      await sendMessage(chatId,`🔗 لینک حذف شد. اخطار فعال: ${fmt(count)}`);
-      if(count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId);await logModeration(ctx.family.id,undefined,userId,"auto_mute","warn limit reached");await sendMessage(chatId,`🔇 به دلیل رسیدن به ${fmt(settings.warn_limit)} اخطار، کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`)}
-      return NextResponse.json({ok:true});
-    }
-    if(text&&settings?.anti_flood){
-      const flood=await recordFloodEvent(ctx.family.id,userId,settings);
-      if(flood.exceeded){
-        if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);
-        await mute(chatId,userId,settings.flood_mute_minutes);
-        await logModeration(ctx.family.id,undefined,userId,"anti_flood_mute",`${flood.count} messages in ${settings.flood_window_seconds}s`);
-        await sendMessage(chatId,`🛡 ضداسپم فعال شد؛ ارسال سریع پیام تشخیص داده شد و کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد.`);
-        return NextResponse.json({ok:true});
-      }
-    }
-  }
-  if(ctx&&text&&!isCommand)try{await addActivityReward(ctx,"message",1)}catch(error){console.error("activity reward failed",error)}
-
-  if(["/start","/family","/menu"].includes(command))await sendMessage(chatId,"🏡 Family Bot آماده‌ست. همه امکانات از منوی دکمه‌ای زیر در دسترسه.",{reply_markup:mainMenuKeyboard(currentAdmin)});
-  else if(command==="/help")await sendMessage(chatId,HELP,{reply_markup:mainMenuKeyboard(currentAdmin)});
-  else if(command==="/admin"){
-    if(!userId||!ctx||!currentAdmin){await sendMessage(chatId,"⛔ پنل مدیریت فقط برای مدیرهای همین گروه باز می‌شود.");return NextResponse.json({ok:true})}
-    await sendMessage(chatId,"🛡 مرکز مدیریت Family Bot آماده است. بعد از باز شدن Mini App، هویت همین حساب دوباره از بله تأیید می‌شود.",{reply_markup:adminKeyboard()});
-  }
-  else if(command==="/profile")await sendProfile(chatId,ctx);
-  else if(command==="/rank")await sendRank(chatId,ctx);
-  else if(command==="/daily")await daily(chatId,ctx);
-  else if(command==="/games")await sendMessage(chatId,"🎮 مرکز بازی Family Bot",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}});
-  else if(command==="/quiz")await startQuiz(chatId,ctx);
-  else if(command==="/dice")await sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);
-  else if(command==="/coin")await sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");
-  else if(command==="/rps")await sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});
-  else if(command==="/ai")await sendMessage(chatId,"🤖 Family AI آماده است.",{reply_markup:ctx?featureKeyboard(ctx,"/ai","🤖 باز کردن Family AI"):openMiniAppKeyboard()});
-  else if(command==="/rules")await sendMessage(chatId,RULES,{reply_markup:mainMenuKeyboard(currentAdmin)});
-  else if(["/warn","/unwarn","/ban","/unban","/mute","/pin"].includes(command)){
-    if(!userId||!currentAdmin){await sendMessage(chatId,"⛔ این فرمان فقط برای مدیرهای گروه است.");return NextResponse.json({ok:true})}
-    const targetId=message.reply_to_message?.from?.id,reason=args.join(" ").trim();
-    if(!targetId&&command!=="/pin"){await sendMessage(chatId,"↩️ این فرمان را روی پیام عضو موردنظر Reply کن.");return NextResponse.json({ok:true})}
-    if(command==="/warn"){
-      const count=ctx?await addWarning(ctx.family.id,userId,targetId!,reason):0;
-      if(ctx)await logModeration(ctx.family.id,userId,targetId,"warn",reason);
-      await sendMessage(chatId,`⚠️ اخطار ثبت شد${count?` — اخطار فعال: ${fmt(count)}`:""}${reason?`\nدلیل: ${reason}`:""}`);
-      if(ctx&&settings&&count>=settings.warn_limit){await mute(chatId,targetId!,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,targetId!);await logModeration(ctx.family.id,userId,targetId,"auto_mute","warn limit reached");await sendMessage(chatId,`🔇 سقف اخطار پر شد؛ کاربر ${fmt(settings.flood_mute_minutes)} دقیقه ساکت شد و اخطارها ریست شدند.`)}
-      return NextResponse.json({ok:true});
-    }
-    if(command==="/unwarn"){
-      if(ctx){await clearWarnings(ctx.family.id,targetId!);await logModeration(ctx.family.id,userId,targetId,"unwarn")}
-      await sendMessage(chatId,"🧹 اخطارهای فعال این عضو پاک شد.");
-      return NextResponse.json({ok:true});
-    }
-    if(command==="/ban")await baleApi("banChatMember",{chat_id:chatId,user_id:targetId});
-    if(command==="/unban")await baleApi("unbanChatMember",{chat_id:chatId,user_id:targetId,only_if_banned:true});
-    if(command==="/mute")await mute(chatId,targetId!,Math.max(1,Math.min(10080,Number(args[0])||10)));
-    if(command==="/pin"){
-      const messageId=message.reply_to_message?.message_id;
-      if(!messageId){await sendMessage(chatId,"↩️ برای پین کردن، روی پیام موردنظر Reply کن.");return NextResponse.json({ok:true})}
-      await baleApi("pinChatMessage",{chat_id:chatId,message_id:messageId,disable_notification:true});
-    }
-    if(ctx)await logModeration(ctx.family.id,userId,targetId,command.slice(1),reason);
-    await sendMessage(chatId,"✅ انجام شد.");
-  }
-  return NextResponse.json({ok:true});
-}
-
-export async function POST(req:NextRequest){
-  const expected=process.env.BALE_WEBHOOK_PATH_TOKEN||process.env.BALE_WEBHOOK_SECRET;
-  const received=req.headers.get("x-bale-bot-api-secret-token")??req.nextUrl.searchParams.get("secret");
-  if(!expected)return NextResponse.json({ok:false,error:"webhook_secret_not_configured"},{status:503,headers:{"cache-control":"no-store"}});
-  if(received!==expected)return NextResponse.json({ok:false},{status:401,headers:{"cache-control":"no-store"}});
-  const update=(await req.json()) as Update;
-  const updateId=Number(update.update_id);
-  const kind=update.callback_query?"callback_query":update.message?"message":"unknown";
-  const chatId=update.callback_query?.message?.chat?.id??update.message?.chat?.id;
-  const claimed=Number.isSafeInteger(updateId)?await claimBaleUpdate(updateId,kind,chatId):{tracked:false,duplicate:false};
-  if(claimed.duplicate)return NextResponse.json({ok:true,duplicate:true},{headers:{"cache-control":"no-store"}});
-  try{
-    const response=await processUpdate(update);
-    if(claimed.tracked)await completeBaleUpdate(updateId);
-    return response;
-  }catch(error){
-    if(claimed.tracked)await releaseBaleUpdate(updateId,error);
-    console.error("Bale webhook processing failed",error);
-    return NextResponse.json({ok:false,error:"processing_failed"},{status:500,headers:{"cache-control":"no-store"}});
-  }
-}
-
-export async function GET(){
-  return NextResponse.json({ok:true,service:"familybot-bale-webhook",version:"1.0.0",familyCore:familyCoreEnabled()},{headers:{"cache-control":"no-store"}});
-}
+type BaleUser={id?:number;first_name?:string;last_name?:string;username?:string;photo_url?:string};
+type BaleMessage={message_id?:number;text?:string;caption?:string;chat?:{id?:number;type?:string;title?:string};from?:BaleUser;new_chat_members?:BaleUser[];web_app_data?:{data?:string;button_text?:string};reply_to_message?:{from?:BaleUser;message_id?:number};photo?:unknown[];video?:unknown;document?:unknown;sticker?:unknown;animation?:unknown;voice?:unknown;audio?:unknown;forward_origin?:unknown;forward_from?:BaleUser;forward_from_chat?:{id?:number}};
+type Update={update_id?:number;message?:BaleMessage;callback_query?:{id?:string;from?:BaleUser;data?:string;message?:BaleMessage}};
+type Ctx=Awaited<ReturnType<typeof buildContext>>;
+const HELP=`🌍 JAHANI Family Bot\n\n🏠 Mini App و خانه خانواده\n🐾 سگول\n👨‍👩‍👧‍👦 خانواده و شجره‌نامه\n📅 برنامه‌ریز، کارها و نظرسنجی\n🖼 خاطرات\n🎡 گردونه شانس\n🏦 صندوق و بانک خانوادگی\n🛍 فروشگاه و Family Coin\n🏅 مأموریت‌ها و دستاوردها\n🎮 بازی‌ها\n🎭 سرگرمی و فرهنگ دزفولی\n🤖 سکتور AI صوتی و متنی\n👤 پروفایل و رتبه‌بندی\n\nبرای صدا زدن هوش مصنوعی داخل گروه بنویس «درود سکتور» یا روی یکی از پیام‌های ربات Reply کن.`;
+const RULES_FALLBACK="💜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) از اسپم و محتوای نامناسب خودداری کنید\n۳) حریم خصوصی خانواده حفظ شود\n۴) تصمیم‌های مدیران گروه رعایت شود";
+const fmt=(v:number|string|null|undefined)=>new Intl.NumberFormat("fa-IR").format(Number(v||0));
+const hasExternalLink=(text:string)=>/(https?:\/\/|www\.|(?:t|ble)\.me\/|ble\.ir\/|\.com\b|\.ir\b)/i.test(text);
+const normalizedText=(m:BaleMessage)=>`${m.text||""}\n${m.caption||""}`.trim().toLocaleLowerCase("fa-IR");
+function matchingFilteredWord(text:string,words:string[]){return words.find(w=>w&&text.includes(w.toLocaleLowerCase("fa-IR")))||null}
+function newcomerRestrictedContent(m:BaleMessage,text:string){return hasExternalLink(text)||Boolean(m.photo?.length||m.video||m.document||m.sticker||m.animation||m.voice||m.audio||m.forward_origin||m.forward_from||m.forward_from_chat)}
+function cleanWebAppUrl(path="/"){const base=process.env.NEXT_PUBLIC_APP_URL;if(!base)return null;return new URL(path,base).toString()}
+function adminKeyboard(){const admin=cleanWebAppUrl("/admin");return admin?{inline_keyboard:[[{text:"🛡 مرکز مدیریت",web_app:{url:admin}}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}:undefined}
+function memberMiniAppKeyboard(_ctx:Exclude<Ctx,null>){const home=cleanWebAppUrl("/");return home?{inline_keyboard:[[{text:"🏠 باز کردن JAHANI",web_app:{url:home}}],[{text:"🐾 سگول",web_app:{url:new URL('/section/sagool',home).toString()}},{text:"👤 پروفایل",callback_data:"menu:profile"}]]}:openMiniAppKeyboard()}
+function featureKeyboard(_ctx:Exclude<Ctx,null>,path:string,label:string){const url=cleanWebAppUrl(path);return url?{inline_keyboard:[[{text:label,web_app:{url}}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}:openMiniAppKeyboard()}
+function lockedContent(m:BaleMessage,s:Awaited<ReturnType<typeof readAdminSettings>>,isCommand:boolean){if(s.lock_photo&&m.photo?.length)return"عکس";if(s.lock_video&&m.video)return"ویدیو";if(s.lock_document&&m.document)return"فایل";if(s.lock_forward&&(m.forward_origin||m.forward_from||m.forward_from_chat))return"فوروارد";if(s.lock_sticker&&m.sticker)return"استیکر";if(s.lock_gif&&m.animation)return"GIF";if(s.lock_voice&&m.voice)return"ویس";if(s.lock_audio&&m.audio)return"موزیک";if(s.lock_text&&m.text&&!isCommand)return"متن";return null}
+async function mute(chatId:number,userId:number,minutes:number){await baleApi("restrictChatMember",{chat_id:chatId,user_id:userId,permissions:{can_send_messages:false},until_date:Math.floor(Date.now()/1000)+minutes*60})}
+async function buildContext(chatId:number,title:string|undefined,user?:BaleUser){if(!user?.id||!familyCoreEnabled())return null;try{return await ensureFamilyMember(chatId,title,{id:user.id,first_name:user.first_name,last_name:user.last_name,username:user.username,photo_url:user.photo_url})}catch(e){console.error("Family Core bootstrap failed",e);return null}}
+async function sendProfile(chatId:number,ctx:Ctx){if(!ctx)return sendMessage(chatId,"👤 Family Core در دسترس نیست.");const p=await getProfile(ctx),founder=Boolean((p as any).is_founder||(p as any).role==="founder");return sendMessage(chatId,`👤 ${p.display_name||p.first_name||"عضو خانواده"}${founder?" · Founder":""}\n⭐ Level ${fmt(p.level)}\n✨ XP: ${founder?"∞":fmt(p.xp)}\n🪙 Family Coin: ${founder?"∞":fmt(p.coins)}\n🔥 Streak: ${fmt(p.streak)} روز`,{reply_markup:memberMiniAppKeyboard(ctx)})}
+async function sendRank(chatId:number,ctx:Ctx){if(!ctx)return sendMessage(chatId,"🏆 رتبه‌بندی در دسترس نیست.");const rows=await getLeaderboard(ctx.family.id,5),body=rows.length?rows.map((r:any,i:number)=>`${i+1}. ${r.display_name||r.first_name||"عضو خانواده"}${r.is_founder?" 👑":""} — Lv.${fmt(r.level)} · ${r.is_founder?"∞":fmt(r.xp)} XP`).join("\n"):"هنوز امتیازی ثبت نشده.";return sendMessage(chatId,`🏆 ۵ نفر برتر خانواده\n\n${body}`,{reply_markup:memberMiniAppKeyboard(ctx)})}
+async function daily(chatId:number,ctx:Ctx){if(!ctx)return sendMessage(chatId,"🎁 جایزه روزانه در دسترس نیست.");const r=await claimDaily(ctx);if(r.ok)return sendMessage(chatId,`🎁 جایزه امروز دریافت شد!\n+${fmt(r.reward)} 🪙\nموجودی: ${fmt(r.coins)}`,{reply_markup:memberMiniAppKeyboard(ctx)});return sendMessage(chatId,"⏳ جایزه امروز رو قبلاً گرفتی. فردا دوباره سر بزن 💜",{reply_markup:memberMiniAppKeyboard(ctx)})}
+async function startQuiz(chatId:number,ctx:Ctx){if(!ctx)return sendMessage(chatId,"🧠 کوئیز فعلاً در دسترس نیست.");const q=await createQuizSession(ctx);if(!q)return sendMessage(chatId,"فعلاً سؤال آماده نشد.");return sendMessage(chatId,`🧠 کوئیز خانوادگی\n\n${q.prompt}\n\n🏆 جایزه: ${fmt(q.reward_coins)} سکه`,{reply_markup:{inline_keyboard:q.options.map((o,i)=>[{text:o,callback_data:`quiz:${q.id}:${i}`}])}})}
+async function handleCallback(query:NonNullable<Update["callback_query"]>){const callbackId=query.id,data=query.data||"",message=query.message,chatId=message?.chat?.id,user=query.from;if(!callbackId||!chatId||!user?.id)return;const ctx=await buildContext(chatId,message?.chat?.title,user),canManage=(await isAdmin(chatId,user.id).catch(()=>false))||isFounder(ctx);
+ if(data.startsWith("quiz:")){const[,sessionId,optionRaw]=data.split(":"),r=ctx?await resolveQuiz(sessionId,user.id,Number(optionRaw),ctx):{ok:false as const,reason:"disabled"};if(r.ok){await answerCallbackQuery(callbackId,`درسته! +${r.reward} سکه 🎉`,true);await sendMessage(chatId,`🎉 ${user.first_name||"آفرین"}! جواب درست بود.`)}else await answerCallbackQuery(callbackId,r.reason==="wrong"?"نه، این گزینه درست نبود 😄":r.reason==="expired"?"زمان سؤال تموم شده ⏳":"این سؤال بسته شده.",r.reason!=="wrong");return}
+ if(data==="menu:admin"){if(!canManage){await answerCallbackQuery(callbackId,"فقط مدیران گروه اجازه ی ورود دارن",true);return}await answerCallbackQuery(callbackId);return sendMessage(chatId,"🛡 مرکز مدیریت آماده است.",{reply_markup:adminKeyboard()})}
+ await answerCallbackQuery(callbackId);
+ if(data==="menu:home")return sendMessage(chatId,"🌍 منوی JAHANI",{reply_markup:mainMenuKeyboard(canManage)});
+ if(data==="menu:profile")return sendProfile(chatId,ctx);if(data==="menu:rank")return sendRank(chatId,ctx);if(data==="menu:daily")return daily(chatId,ctx);if(data==="menu:help")return sendMessage(chatId,HELP,{reply_markup:mainMenuKeyboard(canManage)});if(data==="menu:rules")return sendMessage(chatId,(ctx?await readAdminSettings(ctx.family.id).catch(()=>null):null)?.rules_message||RULES_FALLBACK,{reply_markup:mainMenuKeyboard(canManage)});
+ if(data==="menu:miniapp"&&ctx)return sendMessage(chatId,"🏠 JAHANI داخل Mini App بله باز می‌شود.",{reply_markup:featureKeyboard(ctx,"/","🏠 باز کردن Mini App")});
+ if(data==="menu:family"&&ctx)return sendMessage(chatId,"👨‍👩‍👧‍👦 اعضا و شجره‌نامه",{reply_markup:featureKeyboard(ctx,"/section/family","👨‍👩‍👧‍👦 خانواده")});
+ if(data==="menu:planner"&&ctx)return sendMessage(chatId,"📅 برنامه‌ریز خانواده",{reply_markup:featureKeyboard(ctx,"/section/planner","📅 برنامه‌ریز")});
+ if(data==="menu:memories"&&ctx)return sendMessage(chatId,"🖼 خاطرات خانواده",{reply_markup:featureKeyboard(ctx,"/section/memories","🖼 خاطرات")});
+ if(data==="menu:store"&&ctx)return sendMessage(chatId,"🛍 فروشگاه گرافیکی JAHANI",{reply_markup:featureKeyboard(ctx,"/section/store","🛍 فروشگاه")});
+ if(data==="menu:achievements"&&ctx)return sendMessage(chatId,"🏅 مأموریت‌ها و دستاوردها",{reply_markup:featureKeyboard(ctx,"/section/achievements","🏅 دستاوردها")});
+ if(data==="menu:ai"&&ctx)return sendMessage(chatId,"🤖 سکتور AI تایپی و صوتی",{reply_markup:featureKeyboard(ctx,"/ai","🤖 سکتور AI")});
+ if(data==="menu:games"){const gameCenter=ctx?cleanWebAppUrl("/section/games"):null;return sendMessage(chatId,"🎮 چی بازی کنیم؟",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}],...(gameCenter?[[{text:"🎮 مرکز بازی Mini App",web_app:{url:gameCenter}}]]:[]),[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}})}
+ if(data==="game:quiz")return startQuiz(chatId,ctx);if(data==="game:dice")return sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);if(data==="game:coin")return sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");if(data==="game:rps")return sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});if(data.startsWith("rps:")){const c=Number(data.split(":")[1]),bot=Math.floor(Math.random()*3),names=["سنگ","کاغذ","قیچی"],result=c===bot?"مساوی شد 😄":(c-bot+3)%3===1?"تو بردی! 🎉":"این دست من بردم 🤖";return sendMessage(chatId,`تو: ${names[c]}\nسکتور: ${names[bot]}\n\n${result}`)}}
+function aiTrigger(message:BaleMessage,text:string){const bot=(process.env.NEXT_PUBLIC_BALE_BOT_USERNAME||"My_familybot").replace(/^@/,"").toLowerCase(),replyUser=(message.reply_to_message?.from?.username||"").replace(/^@/,"").toLowerCase();return /^درود\s+سکتور(?:\s|$)|^سکتور(?:\s|$)/i.test(text)||Boolean(bot&&replyUser===bot)}
+function aiPrompt(text:string){return text.replace(/^درود\s+سکتور[،,:\-\s]*/i,"").replace(/^سکتور[،,:\-\s]*/i,"").trim()||"درود"}
+async function processUpdate(update:Update){if(update.callback_query){await handleCallback(update.callback_query);return NextResponse.json({ok:true})}const message=update.message,chatId=message?.chat?.id,userId=message?.from?.id;if(!message||!chatId)return NextResponse.json({ok:true});const ctx=await buildContext(chatId,message.chat?.title,message.from),settings=ctx?await readAdminSettings(ctx.family.id).catch(()=>null):null,baleAdmin=userId?await isAdmin(chatId,userId).catch(()=>false):false,canManage=baleAdmin||isFounder(ctx);
+ if(message.new_chat_members?.length&&settings?.welcome_enabled!==false){const names=message.new_chat_members.map(u=>u.first_name||"عضو جدید").join("، "),template=settings?.welcome_message||"💜 {name} خوش اومدی!";await sendMessage(chatId,template.replaceAll("{name}",names),{reply_markup:mainMenuKeyboard(false)});return NextResponse.json({ok:true})}
+ if(message.web_app_data?.data){await sendMessage(chatId,"✅ اطلاعات Mini App دریافت شد.");return NextResponse.json({ok:true})}
+ const text=message.text?.trim()??"",fullText=normalizedText(message),[commandRaw="",...args]=text.split(/\s+/),command=commandRaw.toLowerCase().split("@")[0],isCommand=command.startsWith("/");let privileged=canManage;
+ if(ctx&&userId&&settings){const whitelisted=!canManage&&await isWhitelisted(ctx.family.id,userId).catch(()=>false);privileged=canManage||whitelisted;if(!privileged&&!isCommand&&settings.new_member_restrict_minutes>0){const age=Date.now()-new Date(ctx.member.created_at).getTime(),guard=settings.new_member_restrict_minutes*60000;if(Number.isFinite(age)&&age>=0&&age<guard&&newcomerRestrictedContent(message,fullText)){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await logModeration(ctx.family.id,undefined,userId,"new_member_guard",`${settings.new_member_restrict_minutes}m`);await sendMessage(chatId,`🛡 عضوهای تازه تا ${fmt(settings.new_member_restrict_minutes)} دقیقه نمی‌تونن لینک یا رسانه بفرستن.`);return NextResponse.json({ok:true})}}
+ if(!privileged&&!isCommand&&fullText&&settings.filtered_words.length){const matched=matchingFilteredWord(fullText,settings.filtered_words);if(matched){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await logModeration(ctx.family.id,undefined,userId,"filtered_word",matched);const count=await addWarning(ctx.family.id,0,userId,"کلمه فیلترشده");await sendMessage(chatId,`🚫 پیام حذف شد. اخطار فعال: ${fmt(count)}`);if(count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId);await sendMessage(chatId,`🔇 سقف اخطار پر شد؛ ${fmt(settings.flood_mute_minutes)} دقیقه سکوت.`)}return NextResponse.json({ok:true})}}
+ const locked=privileged?null:lockedContent(message,settings,isCommand);if(locked){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await logModeration(ctx.family.id,undefined,userId,"content_lock",locked);await sendMessage(chatId,`🔒 ارسال ${locked} برای اعضای عادی قفل است.`);return NextResponse.json({ok:true})}}
+ if(ctx&&userId&&!isCommand&&!privileged){if(settings?.anti_link&&hasExternalLink(fullText)){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);const count=await addWarning(ctx.family.id,0,userId,"ارسال لینک");await logModeration(ctx.family.id,undefined,userId,"anti_link_delete");await sendMessage(chatId,`🔗 لینک حذف شد. اخطار فعال: ${fmt(count)}`);if(count>=settings.warn_limit){await mute(chatId,userId,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,userId)}return NextResponse.json({ok:true})}if(text&&settings?.anti_flood){const flood=await recordFloodEvent(ctx.family.id,userId,settings);if(flood.exceeded){if(message.message_id)await baleApi("deleteMessage",{chat_id:chatId,message_id:message.message_id}).catch(()=>undefined);await mute(chatId,userId,settings.flood_mute_minutes);await logModeration(ctx.family.id,undefined,userId,"anti_flood_mute",`${flood.count}`);await sendMessage(chatId,`🛡 ضداسپم فعال شد؛ ${fmt(settings.flood_mute_minutes)} دقیقه سکوت.`);return NextResponse.json({ok:true})}}}
+ if(ctx&&userId&&text&&!isCommand&&aiTrigger(message,text)){try{await addActivityReward(ctx,"sector_ai",2);const reply=await answerSectorInGroup({familyId:ctx.family.id,userId,message:aiPrompt(text)});if(reply)await sendMessage(chatId,reply,{reply_to_message_id:message.message_id});}catch(e){console.error("group sector ai failed",e);await sendMessage(chatId,"🤖 الان نتونستم جواب کامل بدم؛ دوباره صدام کن.")}return NextResponse.json({ok:true,ai:true})}
+ if(ctx&&text&&!isCommand)try{await addActivityReward(ctx,"message",1)}catch(e){console.error("activity reward failed",e)}
+ if(["/start","/family","/menu"].includes(command))await sendMessage(chatId,"🏡 JAHANI آماده‌ست. همه امکانات از منوی زیر در دسترسه.",{reply_markup:mainMenuKeyboard(canManage)});else if(command==="/help")await sendMessage(chatId,HELP,{reply_markup:mainMenuKeyboard(canManage)});else if(command==="/admin"){if(!userId||!ctx||!canManage){await sendMessage(chatId,"فقط مدیران گروه اجازه ی ورود دارن");return NextResponse.json({ok:true})}await sendMessage(chatId,"🛡 مرکز مدیریت JAHANI آماده است.",{reply_markup:adminKeyboard()})}else if(command==="/profile")await sendProfile(chatId,ctx);else if(command==="/rank")await sendRank(chatId,ctx);else if(command==="/daily")await daily(chatId,ctx);else if(command==="/games")await sendMessage(chatId,"🎮 مرکز بازی JAHANI",{reply_markup:{inline_keyboard:[[{text:"🧠 کوئیز",callback_data:"game:quiz"},{text:"🎲 تاس",callback_data:"game:dice"}],[{text:"🪙 شیر یا خط",callback_data:"game:coin"},{text:"✊ سنگ کاغذ قیچی",callback_data:"game:rps"}],[{text:"🏠 منوی اصلی",callback_data:"menu:home"}]]}});else if(command==="/quiz")await startQuiz(chatId,ctx);else if(command==="/dice")await sendMessage(chatId,`🎲 تاس تو: ${Math.floor(Math.random()*6)+1}`);else if(command==="/coin")await sendMessage(chatId,Math.random()<.5?"🪙 شیر!":"🪙 خط!");else if(command==="/rps")await sendMessage(chatId,"✊ انتخابت رو بزن:",{reply_markup:{inline_keyboard:[["سنگ","کاغذ","قیچی"].map((v,i)=>({text:v,callback_data:`rps:${i}`}))]}});else if(command==="/ai")await sendMessage(chatId,"🤖 بنویس «درود سکتور» یا Mini App هوش مصنوعی را باز کن.",{reply_markup:ctx?featureKeyboard(ctx,"/ai","🤖 باز کردن سکتور AI"):openMiniAppKeyboard()});else if(command==="/rules")await sendMessage(chatId,settings?.rules_message||RULES_FALLBACK,{reply_markup:mainMenuKeyboard(canManage)});else if(["/warn","/unwarn","/ban","/unban","/mute","/pin"].includes(command)){if(!userId||!canManage){await sendMessage(chatId,"⛔ این فرمان فقط برای مدیرهاست.");return NextResponse.json({ok:true})}const targetId=message.reply_to_message?.from?.id,reason=args.join(" ").trim();if(!targetId&&command!=="/pin"){await sendMessage(chatId,"↩️ فرمان را روی پیام عضو Reply کن.");return NextResponse.json({ok:true})}if(command==="/warn"){const count=ctx?await addWarning(ctx.family.id,userId,targetId!,reason):0;if(ctx)await logModeration(ctx.family.id,userId,targetId,"warn",reason);await sendMessage(chatId,`⚠️ اخطار ثبت شد — ${fmt(count)}`);if(ctx&&settings&&count>=settings.warn_limit){await mute(chatId,targetId!,settings.flood_mute_minutes);await clearWarnings(ctx.family.id,targetId!)}return NextResponse.json({ok:true})}if(command==="/unwarn"){if(ctx){await clearWarnings(ctx.family.id,targetId!);await logModeration(ctx.family.id,userId,targetId,"unwarn")}await sendMessage(chatId,"🧹 اخطارها پاک شد.");return NextResponse.json({ok:true})}if(command==="/ban")await baleApi("banChatMember",{chat_id:chatId,user_id:targetId});if(command==="/unban")await baleApi("unbanChatMember",{chat_id:chatId,user_id:targetId,only_if_banned:true});if(command==="/mute")await mute(chatId,targetId!,Math.max(1,Math.min(10080,Number(args[0])||10)));if(command==="/pin"){const id=message.reply_to_message?.message_id;if(!id){await sendMessage(chatId,"↩️ روی پیام موردنظر Reply کن.");return NextResponse.json({ok:true})}await baleApi("pinChatMessage",{chat_id:chatId,message_id:id,disable_notification:true})}if(ctx)await logModeration(ctx.family.id,userId,targetId,command.slice(1),reason);await sendMessage(chatId,"✅ انجام شد.")}
+ return NextResponse.json({ok:true})}
+export async function POST(req:NextRequest){const expected=process.env.BALE_WEBHOOK_PATH_TOKEN||process.env.BALE_WEBHOOK_SECRET,received=req.headers.get("x-bale-bot-api-secret-token")??req.nextUrl.searchParams.get("secret");if(!expected)return NextResponse.json({ok:false,error:"webhook_secret_not_configured"},{status:503,headers:{"cache-control":"no-store"}});if(received!==expected)return NextResponse.json({ok:false},{status:401,headers:{"cache-control":"no-store"}});const update=(await req.json()) as Update,updateId=Number(update.update_id),kind=update.callback_query?"callback_query":update.message?"message":"unknown",chatId=update.callback_query?.message?.chat?.id??update.message?.chat?.id,claimed=Number.isSafeInteger(updateId)?await claimBaleUpdate(updateId,kind,chatId):{tracked:false,duplicate:false};if(claimed.duplicate)return NextResponse.json({ok:true,duplicate:true},{headers:{"cache-control":"no-store"}});try{const response=await processUpdate(update);if(claimed.tracked)await completeBaleUpdate(updateId);return response}catch(error){if(claimed.tracked)await releaseBaleUpdate(updateId,error);console.error("Bale webhook processing failed",error);return NextResponse.json({ok:false,error:"processing_failed"},{status:500,headers:{"cache-control":"no-store"}})}}
+export async function GET(){return NextResponse.json({ok:true,service:"familybot-bale-webhook",version:"2.0.0",familyCore:familyCoreEnabled(),sectorAi:true},{headers:{"cache-control":"no-store"}})}
