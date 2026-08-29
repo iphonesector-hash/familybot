@@ -1,0 +1,17 @@
+"use client";
+import {useEffect,useState} from "react";
+import Link from "next/link";
+import {Icon,IconOrb} from "../../ui";
+import {adminHeaders,bootstrapAdminSession,clearAdminSession} from "../adminClientSession";
+
+type Settings={welcome_enabled?:boolean;welcome_message?:string;[key:string]:unknown};
+
+export default function WelcomeAdminPage(){
+  const[session,setSession]=useState(""),[ready,setReady]=useState(false),[authorized,setAuthorized]=useState<boolean|null>(null),[settings,setSettings]=useState<Settings>({}),[message,setMessage]=useState(""),[saving,setSaving]=useState(false);
+  useEffect(()=>{void bootstrapAdminSession().then(token=>{setSession(token);setReady(true)})},[]);
+  useEffect(()=>{if(!ready)return;if(!session){setAuthorized(false);return}fetch("/api/admin/settings",{headers:adminHeaders(session),cache:"no-store"}).then(r=>r.json().then(x=>({r,x}))).then(({r,x})=>{if(!r.ok||!x.ok){clearAdminSession();setAuthorized(false);return}setSettings(x.settings||{});setAuthorized(true)}).catch(()=>setAuthorized(false))},[ready,session]);
+  async function save(){setSaving(true);setMessage("");try{const r=await fetch("/api/admin/settings",{method:"PUT",headers:{"content-type":"application/json",...adminHeaders(session)},body:JSON.stringify({...settings,welcome_enabled:Boolean(settings.welcome_enabled),welcome_message:String(settings.welcome_message||"").slice(0,1500)})});const x=await r.json();if(!r.ok||!x.ok)throw new Error("save_failed");setSettings(x.settings||settings);setMessage("پیام خوش‌آمد ذخیره شد ✨")}catch{setMessage("ذخیره پیام انجام نشد")}finally{setSaving(false)}}
+  if(authorized===false)return <main className="appShell"><section className="premiumPanel" style={{padding:20}}><h1>فقط مدیران گروه اجازه‌ی ورود دارند</h1><Link href="/" className="primaryCta">بازگشت</Link></section></main>;
+  if(authorized!==true)return <main className="appShell"><section className="premiumPanel" style={{padding:20}}><h1>در حال بررسی دسترسی…</h1></section></main>;
+  return <main className="appShell"><div className="ambient ambientA"/><div className="starField"/><header className="appHeader"><Link href="/admin" className="roundButton">←</Link><div className="wordmark"><b>پیام خوش‌آمد</b><span>Admin Center</span></div><IconOrb name="family" tone="violet"/></header><section className="premiumPanel" style={{padding:18,display:"grid",gap:12}}><label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}><span><b>خوش‌آمدگویی فعال</b><small style={{display:"block",opacity:.65,marginTop:4}}>برای عضو تازه در گروه بله</small></span><input type="checkbox" checked={Boolean(settings.welcome_enabled)} onChange={e=>setSettings(v=>({...v,welcome_enabled:e.target.checked}))} style={{width:24,height:24}}/></label><label style={{display:"grid",gap:8}}><span><Icon name="family" size={15}/> متن خوش‌آمد</span><textarea value={String(settings.welcome_message||"")} onChange={e=>setSettings(v=>({...v,welcome_message:e.target.value}))} maxLength={1500} rows={7} placeholder="💜 {name} خوش اومدی!" style={{fontSize:16,minHeight:150}}/></label><small style={{opacity:.65}}>می‌توانی از <b>{"{name}"}</b> برای نام عضو استفاده کنی.</small><button className="primaryCta" disabled={saving} onClick={()=>void save()} style={{minHeight:48,justifyContent:"center"}}>{saving?"در حال ذخیره…":"ذخیره پیام خوش‌آمد"}</button>{message&&<div className="adminNotice">{message}</div>}</section></main>;
+}
