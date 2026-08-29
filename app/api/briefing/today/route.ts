@@ -1,0 +1,1 @@
+import {NextResponse} from "next/server";import {buildDailyBriefing} from "@/lib/dailyBriefing";export const dynamic="force-dynamic";export async function GET(){try{return NextResponse.json({ok:true,text:await buildDailyBriefing("morning")},{headers:{"cache-control":"no-store"}})}catch{return NextResponse.json({ok:false,error:"briefing_failed"},{status:502})}}
