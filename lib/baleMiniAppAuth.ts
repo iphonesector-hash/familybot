@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-export type BaleMiniAppUser={id:number;first_name?:string;username?:string;allows_write_to_pm?:boolean;photo_url?:string};
+export type BaleMiniAppUser={id:number;first_name?:string;last_name?:string;username?:string;allows_write_to_pm?:boolean;photo_url?:string};
 export type BaleInitData={query_id?:string;user?:BaleMiniAppUser;auth_date:number;hash:string;raw:Record<string,string>};
 
 function safeEqualHex(a:string,b:string){
@@ -17,13 +17,10 @@ export function validateBaleInitData(initData:string,maxAgeSeconds=15*60):BaleIn
   if(!receivedHash)return null;
   const entries=[...params.entries()].filter(([key])=>key!=="hash").sort(([a],[b])=>a.localeCompare(b));
   const dataCheckString=entries.map(([key,value])=>`${key}=${value}`).join("\n");
-  // Bale docs: secret_key = HMAC_SHA256(<bot_token>, "WebAppData")
-  // Interpreted as HMAC-SHA-256(message=bot_token, key="WebAppData").
   const secretKey=crypto.createHmac("sha256","WebAppData").update(token).digest();
   const expected=crypto.createHmac("sha256",secretKey).update(dataCheckString).digest("hex");
   if(!safeEqualHex(receivedHash,expected))return null;
-  const authDate=Number(params.get("auth_date")||0);
-  const now=Math.floor(Date.now()/1000);
+  const authDate=Number(params.get("auth_date")||0),now=Math.floor(Date.now()/1000);
   if(!Number.isFinite(authDate)||authDate<=0||authDate>now+60||now-authDate>maxAgeSeconds)return null;
   let user:BaleMiniAppUser|undefined;
   const rawUser=params.get("user");
