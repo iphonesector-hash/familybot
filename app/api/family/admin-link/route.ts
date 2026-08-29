@@ -1,23 +1,3 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyFamilySession } from "@/lib/familySession";
-import { createAdminSession } from "@/lib/adminSession";
-import { isAdmin } from "@/lib/bale";
-
-function sessionFrom(req: NextRequest) {
-  const auth = req.headers.get("authorization") || "";
-  return auth.startsWith("Bearer ") ? verifyFamilySession(auth.slice(7)) : null;
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const session = sessionFrom(req);
-    if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-    const canManage = await isAdmin(session.chatId, session.userId).catch(() => false);
-    if (!canManage) return NextResponse.json({ ok: false, error: "admin_required" }, { status: 403 });
-    const token = createAdminSession({ familyId: session.familyId, chatId: session.chatId, userId: session.userId }, 15 * 60);
-    return NextResponse.json({ ok: true, token, expiresIn: 900 }, { headers: { "cache-control": "no-store" } });
-  } catch (error) {
-    console.error("admin launcher failed", error);
-    return NextResponse.json({ ok: false, error: "admin_link_unavailable" }, { status: 500 });
-  }
-}
+import {NextRequest,NextResponse} from "next/server";import {createClient} from "@supabase/supabase-js";import {verifyFamilySession} from "@/lib/familySession";import {createAdminSession} from "@/lib/adminSession";import {isAdmin} from "@/lib/bale";
+function sessionFrom(req:NextRequest){const auth=req.headers.get("authorization")||"";return auth.startsWith("Bearer ")?verifyFamilySession(auth.slice(7)):null}function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)return null;return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}async function founder(familyId:string,userId:number){const s=db();if(!s)return false;const r=await s.from("members").select("role,is_founder").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();return Boolean(r.data?.is_founder||r.data?.role==="founder")}
+export async function POST(req:NextRequest){try{const session=sessionFrom(req);if(!session)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});const[admin,isFounder]=await Promise.all([isAdmin(session.chatId,session.userId).catch(()=>false),founder(session.familyId,session.userId).catch(()=>false)]);if(!admin&&!isFounder)return NextResponse.json({ok:false,error:"admin_required"},{status:403});const token=createAdminSession({familyId:session.familyId,chatId:session.chatId,userId:session.userId},15*60);return NextResponse.json({ok:true,token,expiresIn:900,founder:isFounder},{headers:{"cache-control":"no-store"}})}catch(error){console.error("admin launcher failed",error);return NextResponse.json({ok:false,error:"admin_link_unavailable"},{status:500})}}
