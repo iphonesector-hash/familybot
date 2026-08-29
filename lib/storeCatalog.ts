@@ -1,7 +1,9 @@
 export type StoreKind="house"|"profile"|"sagool";
 export type StoreRarity="common"|"rare"|"epic"|"legendary";
 export type StoreItem={id:string;name:string;price:number;kind:StoreKind;sprite:number;description:string;rarity:StoreRarity};
+
 export const STORE_ITEMS:StoreItem[]=[
+// Family House
 {id:"galaxy_sofa",name:"مبل کهکشانی",price:620,kind:"house",sprite:4,description:"مبل لوکس بنفش برای سالن خانه",rarity:"common"},
 {id:"cosmic_clock",name:"ساعت کیهانی",price:540,kind:"house",sprite:5,description:"ساعت تزئینی آینده‌نگر",rarity:"common"},
 {id:"light_fountain",name:"فواره پنجه نور",price:880,kind:"house",sprite:6,description:"فواره نئونی برای حیاط",rarity:"rare"},
@@ -11,21 +13,67 @@ export const STORE_ITEMS:StoreItem[]=[
 {id:"memory_bench",name:"نیمکت خاطره",price:780,kind:"house",sprite:4,description:"گوشه‌ای آرام برای خاطره‌های خانواده",rarity:"rare"},
 {id:"moon_clock",name:"ساعت ماه",price:930,kind:"house",sprite:5,description:"نسخه ویژه ساعت با تم ماه",rarity:"epic"},
 {id:"star_pool",name:"استخر ستاره",price:1950,kind:"house",sprite:6,description:"استخر نورانی با بازتاب ستاره‌ها",rarity:"legendary"},
-{id:"family_cinema",name:"سینمای خانواده",price:2400,kind:"house",sprite:9,description:"آیتم افسانه‌ای Family House",rarity:"legendary"},
+{id:"family_cinema",name:"سینمای خانواده",price:2400,kind:"house",sprite:9,description:"سینمای افسانه‌ای Family House",rarity:"legendary"},
+{id:"cosmic_chandelier",name:"لوستر کیهانی",price:1280,kind:"house",sprite:7,description:"لوستر طلایی-بنفش برای تالار خانه",rarity:"epic"},
+{id:"trophy_cabinet",name:"ویترین افتخارات",price:1120,kind:"house",sprite:9,description:"نمایش جام‌ها و دستاوردهای خانواده",rarity:"epic"},
+{id:"nebula_wardrobe",name:"کمد سحابی",price:820,kind:"house",sprite:4,description:"کمد مدرن با نور نئونی",rarity:"rare"},
+{id:"tea_table",name:"میز چای خانوادگی",price:460,kind:"house",sprite:4,description:"میز کوچک برای دورهمی‌های خانوادگی",rarity:"common"},
+{id:"family_photo_frame",name:"قاب عکس خانواده",price:590,kind:"house",sprite:5,description:"قاب نورانی برای گوشه خاطرات",rarity:"common"},
+{id:"cosmic_music_box",name:"جعبه موسیقی کیهانی",price:1040,kind:"house",sprite:7,description:"دکور موزیکال با هاله ستاره‌ای",rarity:"epic"},
+{id:"water_fountain",name:"آبنمای کریستالی",price:1260,kind:"house",sprite:6,description:"آبنمای آرامش‌بخش برای محوطه خانه",rarity:"epic"},
+{id:"sagool_dog_house",name:"خانه اختصاصی سگول",price:1380,kind:"house",sprite:8,description:"گوشه امن و گرم برای سگول",rarity:"epic"},
+{id:"toy_chest",name:"صندوق اسباب‌بازی",price:720,kind:"house",sprite:8,description:"محل نگهداری اسباب‌بازی‌های سگول",rarity:"rare"},
+{id:"pet_corner",name:"گوشه حیوان خانگی",price:980,kind:"house",sprite:8,description:"فضای کامل استراحت و بازی سگول",rarity:"rare"},
+{id:"cosmic_aquarium",name:"آکواریوم کیهانی",price:1760,kind:"house",sprite:6,description:"آکواریوم نورانی با حس اقیانوس فضایی",rarity:"legendary"},
+{id:"nebula_fireplace",name:"شومینه سحابی",price:1540,kind:"house",sprite:7,description:"شومینه گرم با شعله‌های نئونی",rarity:"epic"},
+{id:"family_observatory",name:"رصدخانه خانوادگی",price:2600,kind:"house",sprite:9,description:"تماشای آسمان از خانه جهانی",rarity:"legendary"},
+{id:"royal_room",name:"اتاق رویال",price:2850,kind:"house",sprite:9,description:"ارتقای افسانه‌ای فضای خانه",rarity:"legendary"},
+{id:"garden_gate",name:"دروازه باغ ستاره‌ای",price:1180,kind:"house",sprite:6,description:"ورودی نئونی باغ خانواده",rarity:"epic"},
+{id:"sky_window",name:"پنجره آسمان",price:980,kind:"house",sprite:5,description:"پنجره‌ای با نمای آسمان بنفش",rarity:"rare"},
+{id:"cosmic_library",name:"کتابخانه جهانی",price:1880,kind:"house",sprite:9,description:"کتابخانه باشکوه برای Family House",rarity:"legendary"},
+{id:"star_rug",name:"فرش ستاره‌ای",price:510,kind:"house",sprite:4,description:"فرش نرم با طرح صورت‌های فلکی",rarity:"common"},
+{id:"golden_family_tree",name:"درخت طلایی خانواده",price:2250,kind:"house",sprite:8,description:"نماد افسانه‌ای پیوند اعضای خانواده",rarity:"legendary"},
+{id:"memory_wall",name:"دیوار خاطرات",price:1320,kind:"house",sprite:5,description:"نمایشگاه کوچک برای لحظه‌های خانوادگی",rarity:"epic"},
+
+// Sagool
 {id:"sagool_food",name:"غذای انرژی",price:120,kind:"sagool",sprite:0,description:"یک وعده خوشمزه برای سگول",rarity:"common"},
+{id:"sagool_royal_food",name:"غذای رویال",price:390,kind:"sagool",sprite:0,description:"وعده ویژه برای سگول‌های سطح بالا",rarity:"rare"},
 {id:"sagool_water",name:"ظرف آب نئونی",price:90,kind:"sagool",sprite:0,description:"ظرف آب مخصوص سگول",rarity:"common"},
+{id:"sagool_hydration_station",name:"ایستگاه آب هوشمند",price:760,kind:"sagool",sprite:0,description:"آبخوری پیشرفته با نور وضعیت",rarity:"epic"},
 {id:"sagool_bone",name:"استخوان کهکشانی",price:260,kind:"sagool",sprite:1,description:"اسباب‌بازی جویدنی نورانی",rarity:"common"},
-{id:"sagool_bone_pro",name:"استخوان سکتور",price:460,kind:"sagool",sprite:1,description:"نسخه حرفه‌ای برای XP بازی بیشتر",rarity:"rare"},
-{id:"sagool_bed",name:"تخت ابری",price:650,kind:"sagool",sprite:2,description:"خواب راحت و انرژی بیشتر",rarity:"rare"},
+{id:"sagool_bone_pro",name:"Toy Bone سکتور",price:460,kind:"sagool",sprite:1,description:"استخوان حرفه‌ای برای بازی بیشتر",rarity:"rare"},
+{id:"sagool_ball",name:"توپ پلاسما",price:280,kind:"sagool",sprite:1,description:"توپ نورانی برای بازی و تحرک",rarity:"common"},
+{id:"sagool_robo_disc",name:"Robo Disc",price:940,kind:"sagool",sprite:1,description:"دیسک رباتیک برای تمرین واکنش",rarity:"epic"},
+{id:"sagool_bed",name:"Pet Bed ابری",price:650,kind:"sagool",sprite:2,description:"خواب راحت و انرژی بیشتر",rarity:"rare"},
 {id:"sagool_bed_royal",name:"تخت رویال",price:1180,kind:"sagool",sprite:2,description:"تخت لوکس سگول برای مراحل بالا",rarity:"epic"},
+{id:"sagool_sleep_pod",name:"کپسول خواب",price:1780,kind:"sagool",sprite:2,description:"استراحت افسانه‌ای با طراحی فضایی",rarity:"legendary"},
+{id:"sagool_shampoo",name:"شامپو کریستالی",price:310,kind:"sagool",sprite:0,description:"تمیزی و بوی خوب برای سگول",rarity:"common"},
+{id:"sagool_smart_feeder",name:"Smart Feeder",price:1320,kind:"sagool",sprite:0,description:"غذاخوری هوشمند با طراحی JAHANI",rarity:"epic"},
 {id:"sagool_collar",name:"قلاده نئونی",price:480,kind:"sagool",sprite:3,description:"قلاده اختصاصی با آویز نورانی",rarity:"rare"},
 {id:"sagool_sector_collar",name:"قلاده سکتور",price:820,kind:"sagool",sprite:3,description:"استایل اختصاصی Sector",rarity:"epic"},
+{id:"sagool_walk_harness",name:"هارنس پیاده‌روی",price:620,kind:"sagool",sprite:3,description:"قلاده ایمن برای ماجراجویی بیرون",rarity:"rare"},
+{id:"sagool_glasses",name:"عینک نئونی",price:720,kind:"sagool",sprite:3,description:"عینک آینده‌نگر برای استایل سگول",rarity:"rare"},
+{id:"sagool_outfit",name:"لباس JAHANI",price:880,kind:"sagool",sprite:3,description:"لباس رسمی بنفش و طلایی",rarity:"epic"},
+{id:"sagool_cape",name:"شنل قهرمان",price:1120,kind:"sagool",sprite:3,description:"شنل مخصوص سگول‌های شجاع",rarity:"epic"},
+{id:"sagool_armor",name:"زره نگهبان",price:1980,kind:"sagool",sprite:3,description:"زره افسانه‌ای مرحله نگهبان",rarity:"legendary"},
 {id:"sagool_crown",name:"تاج جهانی",price:1600,kind:"sagool",sprite:3,description:"برای سگول‌های سطح بالا",rarity:"legendary"},
 {id:"sagool_guardian",name:"نشان نگهبان",price:2200,kind:"sagool",sprite:3,description:"آیتم افسانه‌ای مرحله نگهبان",rarity:"legendary"},
 {id:"sagool_toy_pack",name:"پک بازی سگول",price:920,kind:"sagool",sprite:1,description:"پک ویژه سرگرمی و تمرین",rarity:"epic"},
 {id:"sagool_sleep_pack",name:"پک خواب آرام",price:980,kind:"sagool",sprite:2,description:"پک مخصوص استراحت سگول",rarity:"epic"},
+{id:"sagool_training_beacon",name:"Training Beacon",price:1240,kind:"sagool",sprite:1,description:"ابزار هوشمند برای تمرین‌های سگول",rarity:"epic"},
+{id:"sagool_pet_showcase",name:"Pet Showcase",price:1860,kind:"sagool",sprite:3,description:"استیج نمایش افسانه‌ای سگول",rarity:"legendary"},
+{id:"sagool_house",name:"Dog House فضایی",price:1480,kind:"sagool",sprite:2,description:"خانه شخصی سگول با طراحی کیهانی",rarity:"epic"},
+{id:"sagool_grooming_kit",name:"پک نظافت حرفه‌ای",price:690,kind:"sagool",sprite:0,description:"پک حمام و مراقبت روزانه",rarity:"rare"},
+{id:"sagool_affection_charm",name:"آویز دوستی",price:860,kind:"sagool",sprite:3,description:"نماد پیوند و صمیمیت با سگول",rarity:"epic"},
+{id:"sagool_legend_aura",name:"هاله افسانه‌ای سگول",price:2600,kind:"sagool",sprite:3,description:"هاله ستاره‌ای مخصوص مرحله افسانه‌ای",rarity:"legendary"},
+
+// Profile
 {id:"hero_frame",name:"فریم قهرمان",price:950,kind:"profile",sprite:3,description:"قاب ویژه پروفایل",rarity:"rare"},
 {id:"cosmic_badge",name:"نشان جهانی",price:1250,kind:"profile",sprite:5,description:"نشان پروفایل خانواده جهانی",rarity:"epic"},
-{id:"legend_glow",name:"هاله افسانه‌ای",price:1900,kind:"profile",sprite:7,description:"هاله ویژه اطراف آواتار",rarity:"legendary"}
+{id:"legend_glow",name:"هاله افسانه‌ای",price:1900,kind:"profile",sprite:7,description:"هاله ویژه اطراف آواتار",rarity:"legendary"},
+{id:"guardian_frame",name:"فریم نگهبان",price:1450,kind:"profile",sprite:3,description:"قاب بنفش و طلایی سطح بالا",rarity:"epic"},
+{id:"star_nameplate",name:"نیم‌تگ ستاره‌ای",price:780,kind:"profile",sprite:5,description:"پلاک نام با درخشش ستاره",rarity:"rare"},
+{id:"founder_cosmos",name:"Cosmos Showcase",price:2800,kind:"profile",sprite:7,description:"نمایش افسانه‌ای پروفایل JAHANI",rarity:"legendary"}
 ];
+
 export const storeItem=(id:string)=>STORE_ITEMS.find(x=>x.id===id);
