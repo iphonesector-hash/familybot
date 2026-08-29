@@ -5,48 +5,13 @@ import { useBaleMiniApp } from "@/lib/useBaleMiniApp";
 import { sessionGet,sessionSet } from "@/lib/safeSessionStorage";
 
 type FamilyChoice={id:string;name:string;chatId:number};
-
-function callSafe(target:unknown,method:string,...args:unknown[]){
-  try{
-    const fn=target&&typeof target==="object"?(target as Record<string,unknown>)[method]:undefined;
-    if(typeof fn==="function")return fn.apply(target,args);
-  }catch{}
-}
-
+function callSafe(target:unknown,method:string,...args:unknown[]){try{const fn=target&&typeof target==="object"?(target as Record<string,unknown>)[method]:undefined;if(typeof fn==="function")return fn.apply(target,args)}catch{}}
 export default function MiniAppBootstrap(){
   const {initData,inBale,webApp,startParam,supported}=useBaleMiniApp();
   const [choices,setChoices]=useState<FamilyChoice[]>([]);const[error,setError]=useState("");const[busy,setBusy]=useState(false);const[booting,setBooting]=useState(false);
-
-  async function bootstrap(familyId?:string){
-    if(!initData||busy)return;
-    setBusy(true);setBooting(true);setError("");
-    try{
-      const r=await fetch("/api/bale/miniapp/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({initData,familyId}),cache:"no-store"});
-      const d=await r.json();
-      if(!d.ok)throw new Error(d.error||"bootstrap_failed");
-      if(d.status==="ready"&&d.session){
-        if(!sessionSet("familybot.session",String(d.session)))throw new Error("session_storage_unavailable");
-        sessionSet("familybot.canManage",d.canManage?"1":"0");
-        if(d.family?.id)sessionSet("familybot.familyId",String(d.family.id));
-        window.location.reload();return;
-      }
-      if(d.status==="choose_family"){setChoices(d.families||[]);return}
-      if(d.status==="needs_family"){setError("هنوز خانواده‌ای برای این حساب ثبت نشده. بازو را به گروه خانواده اضافه کن و داخل همان گروه /start بزن؛ بعد دوباره Mini App را باز کن.");return}
-    }catch(error){
-      setError(error instanceof Error&&error.message==="session_storage_unavailable"?"ذخیره‌سازی امن داخل WebView بله در دسترس نیست. بله را به آخرین نسخه به‌روزرسانی و Mini App را دوباره باز کن.":"ورود امن Mini App انجام نشد. بله را به آخرین نسخه به‌روزرسانی کن و دوباره وارد شو.")
-    }
-    finally{setBusy(false);setBooting(false)}
-  }
-
-  useEffect(()=>{
-    if(!inBale||!initData||sessionGet("familybot.session"))return;
-    setBooting(true);
-    if(!supported){setError("این نسخه بله از Mini App پشتیبانی کامل نمی‌کند. بله را به آخرین نسخه به‌روزرسانی کن.");setBooting(false);return}
-    const direct=startParam.startsWith("family_")?startParam.slice(7):"";
-    const remembered=sessionGet("familybot.familyId")||"";
-    void bootstrap(direct||remembered||undefined);
-  },[inBale,initData,startParam,supported]);
-
+  async function bootstrap(familyId?:string){if(!initData||busy)return;setBusy(true);setBooting(true);setError("");try{const r=await fetch("/api/bale/miniapp/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({initData,familyId}),cache:"no-store"});const d=await r.json();if(!d.ok)throw new Error(d.error||"bootstrap_failed");if(d.status==="ready"&&d.session){if(!sessionSet("familybot.session",String(d.session)))throw new Error("session_storage_unavailable");sessionSet("familybot.canManage",d.canManage?"1":"0");if(d.family?.id)sessionSet("familybot.familyId",String(d.family.id));window.dispatchEvent(new Event("familybot:boot-ready"));window.location.reload();return}if(d.status==="choose_family"){setChoices(d.families||[]);return}if(d.status==="needs_family"){setError("هنوز خانواده‌ای برای این حساب ثبت نشده. بازو را به گروه خانواده اضافه کن و داخل همان گروه /start بزن؛ بعد دوباره Mini App را باز کن.");return}}catch(error){setError(error instanceof Error&&error.message==="session_storage_unavailable"?"ذخیره‌سازی امن داخل WebView بله در دسترس نیست. بله را به آخرین نسخه به‌روزرسانی و Mini App را دوباره باز کن.":"ورود امن Mini App انجام نشد. بله را به آخرین نسخه به‌روزرسانی کن و دوباره وارد شو.")}finally{setBusy(false);setBooting(false)}}
+  useEffect(()=>{if(!inBale||!initData||sessionGet("familybot.session"))return;setBooting(true);if(!supported){setError("این نسخه بله از Mini App پشتیبانی کامل نمی‌کند. بله را به آخرین نسخه به‌روزرسانی کن.");setBooting(false);return}const direct=startParam.startsWith("family_")?startParam.slice(7):"";const remembered=sessionGet("familybot.familyId")||"";void bootstrap(direct||remembered||undefined)},[inBale,initData,startParam,supported]);
+  useEffect(()=>{if(choices.length||error)window.dispatchEvent(new Event("familybot:bootstrap-visible"))},[choices.length,error]);
   useEffect(()=>{if(!webApp)return;callSafe(webApp,"ready");callSafe(webApp,"expand")},[webApp]);
   if(!choices.length&&!error&&!booting&&!busy)return null;
   const botUsername=process.env.NEXT_PUBLIC_BALE_BOT_USERNAME||"My_familybot";
