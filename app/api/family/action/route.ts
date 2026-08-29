@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
 import { isAdmin } from "@/lib/bale";
-import { completeFamilyTask, createFamilyTask, createMemory, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
+import { completeFamilyTask, createFamilyTask, createMemory, isFamilyFounder, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
 import { readPlannerData } from "@/lib/plannerData";
@@ -18,7 +18,7 @@ export async function POST(req:NextRequest){
       case "profile.update":data=await updateOwnProfile(session.familyId,session.userId,{displayName:p.displayName as string,relationLabel:p.relationLabel as string,bio:p.bio as string,birthday:(p.birthday as string)||null});break;
       case "task.create":{
         const requestedReward=Math.max(0,Number(p.rewardCoins||0));
-        if(requestedReward>0&&!await isAdmin(session.chatId,session.userId).catch(()=>false))return NextResponse.json({ok:false,error:"admin_required_for_reward"},{status:403});
+        if(requestedReward>0){const canReward=await isAdmin(session.chatId,session.userId).catch(()=>false)||await isFamilyFounder(session.familyId,session.userId).catch(()=>false);if(!canReward)return NextResponse.json({ok:false,error:"admin_required_for_reward"},{status:403})}
         data=await createFamilyTask(session.familyId,session.userId,{title:p.title as string,description:p.description as string,dueAt:(p.dueAt as string)||null,rewardCoins:requestedReward});break;
       }
       case "task.complete":data=await completeFamilyTask(session.familyId,session.userId,String(p.taskId||""));break;
