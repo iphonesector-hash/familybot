@@ -5,10 +5,64 @@ import {isAdmin} from "@/lib/bale";
 
 const AVATAR_BUCKET="family-avatars";
 const RELATION_TYPES=new Set(["پدر","مادر","همسر","فرزند","برادر","خواهر","پدربزرگ","مادربزرگ","عمو","عمه","دایی","خاله","نوه"]);
-function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
+function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 async function memberBelongs(familyId:string,id:string){const r=await db().from("members").select("id").eq("id",id).eq("family_id",familyId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data)}
+async function isFounder(familyId:string,userId:number){const r=await db().from("members").select("is_founder,role").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data?.is_founder||r.data?.role==="founder")}
+async function canManage(familyId:string,chatId:number,userId:number){if(await isFounder(familyId,userId))return true;return isAdmin(chatId,userId).catch(()=>false)}
 async function signedAvatar(supabase:ReturnType<typeof db>,value:string|null){if(!value)return null;if(!value.startsWith("storage:"))return value;const path=value.slice(8);const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);return signed.error?null:signed.data.signedUrl}
-export async function GET(req:NextRequest){try{const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});const supabase=db();const [members,rels]=await Promise.all([supabase.from("members").select("id,bale_user_id,display_name,first_name,last_name,relation_label,avatar_url,level").eq("family_id",s.familyId).order("created_at"),supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId)]);if(members.error)throw members.error;if(rels.error)throw rels.error;const safeMembers=await Promise.all((members.data||[]).map(async m=>({...m,avatar_url:await signedAvatar(supabase,m.avatar_url)})));const canManage=await isAdmin(s.chatId,s.userId).catch(()=>false);return NextResponse.json({ok:true,canManage,members:safeMembers,relationships:rels.data||[]},{headers:{"cache-control":"no-store"}})}catch(error){console.error("tree read failed",error);return NextResponse.json({ok:false,error:"tree_unavailable"},{status:500})}}
-export async function POST(req:NextRequest){try{const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});if(!await isAdmin(s.chatId,s.userId).catch(()=>false))return NextResponse.json({ok:false,error:"admin_required"},{status:403});const content=req.headers.get("content-type")||"",supabase=db();if(content.includes("multipart/form-data")){const form=await req.formData();const memberId=String(form.get("memberId")||"");const file=form.get("file");if(!memberId||!(file instanceof File))return NextResponse.json({ok:false,error:"invalid_upload"},{status:400});if(!await memberBelongs(s.familyId,memberId))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});if(file.size>4*1024*1024)return NextResponse.json({ok:false,error:"file_too_large"},{status:413});if(!["image/jpeg","image/png","image/webp"].includes(file.type))return NextResponse.json({ok:false,error:"image_required"},{status:400});const check=await supabase.storage.getBucket(AVATAR_BUCKET);if(check.error){const created=await supabase.storage.createBucket(AVATAR_BUCKET,{public:false,fileSizeLimit:4194304,allowedMimeTypes:["image/jpeg","image/png","image/webp"]});if(created.error)throw created.error}else if(check.data.public){const updated=await supabase.storage.updateBucket(AVATAR_BUCKET,{public:false,fileSizeLimit:4194304,allowedMimeTypes:["image/jpeg","image/png","image/webp"]});if(updated.error)throw updated.error}const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";const path=`${s.familyId}/${memberId}-${Date.now()}.${ext}`;const bytes=new Uint8Array(await file.arrayBuffer());const up=await supabase.storage.from(AVATAR_BUCKET).upload(path,bytes,{contentType:file.type,upsert:false});if(up.error)throw up.error;const saved=await supabase.from("members").update({avatar_url:`storage:${path}`}).eq("id",memberId).eq("family_id",s.familyId);if(saved.error)throw saved.error;const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);if(signed.error)throw signed.error;return NextResponse.json({ok:true,avatarUrl:signed.data.signedUrl})}
-const body=await req.json() as {action?:string;relationId?:string;memberId?:string;displayName?:string;relationLabel?:string;fromMemberId?:string;toMemberId?:string;relationType?:string};const action=String(body.action||"");if(action==="member.update"){const id=String(body.memberId||"");if(!await memberBelongs(s.familyId,id))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});const upd=await supabase.from("members").update({display_name:String(body.displayName||"").trim().slice(0,100)||null,relation_label:String(body.relationLabel||"").trim().slice(0,80)||null}).eq("id",id).eq("family_id",s.familyId);if(upd.error)throw upd.error;return NextResponse.json({ok:true})}if(action==="relation.save"){const from=String(body.fromMemberId||""),to=String(body.toMemberId||""),type=String(body.relationType||"").trim();if(!from||!to||from===to||!RELATION_TYPES.has(type))return NextResponse.json({ok:false,error:"invalid_relation"},{status:400});if(!await memberBelongs(s.familyId,from)||!await memberBelongs(s.familyId,to))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});const row=await supabase.from("relationships").upsert({family_id:s.familyId,from_member_id:from,to_member_id:to,relation_type:type},{onConflict:"from_member_id,to_member_id,relation_type"});if(row.error)throw row.error;return NextResponse.json({ok:true})}if(action==="relation.delete"){const id=String(body.relationId||"");if(!id)return NextResponse.json({ok:false,error:"relation_required"},{status:400});const row=await supabase.from("relationships").delete().eq("id",id).eq("family_id",s.familyId).select("id").maybeSingle();if(row.error)throw row.error;if(!row.data)return NextResponse.json({ok:false,error:"relation_not_found"},{status:404});return NextResponse.json({ok:true})}return NextResponse.json({ok:false,error:"unknown_action"},{status:400})}catch(error){console.error("tree action failed",error);return NextResponse.json({ok:false,error:"tree_action_failed"},{status:500})}}
+
+export async function GET(req:NextRequest){
+  try{
+    const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+    const supabase=db();
+    const [members,rels]=await Promise.all([
+      supabase.from("members").select("id,bale_user_id,display_name,first_name,last_name,relation_label,avatar_url,level").eq("family_id",s.familyId).order("created_at"),
+      supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId)
+    ]);
+    if(members.error)throw members.error;if(rels.error)throw rels.error;
+    const safeMembers=await Promise.all((members.data||[]).map(async m=>({...m,avatar_url:await signedAvatar(supabase,m.avatar_url)})));
+    const manageable=await canManage(s.familyId,s.chatId,s.userId);
+    return NextResponse.json({ok:true,canManage:manageable,members:safeMembers,relationships:rels.data||[]},{headers:{"cache-control":"no-store"}});
+  }catch(error){console.error("tree read failed",error);return NextResponse.json({ok:false,error:"tree_unavailable"},{status:500})}
+}
+
+export async function POST(req:NextRequest){
+  try{
+    const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+    if(!await canManage(s.familyId,s.chatId,s.userId))return NextResponse.json({ok:false,error:"admin_required"},{status:403});
+    const content=req.headers.get("content-type")||"",supabase=db();
+    if(content.includes("multipart/form-data")){
+      const form=await req.formData();const memberId=String(form.get("memberId")||"");const file=form.get("file");
+      if(!memberId||!(file instanceof File))return NextResponse.json({ok:false,error:"invalid_upload"},{status:400});
+      if(!await memberBelongs(s.familyId,memberId))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      if(file.size>4*1024*1024)return NextResponse.json({ok:false,error:"file_too_large"},{status:413});
+      if(!["image/jpeg","image/png","image/webp"].includes(file.type))return NextResponse.json({ok:false,error:"image_required"},{status:400});
+      const check=await supabase.storage.getBucket(AVATAR_BUCKET);
+      if(check.error){const created=await supabase.storage.createBucket(AVATAR_BUCKET,{public:false,fileSizeLimit:4194304,allowedMimeTypes:["image/jpeg","image/png","image/webp"]});if(created.error)throw created.error}
+      else if(check.data.public){const updated=await supabase.storage.updateBucket(AVATAR_BUCKET,{public:false,fileSizeLimit:4194304,allowedMimeTypes:["image/jpeg","image/png","image/webp"]});if(updated.error)throw updated.error}
+      const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";const path=`${s.familyId}/${memberId}-${Date.now()}.${ext}`;
+      const up=await supabase.storage.from(AVATAR_BUCKET).upload(path,new Uint8Array(await file.arrayBuffer()),{contentType:file.type,upsert:false});if(up.error)throw up.error;
+      const saved=await supabase.from("members").update({avatar_url:`storage:${path}`}).eq("id",memberId).eq("family_id",s.familyId);if(saved.error)throw saved.error;
+      const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);if(signed.error)throw signed.error;
+      return NextResponse.json({ok:true,avatarUrl:signed.data.signedUrl});
+    }
+    const body=await req.json() as {action?:string;relationId?:string;memberId?:string;displayName?:string;relationLabel?:string;fromMemberId?:string;toMemberId?:string;relationType?:string};
+    const action=String(body.action||"");
+    if(action==="member.update"){
+      const id=String(body.memberId||"");if(!await memberBelongs(s.familyId,id))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      const upd=await supabase.from("members").update({display_name:String(body.displayName||"").trim().slice(0,100)||null,relation_label:String(body.relationLabel||"").trim().slice(0,80)||null}).eq("id",id).eq("family_id",s.familyId);if(upd.error)throw upd.error;return NextResponse.json({ok:true});
+    }
+    if(action==="relation.save"){
+      const from=String(body.fromMemberId||""),to=String(body.toMemberId||""),type=String(body.relationType||"").trim();
+      if(!from||!to||from===to||!RELATION_TYPES.has(type))return NextResponse.json({ok:false,error:"invalid_relation"},{status:400});
+      if(!await memberBelongs(s.familyId,from)||!await memberBelongs(s.familyId,to))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      const row=await supabase.from("relationships").upsert({family_id:s.familyId,from_member_id:from,to_member_id:to,relation_type:type},{onConflict:"from_member_id,to_member_id,relation_type"});if(row.error)throw row.error;return NextResponse.json({ok:true});
+    }
+    if(action==="relation.delete"){
+      const id=String(body.relationId||"");if(!id)return NextResponse.json({ok:false,error:"relation_required"},{status:400});
+      const row=await supabase.from("relationships").delete().eq("id",id).eq("family_id",s.familyId).select("id").maybeSingle();if(row.error)throw row.error;if(!row.data)return NextResponse.json({ok:false,error:"relation_not_found"},{status:404});return NextResponse.json({ok:true});
+    }
+    return NextResponse.json({ok:false,error:"unknown_action"},{status:400});
+  }catch(error){console.error("tree action failed",error);return NextResponse.json({ok:false,error:"tree_action_failed"},{status:500})}
+}
