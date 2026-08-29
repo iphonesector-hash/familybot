@@ -1,10 +1,3 @@
 "use client";
-import type {CSSProperties} from "react";
-
-type Atlas="store"|"app";
-export default function SpriteAsset({atlas="store",index,size=72,className="",label}:{atlas?:Atlas;index:number;size?:number;className?:string;label?:string}){
-  const cols=atlas==="store"?5:4,rows=2,col=index%cols,row=Math.floor(index/cols)%rows;
-  const store=atlas==="store";
-  const style:CSSProperties={display:"inline-block",width:size,height:size,flex:`0 0 ${size}px`,backgroundImage:`url(${store?"/assets/store/jahani-store-atlas.png":"/assets/app-icons.png"})`,backgroundRepeat:"no-repeat",backgroundSize:store?"500% 200%":`${cols*size}px ${rows*size}px`,backgroundPosition:store?`${col*25}% ${row*100}%`:`-${col*size}px -${row*size}px`,filter:store?"drop-shadow(0 12px 22px rgba(0,0,0,.35))":undefined};
-  return <span className={className} style={style} role={label?"img":undefined} aria-label={label}/>;
-}
+const STORE=["🥣","🦴","🛏️","👑","🛋️","🕰️","⛲","💎","🪴","🎬"];const APP=["🏠","🐾","🎮","🤖","🛍️","🏆","💜","✨"];
+export default function SpriteAsset({atlas="store",index,size=72,className="",label}:{atlas?:"store"|"app";index:number;size?:number;className?:string;label?:string}){const glyph=(atlas==="store"?STORE:APP)[index%(atlas==="store"?STORE.length:APP.length)]||"✦";return <span className={className} style={{width:size,height:size,flex:`0 0 ${size}px`,display:"grid",placeItems:"center",position:"relative",borderRadius:Math.round(size*.28),fontSize:Math.round(size*.46),background:"radial-gradient(circle at 35% 25%,rgba(88,231,255,.32),transparent 46%),linear-gradient(145deg,#28387c,#141949 62%,#0a0e2b)",border:"1px solid rgba(104,221,255,.28)",boxShadow:"0 14px 34px rgba(0,0,0,.34),0 0 28px rgba(94,80,255,.14)"}} role={label?"img":undefined} aria-label={label}><i style={{fontStyle:"normal",filter:"drop-shadow(0 8px 14px rgba(0,0,0,.35))"}}>{glyph}</i><b aria-hidden="true" style={{position:"absolute",right:7,top:5,color:"#7ae9ff",fontSize:11}}>✦</b></span>}
