@@ -10,6 +10,7 @@ import "./motion.css";
 import "./platform.css";
 import "./admin.css";
 import "./birthday.css";
+import "./visual-vnext.css";
 
 export const metadata: Metadata = {
   title: "Family Bot | خانواده بزرگ جهانی",
@@ -23,7 +24,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#09051f",
+  themeColor: "#07041a",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
