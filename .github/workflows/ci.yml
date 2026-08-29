@@ -45,7 +45,7 @@ jobs:
           node-version: 24
 
       - name: Install
-        run: npm install
+        run: npm ci
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
