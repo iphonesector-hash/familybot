@@ -1,17 +1,4 @@
-import { NextRequest } from "next/server";
-import { verifyAdminSession } from "@/lib/adminSession";
-import { verifyFamilySession } from "@/lib/familySession";
-import { isAdmin } from "@/lib/bale";
-
-export async function requireLiveAdmin(req: NextRequest) {
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  const session = token ? verifyAdminSession(token) : null;
-  if (!session) return null;
-  const memberToken = req.headers.get("x-family-member-session") || "";
-  const member = memberToken ? verifyFamilySession(memberToken) : null;
-  if (!member) return null;
-  if (member.familyId !== session.familyId || member.chatId !== session.chatId || member.userId !== session.userId) return null;
-  const live = await isAdmin(session.chatId, session.userId).catch(() => false);
-  return live ? session : null;
-}
+import {NextRequest} from "next/server";import {createClient} from "@supabase/supabase-js";import {verifyAdminSession} from "@/lib/adminSession";import {verifyFamilySession} from "@/lib/familySession";import {isAdmin} from "@/lib/bale";
+function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)return null;return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
+async function isFounder(familyId:string,userId:number){const s=db();if(!s)return false;const r=await s.from("members").select("role,is_founder").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();return Boolean(r.data?.is_founder||r.data?.role==="founder")}
+export async function requireLiveAdmin(req:NextRequest){const auth=req.headers.get("authorization")||"",token=auth.startsWith("Bearer ")?auth.slice(7):"",session=token?verifyAdminSession(token):null;if(!session)return null;const memberToken=req.headers.get("x-family-member-session")||"",member=memberToken?verifyFamilySession(memberToken):null;if(!member)return null;if(member.familyId!==session.familyId||member.chatId!==session.chatId||member.userId!==session.userId)return null;const[live,founder]=await Promise.all([isAdmin(session.chatId,session.userId).catch(()=>false),isFounder(session.familyId,session.userId).catch(()=>false)]);return live||founder?session:null}
