@@ -1,0 +1,1 @@
+"use client";import{useEffect,useState}from"react";export default function AppSplash(){const[show,setShow]=useState(true);useEffect(()=>{const t=setTimeout(()=>setShow(false),1250);return()=>clearTimeout(t)},[]);return show?<div className="loadingJahani" role="status" aria-label="در حال آماده‌سازی خانواده بزرگ جهانی"/>:null}
