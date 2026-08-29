@@ -31,11 +31,16 @@ function publicReward(r:Reward){return r.kind==="item"?{kind:r.kind,amount:1,lab
 export async function GET(req:NextRequest){
   try{
     const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
-    const m=await memberId(s.familyId,s.userId);
-    const last=await db().from("daily_spin_claims").select("claimed_at,reward_kind,reward_amount").eq("family_id",s.familyId).eq("member_id",m).order("claimed_at",{ascending:false}).limit(1).maybeSingle();
-    if(last.error)throw last.error;
-    const nextAt=last.data?new Date(new Date(last.data.claimed_at).getTime()+24*60*60*1000).toISOString():null;
-    return NextResponse.json({ok:true,eligible:!nextAt||Date.now()>=new Date(nextAt).getTime(),nextAt,last:last.data,rewards:rewards.map(publicReward)},{headers:{"cache-control":"no-store"}});
+    const m=await memberId(s.familyId,s.userId),supabase=db();
+    const [legacy,current]=await Promise.all([
+      supabase.from("daily_spin_claims").select("claimed_at,reward_kind,reward_amount").eq("family_id",s.familyId).eq("member_id",m).order("claimed_at",{ascending:false}).limit(1).maybeSingle(),
+      supabase.from("wheel_claims").select("claimed_at,reward_kind,reward_amount,item_id,item_name,item_kind").eq("family_id",s.familyId).eq("member_id",m).order("claimed_at",{ascending:false}).limit(1).maybeSingle(),
+    ]);
+    if(legacy.error)throw legacy.error;if(current.error)throw current.error;
+    const candidates=[legacy.data,current.data].filter(Boolean) as Array<{claimed_at:string;reward_kind:string;reward_amount:number;item_id?:string|null;item_name?:string|null;item_kind?:string|null}>;
+    const last=candidates.sort((a,b)=>new Date(b.claimed_at).getTime()-new Date(a.claimed_at).getTime())[0]||null;
+    const nextAt=last?new Date(new Date(last.claimed_at).getTime()+24*60*60*1000).toISOString():null;
+    return NextResponse.json({ok:true,eligible:!nextAt||Date.now()>=new Date(nextAt).getTime(),nextAt,last,rewards:rewards.map(publicReward)},{headers:{"cache-control":"no-store"}});
   }catch(error){console.error("spin status failed",error);return NextResponse.json({ok:false,error:"spin_status_failed"},{status:500})}
 }
 
