@@ -44,6 +44,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Prepare ephemeral lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
       - name: Install
         run: npm ci
 
