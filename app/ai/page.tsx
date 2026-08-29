@@ -3,7 +3,7 @@ import {FormEvent,useEffect,useRef,useState} from "react";
 import {Icon,Mascot,type MascotMood} from "../ui";
 
 type Msg={role:"user"|"assistant";content:string};
-const INTRO="درود بر شما من هوش مصنوعی سکتور هستم چطور میتونم کمکتون کنم؟";
+const INTRO="درود بر شما، من هوش مصنوعی سکتور هستم؛ چطور می‌تونم کمکتون کنم؟";
 const quick=[["calendar","ثبت برنامه","دورهمی جمعه ساعت ۲۰ ثبت کن"],["birthday","تولدهای نزدیک","تولدهای نزدیک رو بهم بگو"],["poll","نظرسنجی","نظرسنجی شام کجا باشه گزینه‌ها: خونه، رستوران بساز"],["spark","جستجوی اینترنت","در اینترنت آخرین خبر مهم فناوری امروز رو جستجو کن"]] as const;
 
 export default function AiPage(){
