@@ -24,14 +24,16 @@ export async function ensureFamilyMember(chatId:number,chatTitle:string|undefine
     family=await s.from("families").insert({bale_chat_id:chatId,name:chatTitle||"خانواده ما"}).select("id,bale_chat_id,name,level,xp,coins").single();
     if(family.error)throw family.error;
   }
+  const familyRow=family.data;
+  if(!familyRow)throw new Error("family_bootstrap_failed");
   const display=[user.first_name,user.last_name].filter(Boolean).join(" ")||user.username||`عضو ${user.id}`;
-  const payload:Record<string,unknown>={family_id:family.data.id,bale_user_id:user.id,first_name:user.first_name??null,last_name:user.last_name??null,username:user.username??null,display_name:display,last_active_at:new Date().toISOString()};
+  const payload:Record<string,unknown>={family_id:familyRow.id,bale_user_id:user.id,first_name:user.first_name??null,last_name:user.last_name??null,username:user.username??null,display_name:display,last_active_at:new Date().toISOString()};
   if(user.photo_url)payload.avatar_url=user.photo_url;
   const member=await s.from("members").upsert(payload,{onConflict:"family_id,bale_user_id"}).select("id,bale_user_id,display_name,first_name,avatar_url,xp,coins,level,streak,created_at,role,is_founder").single();
   if(member.error)throw member.error;
-  const settings=await s.from("group_settings").upsert({family_id:family.data.id},{onConflict:"family_id",ignoreDuplicates:true});
+  const settings=await s.from("group_settings").upsert({family_id:familyRow.id},{onConflict:"family_id",ignoreDuplicates:true});
   if(settings.error)throw settings.error;
-  return{family:family.data,member:member.data} as FamilyContext;
+  return{family:familyRow,member:member.data} as FamilyContext;
 }
 
 export async function addActivityReward(ctx:FamilyContext,reason="message",amountXp=1){
