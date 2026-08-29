@@ -1,0 +1,1 @@
+JAHANI visual assets for Family Bot vNext. Binary PNG assets are generated from the approved in-chat visual direction and referenced by the Mini App visual layer.

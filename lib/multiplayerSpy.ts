@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
+function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 async function me(familyId:string,userId:number){const r=await db().from("members").select("id,display_name,first_name").eq("family_id",familyId).eq("bale_user_id",userId).single();if(r.error)throw r.error;return r.data}
 const LOCATIONS=["رستوران","فرودگاه","پارک","مدرسه","بیمارستان","سینما","هتل","ساحل","باشگاه","سوپرمارکت","ایستگاه قطار","کافه"];
 

@@ -3,16 +3,18 @@ import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
 import {baleApi} from "@/lib/bale";
 
-function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
+function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
-async function ownerCheck(chatId:number,userId:number){const r=await baleApi<{result?:Array<{status?:string;user?:{id?:number}}> }>("getChatAdministrators",{chat_id:chatId});const row=r.result?.find(x=>String(x.user?.id)===String(userId));return Boolean(row&&["creator","owner"].includes(String(row.status||"").toLowerCase()))}
+async function baleOwner(chatId:number,userId:number){const r=await baleApi<{result?:Array<{status?:string;user?:{id?:number}}> }>("getChatAdministrators",{chat_id:chatId});const row=r.result?.find(x=>String(x.user?.id)===String(userId));return Boolean(row&&["creator","owner"].includes(String(row.status||"").toLowerCase()))}
+async function founder(familyId:string,userId:number){const r=await db().from("members").select("is_founder,role").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data?.is_founder||r.data?.role==="founder")}
+async function canGift(familyId:string,chatId:number,userId:number){if(await founder(familyId,userId))return true;return baleOwner(chatId,userId).catch(()=>false)}
 async function me(familyId:string,userId:number){const r=await db().from("members").select("id").eq("family_id",familyId).eq("bale_user_id",userId).single();if(r.error)throw r.error;return r.data.id as string}
 
 export async function GET(req:NextRequest){
   try{
     const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
-    if(!await ownerCheck(s.chatId,s.userId))return NextResponse.json({ok:false,error:"owner_required"},{status:403});
-    const rows=await db().from("members").select("id,bale_user_id,display_name,first_name,relation_label,coins,xp,level").eq("family_id",s.familyId).order("display_name");
+    if(!await canGift(s.familyId,s.chatId,s.userId))return NextResponse.json({ok:false,error:"owner_required"},{status:403});
+    const rows=await db().from("members").select("id,bale_user_id,display_name,first_name,relation_label,coins,xp,level,is_founder,role").eq("family_id",s.familyId).order("display_name");
     if(rows.error)throw rows.error;
     return NextResponse.json({ok:true,members:rows.data||[]});
   }catch(error){console.error("owner gift members failed",error);return NextResponse.json({ok:false,error:"owner_gift_unavailable"},{status:500})}
@@ -21,7 +23,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
   try{
     const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
-    if(!await ownerCheck(s.chatId,s.userId))return NextResponse.json({ok:false,error:"owner_required"},{status:403});
+    if(!await canGift(s.familyId,s.chatId,s.userId))return NextResponse.json({ok:false,error:"owner_required"},{status:403});
     const body=await req.json() as {targetMemberId?:string;kind?:"coins"|"xp";amount?:number;reason?:string};
     const target=String(body.targetMemberId||""),kind=String(body.kind||""),amount=Math.floor(Number(body.amount));
     if(!target||!["coins","xp"].includes(kind)||!Number.isFinite(amount)||amount<1||amount>100000)return NextResponse.json({ok:false,error:"invalid_gift"},{status:400});

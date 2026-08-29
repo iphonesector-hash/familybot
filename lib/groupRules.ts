@@ -1,0 +1,5 @@
+import {createClient} from "@supabase/supabase-js";
+export const DEFAULT_RULES="📜 قوانین خانواده\n۱) احترام به همه اعضا\n۲) اسپم و تبلیغ بدون اجازه ممنوع\n۳) محتوای خصوصی خانواده بیرون گروه منتشر نشود\n۴) مدیرها می‌توانند تنظیمات امنیتی را شخصی‌سازی کنند.";
+function db(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!u||!k)throw new Error("db_not_configured");return createClient(u,k,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
+export async function readGroupRules(familyId:string){const r=await db().from("group_settings").select("rules_message").eq("family_id",familyId).maybeSingle();if(r.error)throw r.error;return String(r.data?.rules_message||DEFAULT_RULES)}
+export async function writeGroupRules(familyId:string,rules:string){const clean=String(rules||"").trim().slice(0,3000)||DEFAULT_RULES;const r=await db().from("group_settings").upsert({family_id:familyId,rules_message:clean,updated_at:new Date().toISOString()},{onConflict:"family_id"}).select("rules_message").single();if(r.error)throw r.error;return String(r.data.rules_message)}

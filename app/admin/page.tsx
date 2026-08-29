@@ -182,180 +182,43 @@ export default function AdminPage() {
       body: JSON.stringify({ rows }),
     });
     const data = await response.json();
-    if (data.ok) {
-      setWhitelist(data.rows || rows);
-    } else if (response.status === 403) {
+    if (data.ok) setWhitelist(data.rows || rows);
+    else if (response.status === 403) {
       clearAdminSession();
       setAuthorized(false);
     }
   }
 
   if (!sessionReady || authorized === null) {
-    return (
-      <main className="appShell adminScreen">
-        <section className="adminHero premiumPanel">
-          <div><h1>در حال بررسی نقش مدیر...</h1><p>مجوز از خود بله تأیید می‌شود.</p></div>
-          <Mascot small mood="thinking" />
-        </section>
-      </main>
-    );
+    return <main className="appShell adminScreen"><section className="adminHero premiumPanel"><div><h1>در حال بررسی نقش مدیر...</h1><p>مجوز از خود بله تأیید می‌شود.</p></div><Mascot small mood="thinking" /></section></main>;
   }
 
   if (!authorized) {
-    return (
-      <main className="appShell adminScreen">
-        <div className="ambient ambientA" />
-        <div className="starField" />
-        <section className="adminHero premiumPanel">
-          <div>
-            <span className="eyebrow"><Icon name="shield" size={15} /> دسترسی محدود</span>
-            <h1>مرکز مدیریت فقط برای Admin گروه است</h1>
-            <p>Mini App را از دکمه «مدیریت گروه» داخل همان گروه بله باز کن؛ هویت همین حساب دوباره بررسی می‌شود.</p>
-            <a className="primaryCta" href="/">بازگشت</a>
-          </div>
-          <Mascot small mood="idle" />
-        </section>
-      </main>
-    );
+    return <main className="appShell adminScreen"><div className="ambient ambientA" /><div className="starField" /><section className="adminHero premiumPanel"><div><span className="eyebrow"><Icon name="shield" size={15} /> دسترسی محدود</span><h1>فقط مدیران گروه اجازه‌ی ورود دارن</h1><p>برای ورود به مرکز مدیریت، Mini App را از همان گروه بله باز کن. هویت مدیر سمت سرور دوباره بررسی می‌شود.</p><a className="primaryCta" href="/">بازگشت</a></div><Mascot small mood="idle" /></section></main>;
   }
 
   const statCards: Array<[string, number]> = [
-    ["اعضا", stats.members],
-    ["اخطار فعال", stats.activeWarnings],
-    ["عملیات ۲۴ساعت", stats.moderation24h],
-    ["فعالیت ۲۴ساعت", stats.activity24h],
-    ["حذف‌شده", stats.deleted24h],
+    ["اعضا", stats.members], ["اخطار فعال", stats.activeWarnings], ["عملیات ۲۴ساعت", stats.moderation24h], ["فعالیت ۲۴ساعت", stats.activity24h], ["حذف‌شده", stats.deleted24h],
   ];
 
   return (
     <main className="appShell adminScreen">
-      <div className="ambient ambientA" />
-      <div className="ambient ambientB" />
-      <div className="starField" />
-
-      <header className="appHeader">
-        <a className="roundButton" href="/">←</a>
-        <div className="wordmark"><b>مرکز مدیریت</b><span>Admin verified</span></div>
-        <span className="profileAvatar"><Icon name="shield" /></span>
-      </header>
-
-      <section className="adminHero premiumPanel">
-        <div>
-          <span className="eyebrow"><Icon name="shield" size={15} /> مدیر تأییدشده</span>
-          <h1>کنترل کامل گروه</h1>
-          <p>امنیت، قفل‌ها، اخطارها، لیست سفید و اعلان‌ها</p>
-        </div>
-        <Mascot small mood="thinking" />
-      </section>
-
+      <div className="ambient ambientA" /><div className="ambient ambientB" /><div className="starField" />
+      <header className="appHeader"><a className="roundButton" href="/">←</a><div className="wordmark"><b>مرکز مدیریت</b><span>Admin verified</span></div><span className="profileAvatar"><Icon name="shield" /></span></header>
+      <section className="adminHero premiumPanel"><div><span className="eyebrow"><Icon name="shield" size={15} /> مدیر تأییدشده</span><h1>کنترل کامل گروه</h1><p>امنیت، قوانین، خوش‌آمدگویی، قفل‌ها، اعلان‌ها و هدیه‌ها</p></div><Mascot small mood="thinking" /></section>
       {msg && <div className="adminNotice">{msg}</div>}
-
-      <section className="dashboardGrid">
-        {statCards.map(([title, value]) => (
-          <article className="dashboardCard" key={title}>
-            <div><h2>{title}</h2><p>{Number(value || 0).toLocaleString("fa-IR")}</p></div>
-          </article>
-        ))}
-      </section>
-
+      <section className="dashboardGrid">{statCards.map(([title, value]) => <article className="dashboardCard" key={title}><div><h2>{title}</h2><p>{Number(value || 0).toLocaleString("fa-IR")}</p></div></article>)}</section>
+      <section className="adminPanel premiumPanel" style={{marginTop:14}}><div className="sectionHeading"><div><h2>تنظیمات مهم گروه</h2><p>متن قوانین، اعلان‌ها و هدیه‌های مدیریتی</p></div></div><div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8,marginTop:10}}><a className="primaryCta" href="/admin/rules">📜 ویرایش قوانین</a><a className="primaryCta" href="/admin/reminders">🔔 اعلان‌ها</a></div></section>
       <OwnerGiftShortcut />
       <AdminModerationPanel session={session} />
-
-      <section className="adminGrid">
-        {toggles.map(([key, title, description]) => {
-          const enabled = Boolean(settings[key]);
-          return (
-            <article className="adminCard" key={String(key)}>
-              <div className="adminCardHead">
-                <span className="iconOrb violet"><Icon name="shield" /></span>
-                <button className={`switch${enabled ? " on" : ""}`} onClick={() => patch(key, (!enabled) as Settings[typeof key])} aria-label={`${title}: ${enabled ? "روشن" : "خاموش"}`}>
-                  <i />
-                </button>
-              </div>
-              <h2>{title}</h2>
-              <p>{description}</p>
-            </article>
-          );
-        })}
-      </section>
-
-      <section className="adminPanel premiumPanel">
-        <h2>قوانین خودکار</h2>
-        <label>سقف اخطار <b>{settings.warn_limit}</b><input type="range" min="1" max="10" value={settings.warn_limit} onChange={(e) => patch("warn_limit", Number(e.target.value))} /></label>
-        <label>حد Flood <b>{settings.flood_limit}</b><input type="range" min="3" max="20" value={settings.flood_limit} onChange={(e) => patch("flood_limit", Number(e.target.value))} /></label>
-        <label>بازه Flood <b>{settings.flood_window_seconds} ثانیه</b><input type="range" min="2" max="30" value={settings.flood_window_seconds} onChange={(e) => patch("flood_window_seconds", Number(e.target.value))} /></label>
-        <label>Mute خودکار <b>{settings.flood_mute_minutes} دقیقه</b><input type="range" min="1" max="60" value={settings.flood_mute_minutes} onChange={(e) => patch("flood_mute_minutes", Number(e.target.value))} /></label>
-      </section>
-
-      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}>
-        <h2>پیام خوش‌آمد</h2>
-        <textarea value={settings.welcome_message} onChange={(e) => patch("welcome_message", e.target.value)} maxLength={1500} style={{ width: "100%", minHeight: 100 }} />
-      </section>
-
-      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}>
-        <h2>فیلتر کلمات و عضو تازه</h2>
-        <p style={{ fontSize: 11, opacity: 0.72 }}>کلمات را با ویرگول یا خط جدید جدا کن. پیام حاوی کلمه فیلترشده برای عضو عادی حذف و ثبت می‌شود.</p>
-        <textarea
-          value={settings.filtered_words.join("، ")}
-          onChange={(e) => patch("filtered_words", e.target.value.split(/[،,\n]/).map((x) => x.trim()).filter(Boolean))}
-          placeholder="کلمات فیلترشده"
-          style={{ width: "100%", minHeight: 90 }}
-        />
-        <label style={{ display: "grid", gap: 7, marginTop: 10 }}>
-          محدودیت رسانه/لینک عضو تازه <b>{settings.new_member_restrict_minutes.toLocaleString("fa-IR")} دقیقه</b>
-          <input type="range" min="0" max="1440" step="5" value={Math.min(1440, settings.new_member_restrict_minutes)} onChange={(e) => patch("new_member_restrict_minutes", Number(e.target.value))} />
-        </label>
-        <small style={{ opacity: 0.65 }}>۰ یعنی خاموش. Admin و اعضای Whitelist مستثنا هستند.</small>
-      </section>
-
-      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}>
-        <div className="sectionHeading">
-          <div><h2>اعلان‌ها و زمان‌بندی</h2><p>{settings.timezone}</p></div>
-          <a className="primaryCta" href="/admin/reminders">تنظیم اعلان‌ها</a>
-        </div>
-      </section>
-
-      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}>
-        <h2>لیست سفید</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <input value={newUserId} onChange={(e) => setNewUserId(e.target.value)} inputMode="numeric" placeholder="شناسه بله" />
-          <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="نام" />
-        </div>
-        <button
-          className="adminSave"
-          style={{ marginTop: 8 }}
-          onClick={() => {
-            const id = Number(newUserId);
-            if (id > 0) {
-              const rows = [...whitelist.filter((x) => x.bale_user_id !== id), { bale_user_id: id, label: newLabel || null }];
-              setNewUserId("");
-              setNewLabel("");
-              void saveWhite(rows);
-            }
-          }}
-        >
-          افزودن
-        </button>
-        {whitelist.map((row) => (
-          <div key={row.bale_user_id} style={{ display: "flex", justifyContent: "space-between", padding: 8 }}>
-            <span>{row.label || row.bale_user_id}</span>
-            <button onClick={() => void saveWhite(whitelist.filter((x) => x.bale_user_id !== row.bale_user_id))} aria-label="حذف از لیست سفید">×</button>
-          </div>
-        ))}
-      </section>
-
+      <section className="adminGrid">{toggles.map(([key, title, description]) => {const enabled=Boolean(settings[key]);return <article className="adminCard" key={String(key)}><div className="adminCardHead"><span className="iconOrb violet"><Icon name="shield" /></span><button className={`switch${enabled ? " on" : ""}`} onClick={() => patch(key, (!enabled) as Settings[typeof key])} aria-label={`${title}: ${enabled ? "روشن" : "خاموش"}`}><i /></button></div><h2>{title}</h2><p>{description}</p></article>})}</section>
+      <section className="adminPanel premiumPanel"><h2>قوانین خودکار</h2><label>سقف اخطار <b>{settings.warn_limit}</b><input type="range" min="1" max="10" value={settings.warn_limit} onChange={(e) => patch("warn_limit", Number(e.target.value))} /></label><label>حد Flood <b>{settings.flood_limit}</b><input type="range" min="3" max="20" value={settings.flood_limit} onChange={(e) => patch("flood_limit", Number(e.target.value))} /></label><label>بازه Flood <b>{settings.flood_window_seconds} ثانیه</b><input type="range" min="2" max="30" value={settings.flood_window_seconds} onChange={(e) => patch("flood_window_seconds", Number(e.target.value))} /></label><label>Mute خودکار <b>{settings.flood_mute_minutes} دقیقه</b><input type="range" min="1" max="60" value={settings.flood_mute_minutes} onChange={(e) => patch("flood_mute_minutes", Number(e.target.value))} /></label></section>
+      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}><h2>پیام خوش‌آمد</h2><textarea value={settings.welcome_message} onChange={(e) => patch("welcome_message", e.target.value)} maxLength={1500} style={{ width: "100%", minHeight: 100 }} /></section>
+      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}><h2>فیلتر کلمات و عضو تازه</h2><p style={{ fontSize: 11, opacity: 0.72 }}>کلمات را با ویرگول یا خط جدید جدا کن. پیام حاوی کلمه فیلترشده برای عضو عادی حذف و ثبت می‌شود.</p><textarea value={settings.filtered_words.join("، ")} onChange={(e) => patch("filtered_words", e.target.value.split(/[،,\n]/).map((x) => x.trim()).filter(Boolean))} placeholder="کلمات فیلترشده" style={{ width: "100%", minHeight: 90 }} /><label style={{ display: "grid", gap: 7, marginTop: 10 }}>محدودیت رسانه/لینک عضو تازه <b>{settings.new_member_restrict_minutes.toLocaleString("fa-IR")} دقیقه</b><input type="range" min="0" max="1440" step="5" value={Math.min(1440, settings.new_member_restrict_minutes)} onChange={(e) => patch("new_member_restrict_minutes", Number(e.target.value))} /></label><small style={{ opacity: 0.65 }}>۰ یعنی خاموش. Admin و اعضای Whitelist مستثنا هستند.</small></section>
+      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}><div className="sectionHeading"><div><h2>اعلان‌ها و زمان‌بندی</h2><p>{settings.timezone}</p></div><a className="primaryCta" href="/admin/reminders">تنظیم اعلان‌ها</a></div></section>
+      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}><h2>لیست سفید</h2><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input value={newUserId} onChange={(e) => setNewUserId(e.target.value)} inputMode="numeric" placeholder="شناسه بله" /><input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="نام" /></div><button className="adminSave" style={{ marginTop: 8 }} onClick={() => {const id = Number(newUserId);if (id > 0) {const rows = [...whitelist.filter((x) => x.bale_user_id !== id), { bale_user_id: id, label: newLabel || null }];setNewUserId("");setNewLabel("");void saveWhite(rows);}}}>افزودن</button>{whitelist.map((row) => <div key={row.bale_user_id} style={{ display: "flex", justifyContent: "space-between", padding: 8 }}><span>{row.label || row.bale_user_id}</span><button onClick={() => void saveWhite(whitelist.filter((x) => x.bale_user_id !== row.bale_user_id))} aria-label="حذف از لیست سفید">×</button></div>)}</section>
       <button className="adminSave" disabled={saving} onClick={() => void save()}>{saving ? "در حال ذخیره..." : "ذخیره تنظیمات"}</button>
-
-      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}>
-        <h2>آخرین رویدادهای مدیریتی</h2>
-        {logs.map((row) => (
-          <div key={row.id} style={{ padding: 10, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-            <b>{labels[row.action] || row.action}</b>
-            <p>{row.reason || "بدون توضیح"}</p>
-            <small>{new Date(row.created_at).toLocaleString("fa-IR")}</small>
-          </div>
-        ))}
-      </section>
+      <section className="adminPanel premiumPanel" style={{ marginTop: 14 }}><h2>آخرین رویدادهای مدیریتی</h2>{logs.map((row) => <div key={row.id} style={{ padding: 10, borderBottom: "1px solid rgba(255,255,255,.06)" }}><b>{labels[row.action] || row.action}</b><p>{row.reason || "بدون توضیح"}</p><small>{new Date(row.created_at).toLocaleString("fa-IR")}</small></div>)}</section>
     </main>
   );
 }
