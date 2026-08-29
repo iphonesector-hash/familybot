@@ -1,10 +1,9 @@
 export type SagoolStage="puppy"|"playful"|"clever"|"guardian"|"legendary";
 export type SagoolState={stage:SagoolStage;level:number;xp:number;hunger:number;thirst:number;energy:number;hygiene:number;happiness:number;affection:number;health:number;lastTickAt?:string|null};
 export type SagoolMission={code:string;title:string;description?:string|null;actionType:string;target:number;rewardCoins:number;rewardXp:number;cadence:"daily"|"weekly";progress:number;complete:boolean;claimed:boolean};
-const PLAYFUL=`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320"><defs><radialGradient id="g"><stop stop-color="#65e8ff"/><stop offset=".55" stop-color="#7754ff"/><stop offset="1" stop-color="#170b42"/></radialGradient></defs><rect width="320" height="320" rx="90" fill="#09051f"/><circle cx="160" cy="160" r="132" fill="url(#g)" opacity=".35"/><circle cx="160" cy="150" r="84" fill="#fff4e6"/><ellipse cx="128" cy="106" rx="27" ry="38" fill="#e8a34d" transform="rotate(-28 128 106)"/><ellipse cx="192" cy="106" rx="27" ry="38" fill="#e8a34d" transform="rotate(28 192 106)"/><circle cx="135" cy="145" r="12" fill="#21153c"/><circle cx="185" cy="145" r="12" fill="#21153c"/><circle cx="160" cy="171" r="10" fill="#2b173d"/><path d="M140 187q20 22 40 0" fill="none" stroke="#d04c82" stroke-width="7" stroke-linecap="round"/><circle cx="234" cy="225" r="37" fill="#8f5bff" stroke="#55e8ff" stroke-width="7"/><path d="M217 225h34M234 208v34" stroke="#fff" stroke-width="8" stroke-linecap="round"/><text x="160" y="280" text-anchor="middle" fill="#ffe177" font-size="22" font-family="sans-serif">PLAYFUL</text></svg>`)} `;
 export const SAGool_STAGES=[
 {stage:"puppy" as const,min:1,title:"توله",asset:"/assets/sagool/stages/01-puppy.png"},
-{stage:"playful" as const,min:5,title:"بازیگوش",asset:PLAYFUL.trim()},
+{stage:"playful" as const,min:5,title:"بازیگوش",asset:"/assets/sagool/stages/02-playful.png"},
 {stage:"clever" as const,min:12,title:"باهوش",asset:"/assets/sagool/stages/03-clever.png"},
 {stage:"guardian" as const,min:20,title:"نگهبان",asset:"/assets/sagool/stages/04-guardian.png"},
 {stage:"legendary" as const,min:30,title:"افسانه‌ای",asset:"/assets/sagool/stages/05-legendary.png"}
