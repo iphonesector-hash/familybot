@@ -38,10 +38,8 @@ export const HOUSE_UPGRADE_COST: Record<number,Cost> = {
 };
 
 export function houseSceneSrc(level:number){
-  const lv=Math.min(HOUSE_MAX_LEVEL,Math.max(1,Math.floor(level)||1));
-  if(lv>=10) return "/assets/house/levels/10.jpg";
-  if(lv>=5) return "/assets/house/levels/05.jpg";
-  return "/assets/house/levels/01.jpg";
+  const lv=Math.min(HOUSE_MAX_LEVEL,Math.max(1,Math.floor(Number(level)||1)));
+  return `/assets/house/levels/${String(lv).padStart(2,"0")}.jpg`;
 }
 
 export function houseNextCost(level:number){

@@ -76,9 +76,15 @@ export default function HousePage(){
  const levelMeta=HOUSE_LEVELS[Math.max(0,house.houseLevel-1)];
  const next=houseNextCost(house.houseLevel);
  const miss=next?missingMaterials(house.materials as Partial<Record<HouseMaterial,number>>,next):{};
- const canUpgrade=Boolean(next)&&Object.keys(miss).length===0&&(house.founder||house.coins>=(next?.coins||0));
+ const coinShort=Boolean(next)&&!house.founder&&house.coins<(next?.coins||0);
+ const missingList=[
+  ...Object.entries(miss).map(([k,v])=>`${HOUSE_MATERIALS.find(m=>m.id===k)?.name||k} ${fa(Number(v))}`),
+  ...(coinShort&&next?[`${fa((next.coins||0)-house.coins)} سکه`]:[])
+ ];
+ const canUpgrade=Boolean(next)&&missingList.length===0;
  const petAsset=stageFor(sagoolLevel).asset;
  const scene=houseSceneSrc(house.houseLevel);
+ const nextScene=next?houseSceneSrc(house.houseLevel+1):null;
  return <main className={styles.page}>
   <div className={`motionToast${toast?" show":""}`}>{toast}</div>
   <div className={`levelBurst${levelBurst?" show":""}`}><div className="levelBurstCore"><div><b>✦</b><span>خانه سطح {house.houseLevel}</span></div></div></div>
@@ -89,23 +95,28 @@ export default function HousePage(){
    <div><span className={styles.statIcon}><Icon name="trophy"/></span><p>سبک فعلی</p><b>{levelMeta.title}</b></div>
   </section>
   <section className={styles.sceneCard}>
-   <div className={styles.sceneTitle}><div><p>{levelMeta.title}</p><span>{fa(owned.size)} دکور خریداری‌شده</span></div><span className={styles.score}>{fa(house.houseLevel)}<br/><small>از ۱۰</small></span></div>
+   <div className={styles.sceneTitle}><div><p>سطح فعلی {fa(house.houseLevel)} · {levelMeta.title}</p><span>{fa(owned.size)} دکور خریداری‌شده</span></div><span className={styles.score}>{fa(house.houseLevel)}<br/><small>از ۱۰</small></span></div>
    <div className={styles.land} data-level={house.houseLevel} style={{backgroundImage:`linear-gradient(180deg,rgba(7,4,29,.15),rgba(7,4,26,.55)),url(${scene})`,backgroundSize:"cover",backgroundPosition:"center"}}>
     <div className={styles.pet}><img src={petAsset} alt={`سگول سطح ${fa(sagoolLevel)}`} style={{width:92,height:92,objectFit:"contain",filter:"drop-shadow(0 10px 18px rgba(53,210,255,.28))"}}/></div>
    </div>
+   {nextScene&&<div style={{marginTop:12}}>
+    <p style={{fontSize:12,color:"#cfc7eb",margin:"0 0 8px"}}>پیش‌نمایش سطح بعد · {HOUSE_LEVELS[house.houseLevel].title}</p>
+    <img src={nextScene} alt="پیش‌نمایش ارتقا" style={{width:"100%",height:132,objectFit:"cover",borderRadius:16,opacity:.92,border:"1px solid rgba(255,255,255,.12)"}}/>
+   </div>}
   </section>
   <section className="premiumPanel" style={{padding:16,marginTop:12}}>
    <div className="sectionHeading"><div><span className="eyebrow">ارتقای خانه</span><h2>{house.houseLevel>=HOUSE_MAX_LEVEL?"نسخه نهایی JAHANI":`از سطح ${house.houseLevel} به ${house.houseLevel+1}`}</h2></div></div>
    {next?<>
-    <p style={{fontSize:12,color:"#cfc7eb"}}>سکه لازم: {house.founder?"رایگان برای بنیان‌گذار":fa(next.coins)}</p>
+    <p style={{fontSize:12,color:"#cfc7eb"}}>سکه لازم: {house.founder?"رایگان برای بنیان‌گذار":fa(next.coins)} · موجودی {house.founder?"∞":fa(house.coins)}</p>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"10px 0"}}>
      {HOUSE_MATERIALS.map(mat=>{const need=Number((next as any)[mat.id]||0); if(!need) return null; const have=Number(house.materials[mat.id]||0); const short=have<need;
       return <div key={mat.id} style={{border:`1px solid ${short?"#ff8aa855":"#7ae9ff44"}`,borderRadius:14,padding:8,background:"#140e33"}}>
        <img src={mat.art} alt={mat.name} style={{width:"100%",height:64,objectFit:"cover",borderRadius:10}}/>
        <b style={{display:"block",fontSize:11,marginTop:6}}>{mat.name}</b>
-       <small style={{color:short?"#ffb4c8":"#b8f0ff"}}>{fa(have)} / {fa(need)}</small>
+       <small style={{color:short?"#ffb4c8":"#b8f0ff"}}>{fa(have)} / {fa(need)}{short?` · کم ${fa(need-have)}`:""}</small>
       </div>})}
     </div>
+    {!canUpgrade&&missingList.length>0&&<p style={{fontSize:12,color:"#ffb4c8",margin:"0 0 10px"}}>برای ارتقا کم داری: {missingList.join("، ")}</p>}
     <button className="primaryCta" disabled={!canUpgrade||Boolean(busy)} onClick={()=>void upgrade()}>{busy==="upgrade"?"...":canUpgrade?"ارتقای خانه":"منابع کافی نیست"}</button>
    </>:<p>خانه به سطح نهایی رسیده است.</p>}
    <button className="roundButton" style={{width:"100%",marginTop:8,height:42}} disabled={busy==="daily"} onClick={()=>void collectDaily()}>{busy==="daily"?"...":"جمع‌آوری روزانه مصالح"}</button>

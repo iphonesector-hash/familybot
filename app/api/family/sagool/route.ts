@@ -1,12 +1,13 @@
 import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
+import {sagoolLevelFromXp} from "@/lib/sagoolProgression";
 
 function auth(req:NextRequest){const h=req.headers.get("authorization")||"";return h.startsWith("Bearer ")?verifyFamilySession(h.slice(7)):null}
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("db_not_configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 const dayKey=(v:Date|string=new Date())=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(typeof v==="string"?new Date(v):v);
 function weekStart(key:string){const d=new Date(`${key}T00:00:00Z`),offset=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-offset);return d.toISOString().slice(0,10)}
-function state(p:any){const xp=Number(p.xp||0);const mapped=Math.max(1,Math.min(10,Number(p.level||1)));return{stage:p.stage,level:mapped,xp,hunger:Number(p.hunger||0),thirst:Number(p.thirst||0),energy:Number(p.energy||0),hygiene:Number(p.hygiene||0),happiness:Number(p.happiness||0),affection:Number(p.affection||0),health:Number(p.health||100),lastTickAt:p.last_tick_at||null}}
+function state(p:any){const xp=Number(p.xp||0);const mapped=sagoolLevelFromXp(xp);return{stage:p.stage,level:mapped,xp,hunger:Number(p.hunger||0),thirst:Number(p.thirst||0),energy:Number(p.energy||0),hygiene:Number(p.hygiene||0),happiness:Number(p.happiness||0),affection:Number(p.affection||0),health:Number(p.health||100),lastTickAt:p.last_tick_at||null}}
 async function member(s:ReturnType<typeof db>,familyId:string,userId:number){const r=await s.from("members").select("id,is_founder,role").eq("family_id",familyId).eq("bale_user_id",userId).single();if(r.error)throw r.error;return r.data}
 async function readAll(familyId:string,userId:number,{tick=false}:{tick?:boolean}={}){const s=db(),m=await member(s,familyId,userId);if(tick){const tr=await s.rpc("sagool_tick_atomic",{p_family_id:familyId,p_member_id:m.id});if(tr.error)throw tr.error}let p=await s.from("sagool_pets").select("*").eq("family_id",familyId).eq("member_id",m.id).maybeSingle();if(p.error)throw p.error;if(!p.data){const made=await s.from("sagool_pets").insert({family_id:familyId,member_id:m.id}).select("*").single();if(made.error)throw made.error;p=made}
  const today=dayKey(),week=weekStart(today),since=new Date(Date.now()-8*86400000).toISOString();
