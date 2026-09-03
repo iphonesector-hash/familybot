@@ -11,7 +11,7 @@ export async function POST(req:NextRequest){
   const body=await req.json(),init=validateBaleInitData(String(body?.initData||""));
   if(!init?.user?.id)return NextResponse.json({ok:false,error:"invalid_init_data"},{status:401});
   const supabase=db();
-  const {data:members,error}=await supabase.from("members").select("id,family_id,bale_user_id,display_name,first_name,last_active_at,is_founder,role,families(id,name,bale_chat_id)").eq("bale_user_id",init.user.id).order("last_active_at",{ascending:false});
+  const {data:members,error}=await supabase.from("members").select("id,family_id,bale_user_id,display_name,first_name,last_active_at,is_founder,role,families!members_family_id_fkey(id,name,bale_chat_id)").eq("bale_user_id",init.user.id).order("last_active_at",{ascending:false});
   if(error)throw error;
   const rows=(members||[]).filter((m:any)=>m.families?.bale_chat_id);
   if(!rows.length)return NextResponse.json({ok:true,status:"needs_family",user:init.user});
