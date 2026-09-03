@@ -2,28 +2,34 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import StoreItemArt from "../../StoreItemArt";
-import {STORE_ITEMS,StoreKind} from "@/lib/storeCatalog";
+import {STORE_ITEMS} from "@/lib/storeCatalog";
 
 type Owned={id:string;item_id:string;item_name:string;item_kind:string};
 type Profile={coins?:number;is_founder?:boolean};
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
 
-const SHOWCASE:Record<StoreKind,{title:string;sub:string;asset:string}>={
- house:{title:"فروشگاه خانه",sub:"دکور لوکس و آیتم‌های افسانه‌ای",asset:"/assets/store/house-premium-showcase.png"},
- sagool:{title:"فروشگاه سگول",sub:"تجهیزات حرفه‌ای، پوشیدنی و End-game",asset:"/assets/store/sagool-premium-showcase.png"},
+const SHOWCASE:Record<"house"|"sagool"|"profile",{title:string;sub:string;asset:string}>={
+ house:{title:"فروشگاه خانه",sub:"مصالح ارتقا و دکور لوکس",asset:"/assets/store/house-premium-showcase.png"},
+ sagool:{title:"فروشگاه سگول",sub:"خوراک، بازی، پوشیدنی و مراقبت",asset:"/assets/store/sagool-premium-showcase.png"},
  profile:{title:"فروشگاه ویژه پروفایل",sub:"هویت، قاب و جلوه‌های سلطنتی",asset:"/assets/store/profile-premium-showcase.png"}
 };
 
 export default function StorePage(){
  const[profile,setProfile]=useState<Profile>({});
  const[owned,setOwned]=useState<Owned[]>([]);
- const[tab,setTab]=useState<StoreKind>("house");
+ const[tab,setTab]=useState<"house"|"sagool"|"profile">("house");
  const[busy,setBusy]=useState("");
  const[note,setNote]=useState("");
  const load=useCallback(()=>{const s=sessionStorage.getItem("familybot.session");if(!s)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&x.dashboard){setProfile(x.dashboard.profile||{});setOwned(x.dashboard.ownedItems||[])}}).catch(()=>{})},[]);
  useEffect(()=>{load();const q=new URLSearchParams(location.search).get("tab");if(q==="sagool"||q==="profile"||q==="house")setTab(q)},[load]);
- const items=useMemo(()=>STORE_ITEMS.filter(x=>x.kind===tab),[tab]);
- async function buy(id:string){const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(id);try{const r=await fetch("/api/family/action",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({action:"store.purchase",payload:{itemId:id}})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);setNote(x.data.alreadyOwned?"این آیتم رو قبلاً داری.":"خرید انجام شد ✨");load()}catch(e){setNote(e instanceof Error&&e.message==="insufficient_coins"?"سکه کافی نداری.":"خرید انجام نشد.")}finally{setBusy("")}}
+ const items=useMemo(()=>STORE_ITEMS.filter(x=>tab==="house"?x.kind==="house"||x.kind==="material":x.kind===tab),[tab]);
+ async function buy(id:string){const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(id);const item=STORE_ITEMS.find(x=>x.id===id);try{
+  if(item?.stackable&&item.material){
+    const r=await fetch("/api/family/house",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"buy_material",material:item.material})});
+    const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);setNote(`+${item.packQty||0} ${item.name} به انبار خانه اضافه شد.`);return;
+  }
+  const r=await fetch("/api/family/action",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({action:"store.purchase",payload:{itemId:id}})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);setNote(x.data.alreadyOwned?"این آیتم رو قبلاً داری.":"خرید انجام شد.");load()
+ }catch(e){setNote(e instanceof Error&&e.message==="insufficient_coins"?"سکه کافی نداری.":"خرید انجام نشد.")}finally{setBusy("")}}
  const own=new Set(owned.map(x=>x.item_id));
  const founder=Boolean(profile.is_founder);
  const show=SHOWCASE[tab];

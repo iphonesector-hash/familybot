@@ -107,6 +107,12 @@ const ITEM_ART: Record<string, StoreArtKey> = {
   sovereign_frame: "hero_frame",
   aurora_nameplate: "cosmic_badge",
   cosmic_wings: "cosmic_wings",
+  mat_brick: "tea_table",
+  mat_cement: "tea_table",
+  mat_wood: "nebula_plant",
+  mat_water: "light_fountain",
+  mat_tile: "crystal_lantern",
+  mat_paint: "nebula_plant",
 };
 
 export function storeArtKey(itemId: string): StoreArtKey {
@@ -114,5 +120,9 @@ export function storeArtKey(itemId: string): StoreArtKey {
 }
 
 export function storeArtSrc(itemId: string): string {
+  if(itemId.startsWith("mat_")){
+    const key=itemId.slice(4);
+    return `/assets/house/materials/${key}.jpg`;
+  }
   return `/assets/store/items/${storeArtKey(itemId)}.jpg`;
 }

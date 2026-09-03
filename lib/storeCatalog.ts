@@ -1,8 +1,14 @@
-export type StoreKind="house"|"profile"|"sagool";
+export type StoreKind="house"|"profile"|"sagool"|"material";
 export type StoreRarity="common"|"rare"|"epic"|"legendary";
-export type StoreItem={id:string;name:string;price:number;kind:StoreKind;sprite:number;description:string;rarity:StoreRarity};
+export type StoreItem={id:string;name:string;price:number;kind:StoreKind;sprite:number;description:string;rarity:StoreRarity;stackable?:boolean;material?:string;packQty?:number};
 
 export const STORE_ITEMS:StoreItem[]=[
+{id:"mat_brick",name:"بسته آجر",price:180,kind:"material",sprite:4,description:"۸ آجر برای ارتقای خانه",rarity:"common",stackable:true,material:"brick",packQty:8},
+{id:"mat_cement",name:"بسته سیمان",price:220,kind:"material",sprite:4,description:"۶ کیسه سیمان",rarity:"common",stackable:true,material:"cement",packQty:6},
+{id:"mat_wood",name:"بسته چوب",price:200,kind:"material",sprite:4,description:"۶ الوار مرغوب",rarity:"common",stackable:true,material:"wood",packQty:6},
+{id:"mat_water",name:"آب ساخت",price:90,kind:"material",sprite:6,description:"۸ واحد آب ساخت‌وساز",rarity:"common",stackable:true,material:"water",packQty:8},
+{id:"mat_tile",name:"بسته کاشی",price:320,kind:"material",sprite:7,description:"۴ کاشی پرمیوم",rarity:"rare",stackable:true,material:"tile",packQty:4},
+{id:"mat_paint",name:"رنگ کیهانی",price:280,kind:"material",sprite:7,description:"۳ قوطی رنگ JAHANI",rarity:"rare",stackable:true,material:"paint",packQty:3},
 {id:"galaxy_sofa",name:"مبل کهکشانی",price:7500,kind:"house",sprite:4,description:"مبل لوکس بنفش برای سالن خانه",rarity:"common"},
 {id:"cosmic_clock",name:"ساعت کیهانی",price:9200,kind:"house",sprite:5,description:"ساعت تزئینی آینده‌نگر",rarity:"common"},
 {id:"light_fountain",name:"فواره پنجه نور",price:39000,kind:"house",sprite:6,description:"فواره نئونی برای حیاط",rarity:"rare"},
