@@ -38,7 +38,7 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   const ownXp=Number(profile?.xp||0),rank=profile?all.filter(r=>Number(r.xp||0)>ownXp).length+1:null;
   const memberXp=all.reduce((n,r)=>n+Number(r.xp||0),0),familyXp=Math.max(Number(family.xp||0),memberXp),derived=Math.max(1,Math.floor(familyXp/500)+1),level=Math.max(Number(family.level||1),derived),floor=(level-1)*500,ceil=level*500;
   return{
-    family:{id:family.id,name:family.name,level,xp:familyXp,coins:Number(family.coins||0),houseLevel:Math.max(Number(family.house_level||1),level),membersCount:membersRes.count??0,upcomingEventsCount:eventsRes.data?.length??0,upcomingBirthdaysCount:birthdays.filter(b=>b.days<=30).length,memoriesCount:(memoriesVisibilityRes.data??[]).filter(visible).length,levelProgress:{current:Math.max(0,familyXp-floor),target:Math.max(1,ceil-floor)}},
+    family:{id:family.id,name:family.name,level,xp:familyXp,coins:Number(family.coins||0),houseLevel:Math.max(1,Math.min(10,Number(family.house_level||1))),membersCount:membersRes.count??0,upcomingEventsCount:eventsRes.data?.length??0,upcomingBirthdaysCount:birthdays.filter(b=>b.days<=30).length,memoriesCount:(memoriesVisibilityRes.data??[]).filter(visible).length,levelProgress:{current:Math.max(0,familyXp-floor),target:Math.max(1,ceil-floor)}},
     profile:profile?{...profile,rank}:null,
     members:all,
     leaderboard,

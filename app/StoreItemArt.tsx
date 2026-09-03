@@ -1,4 +1,27 @@
 import {STORE_ITEMS} from "@/lib/storeCatalog";
-const GLYPHS:Record<string,string>={sofa:"🛋️",clock:"🕰️",fountain:"⛲",lantern:"🏮",plant:"🪴",theater:"🎬",bench:"🪑",pool:"💠",cinema:"🎞️",chandelier:"💎",cabinet:"🏆",wardrobe:"🗄️",table:"🍵",frame:"🖼️",music:"🎵",house:"🏠",chest:"🎁",corner:"🐾",aquarium:"🐠",fireplace:"🔥",observatory:"🔭",room:"👑",gate:"🏛️",window:"🌌",library:"📚",rug:"✨",tree:"🌳",wall:"💜",food:"🥣",water:"💧",bone:"🦴",ball:"⚽",disc:"🛸",bed:"🛏️",shampoo:"🧴",feeder:"🤖",collar:"📿",harness:"🦮",glasses:"🕶️",outfit:"👕",cape:"🦸",armor:"🛡️",crown:"👑",guardian:"⚔️",toy:"🎮",sleep:"🌙",training:"🎯",showcase:"🌟",grooming:"🫧",charm:"💖",aura:"🪐",badge:"🏅",nameplate:"💫",cosmos:"🌠"};
-function glyph(id:string){const k=Object.keys(GLYPHS).find(x=>id.includes(x));return k?GLYPHS[k]:"✦"}
-export default function StoreItemArt({itemId,size=86,className="",label}:{itemId:string;size?:number;className?:string;label?:string}){const item=STORE_ITEMS.find(x=>x.id===itemId);const rarity=item?.rarity||"common";return <span className={`storeItemArt storeArt-${rarity} ${className}`} role="img" aria-label={label||item?.name||itemId} style={{width:size,height:size,fontSize:Math.round(size*.42)}}><i>{glyph(itemId)}</i><b aria-hidden="true">✦</b></span>}
+import {storeArtSrc} from "@/lib/storeArt";
+
+export default function StoreItemArt({
+  itemId,
+  size = 86,
+  className = "",
+  label,
+}: {
+  itemId: string;
+  size?: number;
+  className?: string;
+  label?: string;
+}) {
+  const item = STORE_ITEMS.find((x) => x.id === itemId);
+  const rarity = item?.rarity || "common";
+  return (
+    <span
+      className={`storeItemArt storeArt-${rarity} ${className}`}
+      role="img"
+      aria-label={label || item?.name || itemId}
+      style={{width: size, height: size}}
+    >
+      <img src={storeArtSrc(itemId)} alt="" draggable={false} />
+    </span>
+  );
+}
