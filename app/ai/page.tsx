@@ -18,7 +18,28 @@ export default function AiPage(){
   function token(){return sessionStorage.getItem("familybot.session")||""}
   function notify(t:string){setToast(t);setTimeout(()=>setToast(""),2300)}
   async function speak(text:string){const s=token();if(!s)return;audio.current?.pause();try{const r=await fetch("/api/voice/tts",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({text})});if(!r.ok)throw 0;const u=URL.createObjectURL(await r.blob()),a=new Audio(u);audio.current=a;a.onplay=()=>setSpeaking(true);a.onended=()=>{setSpeaking(false);URL.revokeObjectURL(u)};await a.play()}catch{if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(text);u.lang="fa-IR";u.onstart=()=>setSpeaking(true);u.onend=()=>setSpeaking(false);window.speechSynthesis.cancel();window.speechSynthesis.speak(u)}}}
-  async function send(e?:FormEvent,valueOverride?:string){e?.preventDefault();const value=(valueOverride??input).trim(),s=token();if(!value||busy)return;if(!s)return notify("برای استفاده از سکتور AI، مینی‌اپ را از داخل بله باز کنید.");const history=msgs.slice(-10);setMsgs(v=>[...v,{role:"user",content:value}]);setInput("");setBusy(true);try{const r=await fetch("/api/ai/chat",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({message:value,history})}),x=await r.json();if(!r.ok&&!x.reply)throw new Error(x.error||`ai_${r.status}`);const reply=String(x.reply||x.error||"پاسخی دریافت نشد");setMsgs(v=>[...v,{role:"assistant",content:reply}]);if(r.ok)void speak(reply);else notify(reply)}catch(err){notify(err instanceof Error?err.message:"ارتباط با سکتور AI برقرار نشد")}finally{setBusy(false)}}
+  async function send(e?:FormEvent,valueOverride?:string){
+    e?.preventDefault();
+    const value=(valueOverride??input).trim(),s=token();
+    if(!value||busy)return;
+    if(!s)return notify("برای استفاده از سکتور AI، مینی‌اپ را از داخل بله باز کنید.");
+    const history=msgs.slice(-10);
+    setMsgs(v=>[...v,{role:"user",content:value}]);
+    setInput("");
+    setBusy(true);
+    try{
+      const r=await fetch("/api/ai/chat",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({message:value,history})});
+      const x=await r.json().catch(()=>({}));
+      const reply=String(x.reply||x.error||`خطای ${r.status}`);
+      setMsgs(v=>[...v,{role:"assistant",content:reply}]);
+      if(r.ok&&x.reply)void speak(reply);
+      else notify(reply);
+    }catch(err){
+      const msg=err instanceof Error?err.message:"ارتباط با سکتور AI برقرار نشد";
+      setMsgs(v=>[...v,{role:"assistant",content:msg}]);
+      notify(msg);
+    }finally{setBusy(false)}
+  }
   async function transcribe(blob:Blob){const s=token();if(!s)return;setBusy(true);try{const f=new FormData();const ext=blob.type.includes("mp4")?"m4a":"webm";f.set("audio",new File([blob],`voice.${ext}`,{type:blob.type||"audio/webm"}));const r=await fetch("/api/voice/stt",{method:"POST",headers:{authorization:`Bearer ${s}`},body:f}),x=await r.json();if(!r.ok||!x.text)throw 0;const text=String(x.text).trim();setInput(text);setBusy(false);setTimeout(()=>void send(undefined,text),0)}catch{setBusy(false);notify("صدات واضح دریافت نشد")}}
   async function toggle(){if(listening){recorder.current?.stop();setListening(false);return}if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")return notify("ضبط صدا روی این نسخه آماده نیست");try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const preferred=["audio/mp4","audio/webm;codecs=opus","audio/webm"].find(t=>MediaRecorder.isTypeSupported(t));const r=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined);chunks.current=[];r.ondataavailable=e=>{if(e.data.size)chunks.current.push(e.data)};r.onstop=()=>{stream.getTracks().forEach(t=>t.stop());void transcribe(new Blob(chunks.current,{type:r.mimeType||preferred||"audio/webm"}))};recorder.current=r;r.start();setListening(true)}catch{notify("اجازه میکروفون صادر نشد")}}
   useEffect(()=>{const s=token();setReady(Boolean(s));if(!s)return;fetch("/api/ai/history",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&Array.isArray(x.messages)&&x.messages.length){const history=x.messages.filter((m:Msg)=>m?.role==="user"||m?.role==="assistant").slice(-20).map((m:Msg)=>({role:m.role,content:String(m.content||"")}));setMsgs([{role:"assistant",content:INTRO},...history])}}).catch(()=>undefined)},[]);

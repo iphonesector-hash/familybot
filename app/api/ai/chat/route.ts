@@ -1,7 +1,106 @@
-import {NextRequest,NextResponse} from "next/server";import {z} from "zod";import {verifyFamilySession} from "@/lib/familySession";import {readMiniAppDashboard} from "@/lib/miniAppData";import {createFamilyTask} from "@/lib/familyMutations";import {createFamilyEvent,createFamilyPoll,transferFamilyCoins} from "@/lib/familyFeatures";import {findFamilyMemberByName,normalizeFaNumber} from "@/lib/memberLookup";import {readAiMemory,rememberAiTurn} from "@/lib/aiMemory";
-const Body=z.object({message:z.string().min(1).max(4000),history:z.array(z.object({role:z.enum(["user","assistant"]),content:z.string().max(4000)})).max(20).default([])});const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند.`;
-function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}function fa(n:number){return new Intl.NumberFormat("fa-IR").format(n)}function familyContext(d:any){return JSON.stringify({family:{name:d.family?.name,members:d.family?.membersCount},profile:d.profile?{name:d.profile.display_name||d.profile.first_name,coins:d.profile.coins,level:d.profile.level,rank:d.profile.rank}:null,members:(d.members||[]).slice(0,30).map((m:any)=>({name:m.display_name||m.first_name,relation:m.relation_label})),birthdays:(d.birthdays||[]).slice(0,8).map((b:any)=>({name:b.display_name||b.first_name,days:b.days,next:b.next})),tasks:(d.tasks||[]).slice(0,10).map((t:any)=>({title:t.title,status:t.status,due:t.due_at})),events:(d.events||[]).slice(0,10).map((e:any)=>({title:e.title,type:e.event_type,starts:e.starts_at}))})}function parseClock(text:string){const m=normalizeFaNumber(text).match(/(?:ساعت\s*)?(\d{1,2})(?::(\d{2}))?/);if(!m)return{h:18,min:0};return{h:Math.max(0,Math.min(23,Number(m[1]))),min:Math.max(0,Math.min(59,Number(m[2]||0)))}}
+import {NextRequest,NextResponse} from "next/server";
+import {z} from "zod";
+import {verifyFamilySession} from "@/lib/familySession";
+import {readMiniAppDashboard} from "@/lib/miniAppData";
+import {createFamilyTask} from "@/lib/familyMutations";
+import {createFamilyEvent,createFamilyPoll,transferFamilyCoins} from "@/lib/familyFeatures";
+import {findFamilyMemberByName,normalizeFaNumber} from "@/lib/memberLookup";
+import {readAiMemory,rememberAiTurn} from "@/lib/aiMemory";
+
+const Body=z.object({message:z.string().min(1).max(4000),history:z.array(z.object({role:z.enum(["user","assistant"]),content:z.string().max(4000)})).max(20).default([])});
+const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند.`;
+
+function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
+function fa(n:number){return new Intl.NumberFormat("fa-IR").format(n)}
+function familyContext(d:any){return JSON.stringify({family:{name:d.family?.name,members:d.family?.membersCount},profile:d.profile?{name:d.profile.display_name||d.profile.first_name,coins:d.profile.coins,level:d.profile.level,rank:d.profile.rank}:null,members:(d.members||[]).slice(0,30).map((m:any)=>({name:m.display_name||m.first_name,relation:m.relation_label})),birthdays:(d.birthdays||[]).slice(0,8).map((b:any)=>({name:b.display_name||b.first_name,days:b.days,next:b.next})),tasks:(d.tasks||[]).slice(0,10).map((t:any)=>({title:t.title,status:t.status,due:t.due_at})),events:(d.events||[]).slice(0,10).map((e:any)=>({title:e.title,type:e.event_type,starts:e.starts_at}))})}
+function parseClock(text:string){const m=normalizeFaNumber(text).match(/(?:ساعت\s*)?(\d{1,2})(?::(\d{2}))?/);if(!m)return{h:18,min:0};return{h:Math.max(0,Math.min(23,Number(m[1]))),min:Math.max(0,Math.min(59,Number(m[2]||0)))}}
 function relativeDate(text:string){const {h,min}=parseClock(text),parts=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value])),base=new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day)));let add=0;if(/پس.?فردا/.test(text))add=2;else if(/فردا/.test(text))add=1;else if(/امروز/.test(text))add=0;else if(/جمعه/.test(text)){const day=base.getUTCDay();add=(5-day+7)%7||7}else return null;base.setUTCDate(base.getUTCDate()+add);return new Date(Date.UTC(base.getUTCFullYear(),base.getUTCMonth(),base.getUTCDate(),h,min)-12600000).toISOString()}
-async function explicitAction(message:string,session:NonNullable<ReturnType<typeof sessionFrom>>){const task=message.match(/(?:یک\s+)?کار(?:\s+جدید)?[:：]?\s*(.+?)\s*(?:بساز|ثبت\s*کن)$/i);if(task){const title=task[1].trim();await createFamilyTask(session.familyId,session.userId,{title,rewardCoins:0});return`✅ کار «${title}» ثبت شد.`}const event=message.match(/(?:رویداد|برنامه|دورهمی)[:：]?\s*(.+?)\s+(امروز|فردا|پس.?فردا|جمعه)(.*?)(?:بساز|ثبت\s*کن)$/i);if(event){const startsAt=relativeDate(`${event[2]} ${event[3]}`);if(!startsAt)return"زمان رو واضح‌تر بگو؛ مثلاً «دورهمی جمعه ساعت ۲۰ ثبت کن».";const title=event[1].trim();await createFamilyEvent(session.familyId,session.userId,{title,startsAt,eventType:"event"});return`📅 رویداد «${title}» ثبت شد.`}const poll=message.match(/(?:نظرسنجی|رأی.?گیری)[:：]?\s*(.+?)\s+گزینه(?:‌| )?ها[:：]?\s*(.+?)\s*(?:بساز|ثبت\s*کن)$/i);if(poll){const question=poll[1].trim(),options=poll[2].split(/[،,|]/).map(x=>x.trim()).filter(Boolean);if(options.length<2)return"حداقل دو گزینه بده.";await createFamilyPoll(session.familyId,session.userId,{question,options});return`📊 نظرسنجی «${question}» ساخته شد.`}const normalized=normalizeFaNumber(message),a=normalized.match(/(?:به\s+)(.+?)\s+(\d+)\s*سکه\s*(?:بده|منتقل\s*کن)$/i),b=normalized.match(/(\d+)\s*سکه\s+(?:به\s+)(.+?)\s*(?:بده|منتقل\s*کن)$/i);if(a||b){const name=(a?.[1]||b?.[2]||"").trim(),amount=Number(a?.[2]||b?.[1]||0);try{const target=await findFamilyMemberByName(session.familyId,name),result=await transferFamilyCoins(session.familyId,session.userId,{targetMemberId:target.id,amount});return`🪙 ${fa(result.amount)} سکه به ${result.target.name} منتقل شد.`}catch(e){const m=e instanceof Error?e.message:"";if(m==="member_not_found")return`عضوی با نام «${name}» پیدا نکردم.`;if(m==="insufficient_coins")return"سکه کافی نداری.";throw e}}return null}
-function shouldSearch(q:string){return /(اینترنت|جستجو|سرچ|امروز|الان|آخرین|جدیدترین|خبر|قیمت|آب.?وهوا|بروز|به.?روز)/i.test(q)}function decode(s:string){return s.replace(/<[^>]+>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#x27;/g,"'").replace(/\s+/g," ").trim()}async function webSearch(q:string){if(!shouldSearch(q))return"";try{const r=await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,{headers:{"user-agent":"Mozilla/5.0 FamilyBot/1.0"},signal:AbortSignal.timeout(6000),cache:"no-store"});if(!r.ok)return"";const html=await r.text(),rows=[...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/g)].slice(0,4).map(m=>decode(m[1]||m[2]||"")).filter(Boolean);return rows.join("\n• ").slice(0,3500)}catch{return""}}
-export async function POST(req:NextRequest){try{const session=sessionFrom(req);if(!session)return NextResponse.json({error:"unauthorized"},{status:401});const body=Body.parse(await req.json()),dashboard=await readMiniAppDashboard(session.familyId,session.userId).catch(()=>null),actionReply=await explicitAction(body.message,session);if(actionReply){void rememberAiTurn(session.familyId,session.userId,body.message,actionReply).catch(()=>{});return NextResponse.json({reply:actionReply,action:true})}if(dashboard&&/تولد/.test(body.message)&&/(نزدیک|کیه|کی هست|چه موقع|چه روز)/.test(body.message)){const rows=(dashboard.birthdays||[]).slice(0,5),reply=`🎂 تولدهای نزدیک:\n${rows.length?rows.map((b:any,i:number)=>`${i+1}. ${b.display_name||b.first_name||"عضو خانواده"} — ${b.days===0?"امروز":`${fa(b.days)} روز دیگه`}`).join("\n"):"فعلاً تولدی ثبت نشده."}`;void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});return NextResponse.json({reply,grounded:true})}const key=process.env.GROQ_API_KEY||process.env.AI_API_KEY;if(!key)return NextResponse.json({reply:"سکتور AI به Family Core وصله، اما کلید مدل زبانی تنظیم نشده."});const base=(process.env.AI_BASE_URL||"https://api.groq.com/openai/v1").replace(/\/$/,""),model=process.env.AI_MODEL||"llama-3.3-70b-versatile",memory=await readAiMemory(session.familyId,session.userId,10).catch(()=>[]),web=await webSearch(body.message),context=dashboard?`\nFamily Context خصوصی و معتبر: ${familyContext(dashboard)}`:"\nFamily Context در دسترس نیست.";const webContext=web?`\nنتایج جستجوی وب (ممکن است ناقص باشند؛ به‌عنوان داده عمومی تازه):\n• ${web}`:"";const response=await fetch(`${base}/chat/completions`,{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify({model,temperature:.48,messages:[{role:"system",content:SYSTEM+context+webContext},...memory.filter(x=>x.role!=="summary").map(x=>({role:x.role,content:x.content})),...body.history.slice(-6),{role:"user",content:body.message}]})});if(!response.ok)throw new Error(`AI provider returned ${response.status}`);const data=await response.json(),reply=String(data?.choices?.[0]?.message?.content||"").trim();if(!reply)throw new Error("empty_response");void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});return NextResponse.json({reply,grounded:Boolean(dashboard),searched:Boolean(web)})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"ai_failed"},{status:400})}}
+function logAi(event:string,meta:Record<string,unknown>={}){console.info("[ai.chat]",event,meta)}
+
+async function explicitAction(message:string,session:NonNullable<ReturnType<typeof sessionFrom>>){
+  const task=message.match(/(?:یک\s+)?کار(?:\s+جدید)?[:：]?\s*(.+?)\s*(?:بساز|ثبت\s*کن)$/i);
+  if(task){const title=task[1].trim();await createFamilyTask(session.familyId,session.userId,{title,rewardCoins:0});return`✅ کار «${title}» ثبت شد.`}
+  const event=message.match(/(?:رویداد|برنامه|دورهمی)[:：]?\s*(.+?)\s+(امروز|فردا|پس.?فردا|جمعه)(.*?)(?:بساز|ثبت\s*کن)$/i);
+  if(event){const startsAt=relativeDate(`${event[2]} ${event[3]}`);if(!startsAt)return"زمان رو واضح‌تر بگو؛ مثلاً «دورهمی جمعه ساعت ۲۰ ثبت کن».";const title=event[1].trim();await createFamilyEvent(session.familyId,session.userId,{title,startsAt,eventType:"event"});return`📅 رویداد «${title}» ثبت شد.`}
+  const poll=message.match(/(?:نظرسنجی|رأی.?گیری)[:：]?\s*(.+?)\s+گزینه(?:‌| )?ها[:：]?\s*(.+?)\s*(?:بساز|ثبت\s*کن)$/i);
+  if(poll){const question=poll[1].trim(),options=poll[2].split(/[،,|]/).map(x=>x.trim()).filter(Boolean);if(options.length<2)return"حداقل دو گزینه بده.";await createFamilyPoll(session.familyId,session.userId,{question,options});return`📊 نظرسنجی «${question}» ساخته شد.`}
+  const normalized=normalizeFaNumber(message),a=normalized.match(/(?:به\s+)(.+?)\s+(\d+)\s*سکه\s*(?:بده|منتقل\s*کن)$/i),b=normalized.match(/(\d+)\s*سکه\s+(?:به\s+)(.+?)\s*(?:بده|منتقل\s*کن)$/i);
+  if(a||b){const name=(a?.[1]||b?.[2]||"").trim(),amount=Number(a?.[2]||b?.[1]||0);try{const target=await findFamilyMemberByName(session.familyId,name),result=await transferFamilyCoins(session.familyId,session.userId,{targetMemberId:target.id,amount});return`🪙 ${fa(result.amount)} سکه به ${result.target.name} منتقل شد.`}catch(e){const m=e instanceof Error?e.message:"";if(m==="member_not_found")return`عضوی با نام «${name}» پیدا نکردم.`;if(m==="insufficient_coins")return"سکه کافی نداری.";throw e}}
+  return null;
+}
+function shouldSearch(q:string){return /(اینترنت|جستجو|سرچ|امروز|الان|آخرین|جدیدترین|خبر|قیمت|آب.?وهوا|بروز|به.?روز)/i.test(q)}
+function decode(s:string){return s.replace(/<[^>]+>/g," ").replace(/&/g,"&").replace(/"/g,'"').replace(/&#x27;/g,"'").replace(/\s+/g," ").trim()}
+async function webSearch(q:string){
+  if(!shouldSearch(q))return{used:false,ok:false,text:""};
+  try{
+    const r=await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,{headers:{"user-agent":"Mozilla/5.0 FamilyBot/1.0"},signal:AbortSignal.timeout(6000),cache:"no-store"});
+    if(!r.ok){logAi("web_search_http",{status:r.status});return{used:true,ok:false,text:""}}
+    const html=await r.text();
+    const rows=[...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/g)].slice(0,4).map(m=>decode(m[1]||m[2]||"")).filter(Boolean);
+    const text=rows.join("\n• ").slice(0,3500);
+    return{used:true,ok:Boolean(text),text};
+  }catch(e){
+    logAi("web_search_timeout_or_fail",{kind:e instanceof Error?e.name:"unknown"});
+    return{used:true,ok:false,text:""};
+  }
+}
+
+export async function POST(req:NextRequest){
+  try{
+    const session=sessionFrom(req);
+    if(!session){logAi("rejected_unauthorized");return NextResponse.json({error:"unauthorized"},{status:401})}
+    logAi("request_accepted",{family:session.familyId.slice(0,8)});
+    const body=Body.parse(await req.json());
+    const dashboard=await readMiniAppDashboard(session.familyId,session.userId).catch(()=>null);
+    const actionReply=await explicitAction(body.message,session);
+    if(actionReply){void rememberAiTurn(session.familyId,session.userId,body.message,actionReply).catch(()=>{});logAi("final_reply",{ok:true,kind:"action"});return NextResponse.json({reply:actionReply,action:true})}
+    if(dashboard&&/تولد/.test(body.message)&&/(نزدیک|کیه|کی هست|چه موقع|چه روز)/.test(body.message)){
+      const rows=(dashboard.birthdays||[]).slice(0,5);
+      const reply=`🎂 تولدهای نزدیک:\n${rows.length?rows.map((b:any,i:number)=>`${i+1}. ${b.display_name||b.first_name||"عضو خانواده"} — ${b.days===0?"امروز":`${fa(b.days)} روز دیگه`}`).join("\n"):"فعلاً تولدی ثبت نشده."}`;
+      void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});
+      logAi("final_reply",{ok:true,kind:"grounded"});
+      return NextResponse.json({reply,grounded:true});
+    }
+    const key=process.env.GROQ_API_KEY||process.env.AI_API_KEY;
+    if(!key){logAi("provider_missing_key");return NextResponse.json({reply:"سکتور AI به Family Core وصله، اما کلید مدل زبانی تنظیم نشده."})}
+    const base=(process.env.AI_BASE_URL||"https://api.groq.com/openai/v1").replace(/\/$/,"");
+    const model=process.env.AI_MODEL||"llama-3.3-70b-versatile";
+    logAi("provider_selected",{provider:process.env.AI_PROVIDER||"groq",model,baseHost:(()=>{try{return new URL(base).host}catch{return "unknown"}})()});
+    const memory=await readAiMemory(session.familyId,session.userId,10).catch(()=>[]);
+    const web=await webSearch(body.message);
+    const context=dashboard?`\nFamily Context خصوصی و معتبر: ${familyContext(dashboard)}`:"\nFamily Context در دسترس نیست.";
+    const webContext=web.ok?`\nنتایج جستجوی وب (ممکن است ناقص باشند؛ به‌عنوان داده عمومی تازه):\n• ${web.text}`:web.used?"\nجستجوی زنده وب الان در دسترس نبود. اگر سؤال قیمت/خبر است، همین را واضح بگو.":"";
+    let response:Response;
+    try{
+      response=await fetch(`${base}/chat/completions`,{
+        method:"POST",
+        headers:{"content-type":"application/json",authorization:`Bearer ${key}`},
+        body:JSON.stringify({model,temperature:.48,messages:[{role:"system",content:SYSTEM+context+webContext},...memory.filter(x=>x.role!=="summary").map(x=>({role:x.role,content:x.content})),...body.history.slice(-6),{role:"user",content:body.message}]}),
+        signal:AbortSignal.timeout(14000)
+      });
+    }catch(e){
+      const timeout=e instanceof Error&&(e.name==="TimeoutError"||e.name==="AbortError");
+      logAi(timeout?"provider_timeout":"provider_network_fail",{kind:e instanceof Error?e.name:"unknown"});
+      return NextResponse.json({error:timeout?"پاسخ مدل بیش از حد طول کشید. دوباره بفرست.":"ارتباط با مدل زبانی برقرار نشد."},{status:504});
+    }
+    logAi("provider_http",{status:response.status});
+    if(!response.ok){
+      logAi("provider_error",{status:response.status});
+      return NextResponse.json({error:`AI provider returned ${response.status}`},{status:502});
+    }
+    let data:any;
+    try{data=await response.json()}catch{
+      logAi("malformed_provider_response");
+      return NextResponse.json({error:"پاسخ مدل قابل خواندن نبود."},{status:502});
+    }
+    let reply=String(data?.choices?.[0]?.message?.content||"").trim();
+    if(!reply){logAi("empty_response");return NextResponse.json({error:"empty_response"},{status:502})}
+    if(web.used&&!web.ok&&shouldSearch(body.message))reply=`${reply}\n\nجستجوی زنده وب الان در دسترس نبود؛ این پاسخ از دانش مدل است، نه قیمت لحظه‌ای.`;
+    void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});
+    logAi("final_reply",{ok:true,kind:"model",searched:web.used,webOk:web.ok});
+    return NextResponse.json({reply,grounded:Boolean(dashboard),searched:web.ok});
+  }catch(e){
+    logAi("final_reply",{ok:false,kind:e instanceof Error?e.message:"ai_failed"});
+    return NextResponse.json({error:e instanceof Error?e.message:"ai_failed"},{status:400});
+  }
+}

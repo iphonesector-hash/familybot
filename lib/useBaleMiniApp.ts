@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { extractBalePhotoUrl } from "@/lib/avatarResolve";
 
 type BaleUser = { id?: number; first_name?: string; last_name?: string; username?: string; photo_url?: string; allows_write_to_pm?: boolean };
 type BaleTheme = { bg_color?: string; text_color?: string; hint_color?: string; link_color?: string; button_color?: string; button_text_color?: string; secondary_bg_color?: string; header_bg_color?: string; bottom_bar_bg_color?: string; accent_text_color?: string; section_bg_color?: string; section_header_text_color?: string; section_separator_color?: string; subtitle_text_color?: string; destructive_text_color?: string };
@@ -59,6 +60,12 @@ function hasWorkingSession(){
   try { return Boolean(sessionStorage.getItem("familybot.session")); } catch { return false; }
 }
 
+function normalizeUser(raw: BaleUser | null | undefined): BaleUser | null {
+  if(!raw || typeof raw !== "object") return null;
+  const photo = extractBalePhotoUrl(raw);
+  return photo ? { ...raw, photo_url: photo } : raw;
+}
+
 export function useBaleMiniApp() {
   const [webApp, setWebApp] = useState<BaleWebApp | null>(null);
   const [user, setUser] = useState<BaleUser | null>(null);
@@ -73,7 +80,7 @@ export function useBaleMiniApp() {
         callSafe(app, "expand");
         if (!cancelled) {
           setWebApp(app);
-          try { setUser(app.initDataUnsafe?.user ?? null); } catch { setUser(null); }
+          try { setUser(normalizeUser(app.initDataUnsafe?.user ?? null)); } catch { setUser(null); }
         }
         return;
       }

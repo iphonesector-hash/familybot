@@ -1,3 +1,38 @@
-import {NextRequest,NextResponse} from "next/server";import {createClient} from "@supabase/supabase-js";import {verifyFamilySession} from "@/lib/familySession";import {DEZFULI_WORDS} from "@/lib/dezfuliCulture";
-function session(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}function db(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!u||!k)throw new Error("db_not_configured");return createClient(u,k,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
-export async function POST(req:NextRequest){const s=session(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});try{const b=await req.json() as {wordId?:string;answer?:string};const word=DEZFULI_WORDS.find(x=>x.id===String(b.wordId||""));if(!word)return NextResponse.json({ok:false,error:"unknown_word"},{status:400});const correct=String(b.answer||"").trim()===word.meaning;if(!correct)return NextResponse.json({ok:true,correct:false,meaning:word.meaning});const c=db(),m=await c.from("members").select("id,is_founder").eq("family_id",s.familyId).eq("bale_user_id",s.userId).single();if(m.error)throw m.error;const r=await c.rpc("family_claim_dezfuli_quiz_atomic",{p_family_id:s.familyId,p_member_id:m.data.id,p_word_id:word.id,p_xp:10,p_coins:3});if(r.error)throw r.error;const out=r.data as {claimed?:boolean;alreadyClaimed?:boolean;founder?:boolean}|null;return NextResponse.json({ok:true,correct:true,meaning:word.meaning,reward:out?.founder?"∞":out?.claimed?"+۱۰ XP · +۳ سکه":"امتیاز این واژه را امروز قبلاً گرفتی",claimed:Boolean(out?.claimed),founder:Boolean(out?.founder)})}catch(e){console.error(e);return NextResponse.json({ok:false,error:"quiz_failed"},{status:500})}}
+import {NextRequest,NextResponse} from "next/server";
+import {createClient} from "@supabase/supabase-js";
+import {verifyFamilySession} from "@/lib/familySession";
+import {DEZFULI_WORDS} from "@/lib/dezfuliCulture";
+import {challengeReward} from "@/lib/challengeRewards";
+
+function session(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
+function db(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!u||!k)throw new Error("db_not_configured");return createClient(u,k,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
+
+export async function POST(req:NextRequest){
+  const s=session(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+  try{
+    const b=await req.json() as {wordId?:string;answer?:string};
+    const word=DEZFULI_WORDS.find(x=>x.id===String(b.wordId||""));
+    if(!word)return NextResponse.json({ok:false,error:"unknown_word"},{status:400});
+    const correct=String(b.answer||"").trim()===word.meaning;
+    if(!correct)return NextResponse.json({ok:true,correct:false,meaning:word.meaning,reward:{coins:0,cp:0},alreadyClaimed:false});
+    const c=db(),m=await c.from("members").select("id,is_founder").eq("family_id",s.familyId).eq("bale_user_id",s.userId).single();
+    if(m.error)throw m.error;
+    const pay=challengeReward("dezfuli");
+    const r=await c.rpc("family_claim_dezfuli_quiz_atomic",{p_family_id:s.familyId,p_member_id:m.data.id,p_word_id:word.id,p_xp:pay.cp,p_coins:pay.coins});
+    if(r.error)throw r.error;
+    const out=r.data as {claimed?:boolean;alreadyClaimed?:boolean;founder?:boolean}|null;
+    const claimed=Boolean(out?.claimed);
+    return NextResponse.json({
+      ok:true,
+      correct:true,
+      meaning:word.meaning,
+      reward:claimed?pay:{coins:0,cp:0},
+      alreadyClaimed:!claimed,
+      claimed,
+      founder:Boolean(out?.founder)
+    });
+  }catch(e){
+    console.error(e);
+    return NextResponse.json({ok:false,error:"quiz_failed"},{status:500});
+  }
+}
