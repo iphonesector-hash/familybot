@@ -23,12 +23,23 @@ export default function SagoolPage(){
  const xp=useMemo(()=>sagoolXpProgress(state.xp),[state.xp]);
  const mood=useMemo(()=>sagoolMoodFromNeeds(state,lastAction),[state,lastAction]);
  const equipped=useMemo(()=>inventory.filter(x=>x.equipped).slice(0,3),[inventory]);
- function apply(d:any){if(!d)return;if(d.state)setState(d.state);if(Array.isArray(d.missions))setMissions(d.missions);if(Array.isArray(d.inventory))setInventory(d.inventory);if(typeof d.founder==="boolean")setFounder(Boolean(d.founder));if(d.cooldowns&&typeof d.cooldowns==="object")setCool(d.cooldowns)}
+ function apply(d:any){
+  if(!d)return;
+  if(d.state)setState(d.state);
+  if(Array.isArray(d.missions))setMissions(d.missions);
+  if(Array.isArray(d.inventory))setInventory(d.inventory);
+  if(typeof d.founder==="boolean")setFounder(Boolean(d.founder));
+  if(d.cooldowns&&typeof d.cooldowns==="object"){
+    const next:Record<string,number>={};
+    for(const [k,v] of Object.entries(d.cooldowns)) next[k]=Date.now()+Math.max(0,Number(v)||0);
+    setCool(next);
+  }
+ }
  async function load(){const s=sessionStorage.getItem("familybot.session");if(!s)return;try{const r=await fetch("/api/family/sagool",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}),x=await r.json();if(x.ok)apply(x.data)}catch{}}
  useEffect(()=>{void load()},[]);
  useEffect(()=>{const id=window.setInterval(()=>setTick(t=>t+1),250);return()=>window.clearInterval(id)},[]);
- const remain=(id:string)=>Math.max(0,(cool[id]||0)-tick*250);
- async function care(action:string){if(busy||remain(action)>0)return;const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(action);setCool(c=>({...c,[action]:20_000}));try{const r=await fetch("/api/family/sagool",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"interact",action})}),x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||"failed");feedback(true);setLastAction(action);apply(x.data);if(x.data.leveledUp){setLevelBurst(true);setTimeout(()=>setLevelBurst(false),2200);setNote(`سگول سطح ${x.data.newLevel} شد!`)}else setNote(x.data.message||"سگول خوشحال شد.")}catch(e){feedback(false);setNote(e instanceof Error&&e.message==="sagool_cooldown"?"این کار هنوز در کول‌داون است.":"این کار فعلاً انجام نشد.");void load()}finally{setBusy("")}}
+ const remain=(id:string)=>Math.max(0,(cool[id]||0)-Date.now());
+ async function care(action:string){if(busy||remain(action)>0)return;const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(action);setCool(c=>({...c,[action]:Date.now()+20_000}));try{const r=await fetch("/api/family/sagool",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"interact",action})}),x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||"failed");feedback(true);setLastAction(action);apply(x.data);if(x.data.leveledUp){setLevelBurst(true);setTimeout(()=>setLevelBurst(false),2200);setNote(`سگول سطح ${x.data.newLevel} شد!`)}else setNote(x.data.message||"سگول خوشحال شد.")}catch(e){feedback(false);setNote(e instanceof Error&&e.message==="sagool_cooldown"?"این کار هنوز در کول‌داون است.":"این کار فعلاً انجام نشد.");void load()}finally{setBusy("")}}
  async function claim(m:SagoolMission){const s=sessionStorage.getItem("familybot.session");if(!s)return;setBusy(m.code);try{const r=await fetch("/api/family/sagool",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"claim_mission",missionKey:m.code})}),x=await r.json();if(!r.ok||!x.ok)throw new Error();apply(x.data);const c=x.data.claim||{};setNote(c.alreadyClaimed?"این جایزه قبلاً دریافت شده.":c.claimed?`جایزه: +${c.xp||0} XP`:"هنوز ماموریت کامل نشده.")}catch{setNote("دریافت جایزه انجام نشد.")}finally{setBusy("")}}
  async function equipItem(item:Inventory){const s=sessionStorage.getItem("familybot.session");if(!s)return;setBusy(`equip:${item.item_id}`);try{const r=await fetch("/api/family/sagool",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"equip",itemId:item.item_id,equipped:!item.equipped})}),x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||"equip_failed");apply(x.data);setNote(x.data.message||"تجهیزات سگول به‌روز شد.")}catch(e){setNote(e instanceof Error&&e.message==="equip_limit"?"حداکثر ۳ آیتم را هم‌زمان می‌تونی فعال کنی.":"تغییر تجهیزات انجام نشد.")}finally{setBusy("")}}
  const sagoolStore=STORE_ITEMS.filter(x=>x.kind==="sagool");
@@ -58,7 +69,7 @@ export default function SagoolPage(){
   </Accordion>
 
   <Accordion title="مراقبت از سگول" summary="هر کار ۲۰ ثانیه کول‌داون دارد" icon="✦" defaultOpen>
-   <div className="actionGrid">{ALL_ACTIONS.map(a=>{const left=remain(a.id);const locked=left>0||Boolean(busy);return <button className="coolBtn" disabled={locked} onClick={()=>void care(a.id)} key={a.id}>{a.art?<img src={a.art} alt="" style={{width:36,height:36,objectFit:"contain",borderRadius:10,mixBlendMode:"lighten"}}/>:null}<b>{busy===a.id?"...":a.title}</b><small>{left>0?fmt(left):"آماده"}</small></button>})}</div>
+   <div className="actionGrid">{ALL_ACTIONS.map(a=>{const left=remain(a.id);const locked=left>0||Boolean(busy);return <button className="coolBtn" disabled={locked} onClick={()=>void care(a.id)} key={a.id}>{a.art?<img src={a.art} alt="" style={{width:36,height:36,objectFit:"contain",borderRadius:10}}/>:null}<b>{busy===a.id?"...":a.title}</b><small>{left>0?`آماده در ${fmt(left)}`:"آماده"}</small></button>})}</div>
   </Accordion>
 
   <Accordion title="ماموریت‌های من" summary={`${fa(openMissions)} ماموریت باز`} icon="★">

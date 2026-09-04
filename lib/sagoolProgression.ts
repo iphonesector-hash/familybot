@@ -34,7 +34,7 @@ export function sagoolXpProgress(xp:number){
 
 export function sagoolAsset(level:number){
   const lv=Math.min(SAGOOL_MAX_LEVEL,Math.max(1,Math.floor(level)||1));
-  return `/assets/sagool/levels/${String(lv).padStart(2,"0")}.jpg`;
+  return `/assets/sagool/levels/${String(lv).padStart(2,"0")}.png`;
 }
 
 export function sagoolMoodFromNeeds(s:{hunger:number;thirst:number;energy:number;happiness:number}, action?:string):SagoolMood{
@@ -50,8 +50,8 @@ export function sagoolMoodFromNeeds(s:{hunger:number;thirst:number;energy:number
 }
 
 export const CARE_ACTIONS = [
-  {id:"feed", title:"غذا", need:"hunger", art:"/assets/store/items/sagool_food.jpg"},
-  {id:"water", title:"آب", need:"thirst", art:"/assets/store/items/cosmic_aquarium.jpg"},
-  {id:"play", title:"بازی", need:"happiness", art:"/assets/store/items/sagool_ball.jpg"},
-  {id:"sleep", title:"خواب", need:"energy", art:"/assets/store/items/sagool_sleep_pod.jpg"},
+  {id:"feed", title:"غذا", need:"hunger", art:"/assets/store/items/sagool_food.png"},
+  {id:"water", title:"آب", need:"thirst", art:"/assets/store/items/cosmic_aquarium.png"},
+  {id:"play", title:"بازی", need:"happiness", art:"/assets/store/items/sagool_ball.png"},
+  {id:"sleep", title:"خواب", need:"energy", art:"/assets/store/items/sagool_sleep_pod.png"},
 ] as const;

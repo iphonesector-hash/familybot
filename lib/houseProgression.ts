@@ -2,12 +2,12 @@ export type HouseMaterial = "brick"|"cement"|"wood"|"water"|"tile"|"paint";
 
 export const HOUSE_MAX_LEVEL = 10;
 export const HOUSE_MATERIALS: {id:HouseMaterial;name:string;art:string;pack:number;price:number;tier:string}[] = [
-  {id:"brick", name:"آجر", art:"/assets/house/materials/brick.jpg", pack:8, price:180, tier:"basic"},
-  {id:"cement", name:"سیمان", art:"/assets/house/materials/cement.jpg", pack:6, price:220, tier:"basic"},
-  {id:"wood", name:"چوب", art:"/assets/house/materials/wood.jpg", pack:6, price:200, tier:"improved"},
-  {id:"water", name:"آب ساخت", art:"/assets/house/materials/water.jpg", pack:8, price:90, tier:"basic"},
-  {id:"tile", name:"کاشی", art:"/assets/house/materials/tile.jpg", pack:4, price:320, tier:"stone"},
-  {id:"paint", name:"رنگ", art:"/assets/house/materials/paint.jpg", pack:3, price:280, tier:"gold"},
+  {id:"brick", name:"آجر", art:"/assets/house/materials/brick.png", pack:8, price:180, tier:"basic"},
+  {id:"cement", name:"سیمان", art:"/assets/house/materials/cement.png", pack:6, price:220, tier:"basic"},
+  {id:"wood", name:"چوب", art:"/assets/house/materials/wood.png", pack:6, price:200, tier:"improved"},
+  {id:"water", name:"آب ساخت", art:"/assets/house/materials/water.png", pack:8, price:90, tier:"basic"},
+  {id:"tile", name:"کاشی", art:"/assets/house/materials/tile.png", pack:4, price:320, tier:"stone"},
+  {id:"paint", name:"رنگ", art:"/assets/house/materials/paint.png", pack:3, price:280, tier:"gold"},
 ];
 
 export const HOUSE_LEVELS = [

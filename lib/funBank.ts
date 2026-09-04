@@ -127,7 +127,11 @@ const PERSIAN_POEMS=[
 export const CULTURE_EXTRA={proverbs:PERSIAN_PROVERBS,poems:PERSIAN_POEMS};
 
 export function pickFresh<T extends {id:string}>(items:readonly T[], recent:string[]){
-  const pool=items.filter(x=>!recent.includes(x.id));
-  const list=pool.length?pool:items;
+  const avoid=new Set(recent);
+  const unused=items.filter(x=>!avoid.has(x.id));
+  if(unused.length) return unused[Math.floor(Math.random()*unused.length)];
+  const last=recent[0];
+  const notLast=items.filter(x=>x.id!==last);
+  const list=notLast.length?notLast:items;
   return list[Math.floor(Math.random()*list.length)];
 }

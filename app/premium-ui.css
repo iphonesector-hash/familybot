@@ -1,7 +1,7 @@
 .jahaniAcc{border:1px solid rgba(187,198,255,.14);border-radius:22px;background:linear-gradient(160deg,rgba(24,18,58,.92),rgba(10,8,32,.94));box-shadow:0 14px 36px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.06);overflow:hidden;margin:10px 0}
 .jahaniAccHead{width:100%;display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center;background:transparent;border:0;color:#fff;text-align:right;padding:13px 14px;min-height:58px}
 .jahaniAccIcon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(123,69,255,.18);overflow:hidden;font-size:16px}
-.jahaniAccIcon img{width:100%;height:100%;object-fit:contain;mix-blend-mode:lighten}
+.jahaniAccIcon img{width:100%;height:100%;object-fit:contain}
 .jahaniAccCopy{display:flex;flex-direction:column;gap:2px}
 .jahaniAccCopy b{font-size:14px}
 .jahaniAccCopy small{font-size:11px;color:#b7add4}
@@ -18,15 +18,15 @@
 .coolBtn[disabled]{opacity:.58}
 .coolBtn small{color:#9be7ff;font-variant-numeric:tabular-nums;font-size:11px}
 .actionGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.liftArt,.assetIcon,.storeItemArt img,.sagoolStage>img{mix-blend-mode:lighten;background:transparent}
-.housePreview img,.storeHero img,.land{mix-blend-mode:normal}
+.liftArt,.assetIcon,.storeItemArt img,.sagoolStage>img{background:transparent}
+.housePreview img,.storeHero img,.land{background:transparent}
 .homeStack{display:grid;gap:12px;padding-bottom:8px}
 .homeFeatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .homeFeature{min-height:132px;padding:12px;border-radius:22px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}
-.homeFeature img.cardArt{position:absolute;inset:auto -6px -8px auto;width:92px;height:92px;object-fit:contain;mix-blend-mode:lighten;pointer-events:none}
+.homeFeature img.cardArt{position:absolute;inset:auto -6px -8px auto;width:92px;height:92px;object-fit:contain;pointer-events:none}
 .homeFeature h2{margin:0;font-size:15px}
 .homeFeature p{margin:4px 0 0;font-size:11px;color:#c9bfd8}
-.aiBanner .mascotVisual,.aiBanner img{mix-blend-mode:lighten;background:transparent}
+.aiBanner .mascotVisual,.aiBanner img{background:transparent}
 .aiScreen{display:flex;flex-direction:column;min-height:100dvh;padding-bottom:calc(148px + env(safe-area-inset-bottom)) !important}
 .aiScreen .chatList{flex:1;display:flex;flex-direction:column;gap:8px;padding-bottom:8px;min-height:180px}
 .aiScreen .quickGrid{margin-bottom:6px}
@@ -42,7 +42,11 @@
 .coinFlip.spinning b{animation:coinSpin 1.15s ease-in-out}
 @keyframes coinSpin{to{transform:rotateY(720deg)}}
 .rpsRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.rpsRow button{min-height:68px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff}
+.rpsRow button{min-height:72px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rpsGlyph{width:28px;height:28px;display:block;background:currentColor;mask-size:contain;mask-repeat:no-repeat;mask-position:center;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center}
+.rps-0{mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='8'/></svg>");-webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='8'/></svg>")}
+.rps-1{mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='4' y='5' width='16' height='14' rx='2'/></svg>");-webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='4' y='5' width='16' height='14' rx='2'/></svg>")}
+.rps-2{mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 4l10 8-10 8z'/></svg>");-webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 4l10 8-10 8z'/></svg>")}
 .rpsArena{display:flex;justify-content:space-around;align-items:center;gap:8px;margin-top:8px}
 .rpsToken{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(160deg,#6d3bff,#241056);font-size:13px;font-weight:800}
 .jahaniAvatar{display:grid;place-items:center;border-radius:38%;overflow:hidden;background:radial-gradient(circle at 30% 20%,#8a5cff,#2a1658);border:1px solid rgba(255,255,255,.2);flex:0 0 auto}

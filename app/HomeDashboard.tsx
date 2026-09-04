@@ -65,7 +65,7 @@ export default function HomeDashboard(){
         <a className="homeFeature premiumPanel" href="/section/occasions">
           <span className="eyebrow">جشن و تاریخ</span>
           <div><h2>مناسبت‌ها</h2><p>{birthdayText(d.birthdays[0])}</p></div>
-          <img className="cardArt" src="/assets/ui/occasions.jpg" alt=""/>
+          <img className="cardArt" src="/assets/ui/occasions.png" alt=""/>
         </a>
       </div>
       <a href="/section/house" className="housePreview premiumPanel">

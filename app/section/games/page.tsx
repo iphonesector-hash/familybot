@@ -58,7 +58,7 @@ export default function GamesPage(){
 
     <Accordion title="سنگ کاغذ قیچی" summary={rps?`تو ${RPS[rps.choice]} · سکتور ${RPS[rps.bot]}`:"انتخاب کن و نتیجه همین‌جا ببین"} icon="△">
       <div className="gamePanel">
-        <div className="rpsRow">{RPS.map((v,i)=><button key={v} disabled={busy} onClick={()=>void playRps(i)}>{v}</button>)}</div>
+        <div className="rpsRow">{RPS.map((v,i)=><button key={v} disabled={busy} onClick={()=>void playRps(i)}><span className={`rpsGlyph rps-${i}`} aria-hidden/><b>{v}</b></button>)}</div>
         {rps&&<div className="rpsArena"><div className="rpsToken">تو<br/>{RPS[rps.choice]}</div><b>{rps.outcome==="win"?"بردی":rps.outcome==="draw"?"مساوی":"باختی"}</b><div className="rpsToken">سکتور<br/>{RPS[rps.bot]}</div></div>}
         {rps?.outcome==="win"&&<p>+{fa(rps.reward||5)} سکه</p>}
       </div>
