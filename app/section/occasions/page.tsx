@@ -8,10 +8,14 @@ export default function OccasionsPage(){
   return <main className="appShell">
     <div className="ambient ambientA"/><div className="starField"/>
     <header className="appHeader"><a href="/" className="roundButton">←</a><div className="wordmark"><b>مناسبت‌ها</b><span>تقویم، تولد و جشن خانواده</span></div><IconOrb name="calendar" tone="gold"/></header>
-    <section className="premiumPanel homeFeature" style={{minHeight:168}}>
-      <span className="eyebrow"><Icon name="calendar" size={14}/> جشن خانواده</span>
-      <h1 style={{margin:"8px 0 0",fontSize:24}}>تقویم JAHANI</h1>
-      <img className="cardArt" src="/assets/ui/occasions.svg" alt="مناسبت‌های خانواده"/>
+    <section className="premiumPanel homeFeature">
+      <div className="homeFeatureCopy">
+        <span className="eyebrow"><Icon name="calendar" size={14}/> جشن خانواده</span>
+        <h1 style={{margin:"8px 0 0",fontSize:24}}>تقویم JAHANI</h1>
+      </div>
+      <div className="homeFeatureMedia">
+        <img src="/assets/ui/occasions.png" alt="مناسبت‌های خانواده"/>
+      </div>
     </section>
     <section className="premiumPanel" style={{padding:20}}>
       <span className="eyebrow">گزارش روز</span>

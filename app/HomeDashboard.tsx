@@ -58,14 +58,24 @@ export default function HomeDashboard(){
     <div className="homeStack">
       <div className="homeFeatureGrid">
         <a className="homeFeature premiumPanel" href="/section/sagool">
-          <span className="eyebrow">همراه خانواده</span>
-          <div><h2>سگول</h2><p>{sagool?`Lv.${fa(sagool.level)} · شادی ${fa(sagool.happiness)}٪`:"منتظر مراقبت توست"}</p></div>
-          <img className="cardArt liftArt" src={sagoolAsset} alt=""/>
+          <div className="homeFeatureCopy">
+            <span className="eyebrow">همراه خانواده</span>
+            <h2>سگول</h2>
+            <p>{sagool?`Lv.${fa(sagool.level)} · شادی ${fa(sagool.happiness)}٪`:"منتظر مراقبت توست"}</p>
+          </div>
+          <div className="homeFeatureMedia">
+            <img src={sagoolAsset} alt="سگول"/>
+          </div>
         </a>
         <a className="homeFeature premiumPanel" href="/section/occasions">
-          <span className="eyebrow">جشن و تاریخ</span>
-          <div><h2>مناسبت‌ها</h2><p>{birthdayText(d.birthdays[0])}</p></div>
-          <img className="cardArt" src="/assets/ui/occasions.svg" alt=""/>
+          <div className="homeFeatureCopy">
+            <span className="eyebrow">جشن و تاریخ</span>
+            <h2>مناسبت‌ها</h2>
+            <p>{birthdayText(d.birthdays[0])}</p>
+          </div>
+          <div className="homeFeatureMedia">
+            <img src="/assets/ui/occasions.png" alt="مناسبت‌های خانواده"/>
+          </div>
         </a>
       </div>
       <a href="/section/house" className="housePreview premiumPanel">

@@ -1,13 +1,11 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
 <defs>
-  <linearGradient id="bg" x1="55" y1="34" x2="457" y2="488" gradientUnits="userSpaceOnUse"><stop stop-color="#23165F"/><stop offset="1" stop-color="#07051D"/></linearGradient>
   <linearGradient id="shell" x1="145" y1="132" x2="368" y2="398" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".45" stop-color="#CCD5FF"/><stop offset="1" stop-color="#7062D8"/></linearGradient>
   <linearGradient id="roof" x1="163" y1="112" x2="352" y2="194" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#B8C6FF"/></linearGradient>
   <linearGradient id="face" x1="193" y1="210" x2="330" y2="325" gradientUnits="userSpaceOnUse"><stop stop-color="#0A0825"/><stop offset="1" stop-color="#17134B"/></linearGradient>
   <radialGradient id="glow"><stop stop-color="#5EEBFF" stop-opacity=".75"/><stop offset="1" stop-color="#6A43FF" stop-opacity="0"/></radialGradient>
   <filter id="shadow" x="80" y="68" width="360" height="390" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="18"/></filter>
 </defs>
-<rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg)"/>
 <circle cx="256" cy="300" r="170" fill="url(#glow)" opacity=".35"/>
 <ellipse cx="256" cy="405" rx="118" ry="24" fill="#5EEBFF" opacity=".16" filter="url(#shadow)"/>
 <path d="M152 200C152 149 193 108 244 108H268C319 108 360 149 360 200V325C360 372 322 410 275 410H237C190 410 152 372 152 325V200Z" fill="url(#shell)"/>

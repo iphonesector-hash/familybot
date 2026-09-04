@@ -22,10 +22,20 @@
 .housePreview img,.storeHero img,.land{background:transparent}
 .homeStack{display:grid;gap:12px;padding-bottom:8px}
 .homeFeatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.homeFeature{min-height:132px;padding:12px;border-radius:22px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}
-.homeFeature img.cardArt{position:absolute;inset:auto -6px -8px auto;width:92px;height:92px;object-fit:contain;pointer-events:none}
-.homeFeature h2{margin:0;font-size:15px}
-.homeFeature p{margin:4px 0 0;font-size:11px;color:#c9bfd8}
+.homeFeature{min-height:0;padding:14px;border-radius:22px;display:flex;flex-direction:column;gap:10px;justify-content:flex-start;overflow:hidden;position:relative}
+.homeFeatureCopy{position:relative;z-index:1;min-width:0}
+.homeFeatureCopy h2{margin:6px 0 0;font-size:16px;line-height:1.45}
+.homeFeatureCopy p{margin:4px 0 0;font-size:11px;line-height:1.7;color:#c9bfd8}
+.homeFeatureMedia{position:relative;z-index:1;display:grid;place-items:center;height:96px;flex:0 0 96px;border-radius:18px;background:radial-gradient(circle at 50% 42%,rgba(90,70,255,.22),rgba(8,10,28,0) 68%)}
+.homeFeatureMedia img{width:88px;height:88px;object-fit:contain;background:transparent;filter:drop-shadow(0 10px 16px rgba(60,40,160,.35))}
+.appShell > .homeFeature{flex-direction:row;align-items:center;gap:12px}
+.appShell > .homeFeature .homeFeatureCopy{flex:1 1 auto}
+.appShell > .homeFeature .homeFeatureMedia{flex:0 0 120px;height:120px}
+.appShell > .homeFeature .homeFeatureMedia img{width:112px;height:112px}
+.homeFeature img.cardArt{position:static;inset:auto;width:88px;height:88px;object-fit:contain;pointer-events:none}
+.homeHero{overflow:hidden}
+.homeHero .mascotVisual{background:transparent;min-height:168px}
+.homeHero .mascotVisual img{background:transparent;filter:drop-shadow(0 18px 28px rgba(86,70,255,.32))}
 .aiBanner .mascotVisual,.aiBanner img{background:transparent}
 .aiScreen{display:flex;flex-direction:column;min-height:var(--app-vh);height:var(--app-vh);padding-bottom:calc(var(--j-nav) + var(--safe-bottom) + 10px)!important;overflow:hidden}
 .aiScroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
@@ -72,7 +82,7 @@ html:has(.composer:focus-within) .aiScreen{padding-bottom:max(10px,var(--safe-bo
 .appShell{overflow-x:hidden}
 .homeStack{gap:14px}
 .homeFeatureGrid{gap:12px}
-.homeFeature{min-height:148px;padding:14px 14px 18px}
+.homeFeature{padding:14px}
 .housePreview{margin-top:2px}
 .dashboardGrid{margin-top:2px;gap:10px}
 .dashboardCard{min-height:76px}
@@ -86,5 +96,6 @@ html:has(.composer:focus-within) .aiScreen{padding-bottom:max(10px,var(--safe-bo
 @media(max-width:390px){
   .homeFeatureGrid,.needGridPremium,.actionGrid{grid-template-columns:1fr 1fr}
   .sagoolHero{grid-template-columns:1fr!important}
+  .appShell > .homeFeature{flex-direction:column;align-items:stretch}
 }
 
