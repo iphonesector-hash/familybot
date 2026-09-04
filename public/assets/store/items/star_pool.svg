@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" fill="none">
+<defs>
+  <linearGradient id="g1" x1="40" y1="20" x2="220" y2="240"><stop stop-color="#c9b6ff"/><stop offset="1" stop-color="#7b45ff"/></linearGradient>
+  <linearGradient id="g2" x1="20" y1="40" x2="240" y2="220"><stop stop-color="#ffe7a8"/><stop offset="1" stop-color="#c98922"/></linearGradient>
+  <linearGradient id="g3" x1="30" y1="10" x2="200" y2="230"><stop stop-color="#9be7ff"/><stop offset="1" stop-color="#39e0ff"/></linearGradient>
+  <linearGradient id="g4" x1="10" y1="20" x2="230" y2="240"><stop stop-color="#ff9ad4"/><stop offset="1" stop-color="#ff4fd8"/></linearGradient>
+  <filter id="s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#120828" flood-opacity=".35"/></filter>
+</defs>
+<ellipse cx="128" cy="168" rx="90" ry="28" fill="url(#g3)" filter="url(#s)"/><ellipse cx="128" cy="158" rx="74" ry="18" fill="#1b3a6a"/><path d="M128 48l10 28h30l-24 18 9 28-25-16-25 16 9-28-24-18h30z" fill="url(#g2)"/>
+</svg>

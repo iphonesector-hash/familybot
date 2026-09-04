@@ -4,31 +4,70 @@ import {DEZFULI_POEMS,DEZFULI_PROVERBS,DEZFULI_WORDS} from "@/lib/dezfuliCulture
 export type ContentKind=FunKind|"proverb"|"poem"|"dezfuli-proverb"|"dezfuli-poem"|"dezfuli-word";
 export type SourcedItem={id:string;text:string;extra?:string;source:string;kind:ContentKind};
 
+export type ContentAdapter={
+  id:string;
+  kinds:ContentKind[];
+  resolve:(kind:ContentKind, recent:string[])=>SourcedItem|null;
+};
+
 const LOCAL="curated-local";
 
+const localAdapter:ContentAdapter={
+  id:LOCAL,
+  kinds:["joke","fact","riddle","motivation","hafez","proverb","poem"],
+  resolve(kind,recent){
+    if(kind==="joke"||kind==="fact"||kind==="riddle"||kind==="motivation"||kind==="hafez"){
+      const item=pickFresh(FUN_BANK[kind],recent);
+      return {id:item.id,text:item.text,extra:item.extra,source:LOCAL,kind};
+    }
+    if(kind==="proverb"){
+      const item=pickFresh(CULTURE_EXTRA.proverbs,recent);
+      return {id:item.id,text:item.text,extra:item.meaning,source:LOCAL,kind};
+    }
+    if(kind==="poem"){
+      const item=pickFresh(CULTURE_EXTRA.poems,recent);
+      return {id:item.id,text:item.text,extra:item.meaning,source:LOCAL,kind};
+    }
+    return null;
+  }
+};
+
+/** Dezfuli stays curated-only. Do not invent vocabulary. */
+const dezfuliAdapter:ContentAdapter={
+  id:"dezfuli-curated",
+  kinds:["dezfuli-proverb","dezfuli-poem","dezfuli-word"],
+  resolve(kind,recent){
+    if(kind==="dezfuli-proverb"){
+      const item=pickFresh(DEZFULI_PROVERBS,recent);
+      return {id:item.id,text:item.text,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
+    }
+    if(kind==="dezfuli-poem"){
+      const item=pickFresh(DEZFULI_POEMS,recent);
+      return {id:item.id,text:item.text,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
+    }
+    if(kind==="dezfuli-word"){
+      const item=pickFresh(DEZFULI_WORDS,recent);
+      return {id:item.id,text:`معنی «${item.word}» چیه؟`,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
+    }
+    return null;
+  }
+};
+
+/**
+ * Remote/AI adapters can be registered later. They must return null on failure
+ * so the curated adapters remain the graceful fallback.
+ */
+const remoteAdapters:ContentAdapter[]=[];
+
+export const CONTENT_ADAPTERS:ContentAdapter[]=[...remoteAdapters,localAdapter,dezfuliAdapter];
+
 export function resolveContent(kind:ContentKind, recent:string[]):SourcedItem{
-  if(kind==="joke"||kind==="fact"||kind==="riddle"||kind==="motivation"||kind==="hafez"){
-    const item=pickFresh(FUN_BANK[kind],recent);
-    return {id:item.id,text:item.text,extra:item.extra,source:LOCAL,kind};
+  for(const adapter of CONTENT_ADAPTERS){
+    if(!adapter.kinds.includes(kind)) continue;
+    const item=adapter.resolve(kind,recent);
+    if(item) return item;
   }
-  if(kind==="proverb"){
-    const item=pickFresh(CULTURE_EXTRA.proverbs,recent);
-    return {id:item.id,text:item.text,extra:item.meaning,source:LOCAL,kind};
-  }
-  if(kind==="poem"){
-    const item=pickFresh(CULTURE_EXTRA.poems,recent);
-    return {id:item.id,text:item.text,extra:item.meaning,source:LOCAL,kind};
-  }
-  if(kind==="dezfuli-proverb"){
-    const item=pickFresh(DEZFULI_PROVERBS,recent);
-    return {id:item.id,text:item.text,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
-  }
-  if(kind==="dezfuli-poem"){
-    const item=pickFresh(DEZFULI_POEMS,recent);
-    return {id:item.id,text:item.text,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
-  }
-  const item=pickFresh(DEZFULI_WORDS,recent);
-  return {id:item.id,text:`معنی «${item.word}» چیه؟`,extra:item.meaning,source:item.source||"dezfuli-curated",kind};
+  return {id:"fallback",text:"محتوا فعلاً در دسترس نیست.",source:"fallback",kind};
 }
 
 export function poolSize(kind:ContentKind){

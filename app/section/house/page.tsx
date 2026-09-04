@@ -85,7 +85,7 @@ export default function HousePage(){
  const petAsset=stageFor(sagoolLevel).asset;
  const scene=houseSceneSrc(house.houseLevel);
  const nextScene=next?houseSceneSrc(house.houseLevel+1):null;
- return <main className={styles.page}>
+ return <main className={`appShell ${styles.page}`}>
   <div className={`motionToast${toast?" show":""}`}>{toast}</div>
   <div className={`levelBurst${levelBurst?" show":""}`}><div className="levelBurstCore"><div><b>✦</b><span>خانه سطح {house.houseLevel}</span></div></div></div>
   <header className={styles.header}><Link href="/" className={styles.back}>←</Link><div><b>Family House</b><span>{house.familyName}</span></div><span className={styles.bot}><Icon name="home"/></span></header>

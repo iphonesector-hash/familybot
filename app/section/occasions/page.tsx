@@ -11,7 +11,7 @@ export default function OccasionsPage(){
     <section className="premiumPanel homeFeature" style={{minHeight:168}}>
       <span className="eyebrow"><Icon name="calendar" size={14}/> جشن خانواده</span>
       <h1 style={{margin:"8px 0 0",fontSize:24}}>تقویم JAHANI</h1>
-      <img className="cardArt" src="/assets/ui/occasions.png" alt="مناسبت‌های خانواده"/>
+      <img className="cardArt" src="/assets/ui/occasions.svg" alt="مناسبت‌های خانواده"/>
     </section>
     <section className="premiumPanel" style={{padding:20}}>
       <span className="eyebrow">گزارش روز</span>

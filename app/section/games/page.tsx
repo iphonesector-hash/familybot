@@ -34,14 +34,14 @@ export default function GamesPage(){
   useEffect(()=>{const session=sessionStorage.getItem("familybot.session");if(!session)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${session}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok)setD(x.dashboard||{})}).catch(()=>undefined)},[]);
   const leaders=d.leaderboard||[],profile=d.profile,founder=Boolean(profile?.is_founder);
 
-  return <main className={styles.page}>
+  return <main className={`appShell ${styles.page}`}>
     <header className={styles.header}><Link href="/" className={styles.back}>←</Link><div><h1>مرکز بازی</h1><p>بازی، رقابت و جایزه خانوادگی</p></div><Link href="/section/leaderboard" className={styles.trophy}><Icon name="trophy"/></Link></header>
     <section className={styles.hero}><div><span className={styles.pill}><Icon name="games" size={15}/> بازی واقعی امروز</span><h2>Family Trivia</h2><p>سؤال از اطلاعات واقعی اعضای همین خانواده.</p><div className={styles.heroButtons}><button disabled={busy} onClick={()=>void startTrivia()}>شروع Family Trivia</button><Link href="/section/game-guide">راهنمای بازی‌ها</Link></div></div><div className={styles.heroArt}><Mascot small/><span>?</span><i>FAMILY</i></div></section>
     {notice&&<div className="adminNotice" style={{marginTop:10}} onClick={()=>setNotice("")}>{notice}</div>}
     {trivia&&<div className={styles.quizBackdrop} onClick={()=>!busy&&setTrivia(null)}><section className={styles.quizSheet} onClick={e=>e.stopPropagation()}><span className={styles.sheetHandle}/><header><b>Family Trivia</b><button disabled={busy} onClick={()=>setTrivia(null)}>×</button></header><h2>{trivia.prompt}</h2><div className={styles.quizOptions}>{trivia.options.map((o,i)=><button disabled={busy} key={`${o}-${i}`} onClick={()=>void answerTrivia(i)}>{o}</button>)}</div></section></div>}
     {quiz&&<div className={styles.quizBackdrop} onClick={()=>!busy&&setQuiz(null)}><section className={styles.quizSheet} onClick={e=>e.stopPropagation()}><span className={styles.sheetHandle}/><header><b>کوئیز عمومی</b><button disabled={busy} onClick={()=>setQuiz(null)}>×</button></header><h2>{quiz.prompt}</h2><div className={styles.quizOptions}>{quiz.options.map((o,i)=><button disabled={busy} key={`${o}-${i}`} onClick={()=>void answer(i)}>{o}</button>)}</div></section></div>}
 
-    <Accordion title="شیر یا خط" summary={coin?.side&&!coin.spinning?`نتیجه: ${coin.side}`:"سکه سه‌بعدی"} icon="◉" defaultOpen>
+    <Accordion title="شیر یا خط" summary={coin?.side&&!coin.spinning?`نتیجه: ${coin.side}`:"سکه سه‌بعدی"} icon={<Icon name="coins" size={18}/>} defaultOpen>
       <div className="gamePanel">
         <div className={`coinFlip${coin?.spinning?" spinning":""}`}><b>{coin?.spinning?"...":coin?.side||"سکه"}</b></div>
         <button className="primaryCta" disabled={busy} onClick={()=>void playCoin()}>{busy&&coin?.spinning?"در حال چرخش...":"پرتاب سکه"}</button>
@@ -49,14 +49,14 @@ export default function GamesPage(){
       </div>
     </Accordion>
 
-    <Accordion title="تاس" summary={dice&&!dice.rolling?`عدد ${fa(dice.value)}`:"تاس گرافیکی ۱ تا ۶"} icon="▣">
+    <Accordion title="تاس" summary={dice&&!dice.rolling?`عدد ${fa(dice.value)}`:"تاس گرافیکی ۱ تا ۶"} icon={<Icon name="games" size={18}/>}>
       <div className="gamePanel">
         <div className={`dieFace${dice?.rolling?" rolling":""}`} data-n={String(dice?.value||1)}>{Array.from({length:9},(_,i)=><i key={i}/>)}</div>
         <button className="primaryCta" disabled={busy} onClick={()=>void playDice()}>{dice?.rolling?"در حال ریختن...":"بریز تاس"}</button>
       </div>
     </Accordion>
 
-    <Accordion title="سنگ کاغذ قیچی" summary={rps?`تو ${RPS[rps.choice]} · سکتور ${RPS[rps.bot]}`:"انتخاب کن و نتیجه همین‌جا ببین"} icon="△">
+    <Accordion title="سنگ کاغذ قیچی" summary={rps?`تو ${RPS[rps.choice]} · سکتور ${RPS[rps.bot]}`:"انتخاب کن و نتیجه همین‌جا ببین"} icon={<Icon name="spark" size={18}/>}>
       <div className="gamePanel">
         <div className="rpsRow">{RPS.map((v,i)=><button key={v} disabled={busy} onClick={()=>void playRps(i)}><span className={`rpsGlyph rps-${i}`} aria-hidden/><b>{v}</b></button>)}</div>
         {rps&&<div className="rpsArena"><div className="rpsToken">تو<br/>{RPS[rps.choice]}</div><b>{rps.outcome==="win"?"بردی":rps.outcome==="draw"?"مساوی":"باختی"}</b><div className="rpsToken">سکتور<br/>{RPS[rps.bot]}</div></div>}

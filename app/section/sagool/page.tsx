@@ -10,8 +10,8 @@ import {STORE_ITEMS} from "@/lib/storeCatalog";
 type Inventory={item_id:string;quantity:number;equipped:boolean;acquired_at:string};
 const fallback:SagoolState={stage:"puppy",level:1,xp:0,hunger:72,thirst:70,energy:80,hygiene:76,happiness:78,affection:50,health:100};
 const bars:Array<[keyof Pick<SagoolState,"hunger"|"thirst"|"energy"|"happiness">,string]> = [["hunger","غذا"],["thirst","آب"],["happiness","بازی"],["energy","خواب"]];
-const extraActions=[{id:"clean",title:"حمام"},{id:"pet",title:"نوازش"},{id:"walk",title:"پیاده‌روی"},{id:"train",title:"آموزش"}];
-const ALL_ACTIONS=[...CARE_ACTIONS.map(a=>({id:a.id,title:a.title,art:a.art})),...extraActions.map(a=>({id:a.id,title:a.title,art:""}))];
+const extraActions=[{id:"clean",title:"حمام",art:"/assets/sagool/care/clean.svg"},{id:"pet",title:"نوازش",art:"/assets/sagool/care/pet.svg"},{id:"walk",title:"پیاده‌روی",art:"/assets/sagool/care/walk.svg"},{id:"train",title:"آموزش",art:"/assets/sagool/care/train.svg"}];
+const ALL_ACTIONS=[...CARE_ACTIONS.map(a=>({id:a.id,title:a.title,art:a.art})),...extraActions];
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
 function fmt(ms:number){const s=Math.max(0,Math.ceil(ms/1000));return `00:${String(s).padStart(2,"0")}`}
 
@@ -64,30 +64,30 @@ export default function SagoolPage(){
    </div>
   </section>
 
-  <Accordion title="نیازهای اصلی" summary="غذا، آب، بازی، خواب" icon="♡" defaultOpen>
+  <Accordion title="نیازهای اصلی" summary="غذا، آب، بازی، خواب" icon={<Icon name="spark" size={18}/>} defaultOpen>
    <div className="needGridPremium">{bars.map(([k,t])=>{const v=Number(state[k]||0);return <div className={`needMeter${v<32?" critical":""}`} key={k}><span>{t}</span><b>{fa(v)}٪</b><i><em style={{width:`${v}%`}}/></i></div>})}</div>
   </Accordion>
 
-  <Accordion title="مراقبت از سگول" summary="هر کار ۲۰ ثانیه کول‌داون دارد" icon="✦" defaultOpen>
+  <Accordion title="مراقبت از سگول" summary="هر کار ۲۰ ثانیه کول‌داون دارد" icon={<Icon name="gift" size={18}/>} defaultOpen>
    <div className="actionGrid">{ALL_ACTIONS.map(a=>{const left=remain(a.id);const locked=left>0||Boolean(busy);return <button className="coolBtn" disabled={locked} onClick={()=>void care(a.id)} key={a.id}>{a.art?<img src={a.art} alt="" style={{width:36,height:36,objectFit:"contain",borderRadius:10}}/>:null}<b>{busy===a.id?"...":a.title}</b><small>{left>0?`آماده در ${fmt(left)}`:"آماده"}</small></button>})}</div>
   </Accordion>
 
-  <Accordion title="ماموریت‌های من" summary={`${fa(openMissions)} ماموریت باز`} icon="★">
+  <Accordion title="ماموریت‌های من" summary={`${fa(openMissions)} ماموریت باز`} icon={<Icon name="trophy" size={18}/>}>
    {missions.length?missions.map(m=><article className="missionCard" key={m.code}><div><b>{m.title}</b><small style={{display:"block",color:"#b7add4"}}>{m.description||`${m.progress}/${m.target}`} · +{fa(m.rewardXp)} XP</small><i className="need" style={{display:"block",marginTop:6}}><em style={{width:`${Math.round(m.progress/Math.max(1,m.target)*100)}%`}}/></i></div><button className="primaryCta" style={{width:"auto",minWidth:78,padding:"8px 10px"}} disabled={!m.complete||m.claimed||Boolean(busy)} onClick={()=>void claim(m)}>{m.claimed?"گرفته شد":m.complete?"دریافت":`${m.progress}/${m.target}`}</button></article>):<p>ماموریتی فعال نیست.</p>}
   </Accordion>
 
-  <Accordion title="مسیر رشد سگول" summary={`سطح ${fa(state.level)} از ۱۰`} icon="▲">
+  <Accordion title="مسیر رشد سگول" summary={`سطح ${fa(state.level)} از ۱۰`} icon={<Icon name="spark" size={18}/>}>
    <p style={{fontSize:13,lineHeight:1.9,marginTop:0}}>با غذا، آب، بازی و خواب XP می‌گیری. هر کار ۲۰ ثانیه کول‌داون دارد تا سگول خسته نشود. ماموریت‌ها XP و سکه اضافه می‌دهند. رسیدن به آستانه XP یعنی ارتقای سطح.</p>
    <p style={{fontSize:12,color:"#c9bfd8"}}>سطح فعلی {fa(state.level)} · XP {fa(state.xp)}{xp.maxed?" · حداکثر رشد":` · تا سطح بعد ${fa(xp.target-xp.current)}`}</p>
    <div className="growthTrack">{SAGOOL_LEVELS.map(l=><span className={l.level<=state.level?"on":""} key={l.level}>{fa(l.level)}</span>)}</div>
   </Accordion>
 
-  <Accordion title="فروشگاه سگول" summary={`${fa(sagoolStore.length)} آیتم مراقبت`} icon="◉">
+  <Accordion title="فروشگاه سگول" summary={`${fa(sagoolStore.length)} آیتم مراقبت`} icon={<Icon name="store" size={18}/>}>
    <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{sagoolStore.slice(0,8).map(item=><a key={item.id} href="/section/store?tab=sagool" className="needMeter" style={{textDecoration:"none",color:"inherit"}}><StoreItemArt itemId={item.id} size={54} label={item.name}/><b>{item.name}</b><small>{founder?"∞":`${fa(item.price)} سکه`}</small></a>)}</div>
    <a className="primaryCta" href="/section/store?tab=sagool" style={{marginTop:10}}>همه آیتم‌های سگول</a>
   </Accordion>
 
-  <Accordion title="موجودی / آیتم‌ها" summary={`${fa(inventory.length)} آیتم · حداکثر ۳ فعال`} icon="▣">
+  <Accordion title="موجودی / آیتم‌ها" summary={`${fa(inventory.length)} آیتم · حداکثر ۳ فعال`} icon={<Icon name="gift" size={18}/>}>
    {inventory.length?<div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>{inventory.map(inv=>{const item=STORE_ITEMS.find(x=>x.id===inv.item_id);if(!item)return null;return <button key={inv.item_id} onClick={()=>void equipItem(inv)} disabled={Boolean(busy)} style={{border:inv.equipped?"1px solid rgba(74,223,255,.7)":"1px solid rgba(255,255,255,.1)",background:inv.equipped?"rgba(60,194,255,.12)":"rgba(255,255,255,.04)",borderRadius:17,padding:8,color:"white",minHeight:108}}><StoreItemArt itemId={item.id} size={48}/><b style={{display:"block",fontSize:10,marginTop:4}}>{item.name}</b><small>{inv.equipped?"فعال":"فعال کن"}</small></button>})}</div>:<p>هنوز آیتمی نداری. از فروشگاه سگول شروع کن.</p>}
   </Accordion>
   {note&&<div className="motionToast show">{note}</div>}

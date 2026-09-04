@@ -32,9 +32,11 @@ export function sagoolXpProgress(xp:number){
   return {level,floor,next,current:Math.max(0,xp-floor),target:Math.max(1,next-floor),maxed:level>=SAGOOL_MAX_LEVEL};
 }
 
+/** Character sprites use the 5-stage RGBA cutouts, not studio JPGs. */
 export function sagoolAsset(level:number){
   const lv=Math.min(SAGOOL_MAX_LEVEL,Math.max(1,Math.floor(level)||1));
-  return `/assets/sagool/levels/${String(lv).padStart(2,"0")}.png`;
+  const file=lv>=9?"05-legendary":lv>=7?"04-guardian":lv>=5?"03-clever":lv>=3?"02-playful":"01-puppy";
+  return `/assets/sagool/stages/${file}.png`;
 }
 
 export function sagoolMoodFromNeeds(s:{hunger:number;thirst:number;energy:number;happiness:number}, action?:string):SagoolMood{
@@ -50,8 +52,8 @@ export function sagoolMoodFromNeeds(s:{hunger:number;thirst:number;energy:number
 }
 
 export const CARE_ACTIONS = [
-  {id:"feed", title:"غذا", need:"hunger", art:"/assets/store/items/sagool_food.png"},
-  {id:"water", title:"آب", need:"thirst", art:"/assets/store/items/cosmic_aquarium.png"},
-  {id:"play", title:"بازی", need:"happiness", art:"/assets/store/items/sagool_ball.png"},
-  {id:"sleep", title:"خواب", need:"energy", art:"/assets/store/items/sagool_sleep_pod.png"},
+  {id:"feed", title:"غذا", need:"hunger", art:"/assets/sagool/care/feed.svg"},
+  {id:"water", title:"آب", need:"thirst", art:"/assets/sagool/care/water.svg"},
+  {id:"play", title:"بازی", need:"happiness", art:"/assets/sagool/care/play.svg"},
+  {id:"sleep", title:"خواب", need:"energy", art:"/assets/sagool/care/sleep.svg"},
 ] as const;

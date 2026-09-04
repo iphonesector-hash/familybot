@@ -12,23 +12,24 @@ function writeRecent(id:string){const next=[id,...readRecent().filter(x=>x!==id)
 export default function FunPage(){
   const[text,setText]=useState("یکی از بخش‌ها را انتخاب کن");
   const[answer,setAnswer]=useState("");
+  const[source,setSource]=useState("");
   const[quiz,setQuiz]=useState<typeof DEZFULI_WORDS[number]|null>(null);
   const[score,setScore]=useState(0);
   const[busy,setBusy]=useState(false);
 
   async function get(k:Kind){
-    setAnswer("");setQuiz(null);
+    setAnswer("");setQuiz(null);setSource("");
     if(k==="dezfuli-word"){
       const recent=readRecent();
       const pool=DEZFULI_WORDS.filter(x=>!recent.includes(x.id));
       const q=(pool.length?pool:DEZFULI_WORDS)[Math.floor(Math.random()*(pool.length||DEZFULI_WORDS.length))];
-      writeRecent(q.id);setQuiz(q);setText(`معنی «${q.word}» چیه؟`);return;
+      writeRecent(q.id);setQuiz(q);setText(`معنی «${q.word}» چیه؟`);setSource(q.source||"dezfuli-curated");return;
     }
     const s=sessionStorage.getItem("familybot.session");
     if(!s)return setText("Mini App را از داخل بله باز کن.");
     const r=await fetch("/api/family/fun",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:k,recent:readRecent()})});
     const x=await r.json();
-    if(x.ok){if(x.data.id)writeRecent(String(x.data.id));setText(x.data.text);setAnswer(x.data.interpretation||x.data.answer||"")}
+    if(x.ok){if(x.data.id)writeRecent(String(x.data.id));setText(x.data.text);setAnswer(x.data.interpretation||x.data.answer||"");setSource(String(x.data.source||"curated-local"))}
     else setText("محتوا فعلاً در دسترس نیست.");
   }
 
@@ -47,6 +48,7 @@ export default function FunPage(){
     <div className="ambient ambientA"/><header className="appHeader"><a href="/" className="roundButton">←</a><div className="wordmark"><b>سرگرمی و فرهنگ</b><span>محتوای گسترده بدون تکرار فوری</span></div><IconOrb name="gift" tone="pink"/></header>
     <section className="premiumPanel" style={{padding:18,textAlign:"center"}}>
       <span className="eyebrow">امتیاز این نشست · {score}</span>
+      {source?<small className="sourceTag">منبع: {source}</small>:null}
       <p style={{fontSize:18,lineHeight:2,whiteSpace:"pre-line"}}>{text}</p>
       {quiz&&<div style={{display:"grid",gap:8}}>{quiz.options.map(o=><button disabled={busy} className="primaryCta" key={o} onClick={()=>void choose(o)}>{o}</button>)}</div>}
       {answer&&<div className="adminNotice" style={{marginTop:10,lineHeight:2}}>{answer}</div>}

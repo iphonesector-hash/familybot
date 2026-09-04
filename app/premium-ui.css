@@ -62,7 +62,21 @@
 .growthTrack span.on{background:linear-gradient(160deg,#7b45ff,#39e0ff);color:#081018}
 .wheelReady{color:#9be7ff;font-weight:800}
 .appShell{overflow-x:hidden}
+.homeStack{gap:14px}
+.homeFeatureGrid{gap:12px}
+.homeFeature{min-height:148px;padding:14px 14px 18px}
+.housePreview{margin-top:2px}
+.dashboardGrid{margin-top:2px;gap:10px}
+.dashboardCard{min-height:76px}
+.storeItemArt,.storeItemArt img{background:transparent!important;display:block}
+.storeItemArt img{width:100%;height:100%;object-fit:contain;filter:none}
+.sourceTag{display:block;margin-top:6px;font-size:11px;color:#9be7ff}
+.wheelSpoke{position:absolute;left:50%;top:50%;width:2px;height:46%;background:linear-gradient(#fff8,#fff0);transform-origin:50% 0;opacity:.35}
+.toolTabs{display:flex;gap:8px;overflow-x:auto;padding:12px 0;scrollbar-width:none}
+.toolTabs button{flex:0 0 auto;min-height:44px;padding:8px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#fff}
+.toolTabs button.on{background:linear-gradient(145deg,#7b45ff,#39e0ff);color:#081018;border-color:transparent}
 @media(max-width:390px){
   .homeFeatureGrid,.needGridPremium,.actionGrid{grid-template-columns:1fr 1fr}
   .sagoolHero{grid-template-columns:1fr!important}
 }
+

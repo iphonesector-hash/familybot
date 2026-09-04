@@ -25,9 +25,9 @@ export default function HomeDashboard(){
   const avatar=(!brokenAvatar&&(d.profile?.avatar_url||user?.photo_url))||"";
   const cards=useMemo<FeatureCard[]>(()=>[
     {icon:"tree",title:"شجره‌نامه",text:"درخت تصویری و روابط خانواده",href:"/section/tree",tone:"violet"},
-    {icon:"spark",title:"گردونه شانس",text:"هر ۲۴ ساعت یک جایزه",href:"/section/wheel",tone:"gold"},
+    {icon:"wheel",title:"گردونه شانس",text:"هر ۲۴ ساعت یک جایزه",href:"/section/wheel",tone:"gold"},
     {icon:"store",title:"فروشگاه",text:"خانه، سگول و پروفایل",href:"/section/store",tone:"violet"},
-    {icon:"coins",title:"بانک و سکه",text:founder?"Founder · ∞":`${fa(d.profile?.coins||0)} سکه`,href:"/section/finance",tone:"gold"},
+    {icon:"wallet",title:"بانک و سکه",text:founder?"Founder · ∞":`${fa(d.profile?.coins||0)} سکه`,href:"/section/finance",tone:"gold"},
     {icon:"calendar",title:"برنامه‌ریز",text:`${fa(d.tasks.length)} کار باز`,href:"/section/planner",tone:"blue"},
     {icon:"memories",title:"خاطرات",text:`${fa(d.family.memoriesCount)} خاطره`,href:"/section/memories",tone:"cyan"},
     {icon:"games",title:"بازی‌ها",text:"سریع، کوئیز و گروهی",href:"/section/games",tone:"violet"},
@@ -65,7 +65,7 @@ export default function HomeDashboard(){
         <a className="homeFeature premiumPanel" href="/section/occasions">
           <span className="eyebrow">جشن و تاریخ</span>
           <div><h2>مناسبت‌ها</h2><p>{birthdayText(d.birthdays[0])}</p></div>
-          <img className="cardArt" src="/assets/ui/occasions.png" alt=""/>
+          <img className="cardArt" src="/assets/ui/occasions.svg" alt=""/>
         </a>
       </div>
       <a href="/section/house" className="housePreview premiumPanel">

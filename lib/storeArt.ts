@@ -122,7 +122,7 @@ export function storeArtKey(itemId: string): StoreArtKey {
 export function storeArtSrc(itemId: string): string {
   if(itemId.startsWith("mat_")){
     const key=itemId.slice(4);
-    return `/assets/house/materials/${key}.png`;
+    return `/assets/house/materials/${key}.svg`;
   }
-  return `/assets/store/items/${storeArtKey(itemId)}.png`;
+  return `/assets/store/items/${storeArtKey(itemId)}.svg`;
 }
