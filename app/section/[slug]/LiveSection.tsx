@@ -5,7 +5,7 @@ import FamilyActions from "../../FamilyActions";
 import { Icon, IconName, IconOrb, Mascot } from "../../ui";
 import { houseSceneSrc } from "@/lib/houseProgression";
 
-type Member={id:string;bale_user_id:number;display_name?:string|null;first_name?:string|null;relation_label?:string|null;avatar_url?:string|null;xp:number;coins:number;level:number};
+type Member={id:string;bale_user_id:number;display_name?:string|null;first_name?:string|null;relation_label?:string|null;avatar_url?:string|null;resolved_avatar_url?:string|null;xp:number;coins:number;level:number};
 type Relationship={id:string;from_member_id:string;to_member_id:string;relation_type:string};
 type Dashboard={
   family:{name:string;level:number;xp:number;coins:number;houseLevel:number;membersCount:number;upcomingEventsCount:number;upcomingBirthdaysCount:number;memoriesCount:number;levelProgress:{current:number;target:number}};
@@ -18,7 +18,7 @@ type Dashboard={
 };
 const empty:Dashboard={family:{name:"خانواده ما",level:1,xp:0,coins:0,houseLevel:1,membersCount:0,upcomingEventsCount:0,upcomingBirthdaysCount:0,memoriesCount:0,levelProgress:{current:0,target:500}},profile:null,members:[],leaderboard:[],birthdays:[],tasks:[],events:[],relationships:[],ownedItems:[]};
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);const date=(v?:string|null)=>v?new Date(v).toLocaleDateString("fa-IR",{timeZone:"Asia/Tehran",month:"long",day:"numeric"}):"بدون تاریخ";
-function MemberAvatar({member,size=46}:{member:Member,size?:number}){return <span style={{width:size,height:size,borderRadius:15,overflow:"hidden",display:"grid",placeItems:"center",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",flex:"0 0 auto"}}>{member.avatar_url?<img src={member.avatar_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon name="profile" size={22}/>}</span>}
+function MemberAvatar({member,size=46}:{member:Member,size?:number}){const src=member.resolved_avatar_url||member.avatar_url;return <span style={{width:size,height:size,borderRadius:15,overflow:"hidden",display:"grid",placeItems:"center",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",flex:"0 0 auto"}}>{src?<img src={src} alt="" referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Icon name="profile" size={22}/>}</span>}
 function Shell({title,icon,children}:{title:string;icon:IconName;children:React.ReactNode}){return <main className="appShell"><div className="ambient ambientA"/><div className="ambient ambientB"/><div className="starField"/><header className="appHeader"><a className="roundButton" href="/">←</a><div className="wordmark"><b style={{fontSize:22}}>{title}</b><span>Family Bot · داده زنده</span></div><span className="profileAvatar"><Icon name={icon}/></span></header>{children}<nav className="bottomNav"><a href="/"><Icon name="home"/><span>خانه</span></a><a href="/section/family"><Icon name="family"/><span>خانواده</span></a><a href="/section/games"><Icon name="games"/><span>بازی‌ها</span></a><a href="/ai"><Icon name="ai"/><span>AI</span></a><a href="/section/leaderboard"><Icon name="profile"/><span>پروفایل</span></a></nav></main>}
 function EmptyNote(){return <div className="adminNotice" style={{marginTop:12}}>هنوز داده‌ای ثبت نشده؛ اطلاعاتی که از ربات و Mini App ثبت کنی اینجا نمایش داده می‌شن.</div>}
 

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import {extractBalePhotoUrl} from "@/lib/avatarResolve";
 
 export type BaleMiniAppUser={id:number;first_name?:string;last_name?:string;username?:string;allows_write_to_pm?:boolean;photo_url?:string};
 export type BaleInitData={query_id?:string;user?:BaleMiniAppUser;auth_date:number;hash:string;raw:Record<string,string>};
@@ -24,6 +25,13 @@ export function validateBaleInitData(initData:string,maxAgeSeconds=15*60):BaleIn
   if(!Number.isFinite(authDate)||authDate<=0||authDate>now+60||now-authDate>maxAgeSeconds)return null;
   let user:BaleMiniAppUser|undefined;
   const rawUser=params.get("user");
-  if(rawUser){try{const parsed=JSON.parse(rawUser);if(Number.isFinite(Number(parsed?.id)))user={...parsed,id:Number(parsed.id)}}catch{return null}}
+  if(rawUser){
+    try{
+      const parsed=JSON.parse(rawUser);
+      if(!Number.isFinite(Number(parsed?.id)))return null;
+      const photo=extractBalePhotoUrl(parsed);
+      user={...parsed,id:Number(parsed.id),photo_url:photo||undefined};
+    }catch{return null}
+  }
   return {query_id:params.get("query_id")||undefined,user,auth_date:authDate,hash:receivedHash,raw:Object.fromEntries(params.entries())};
 }

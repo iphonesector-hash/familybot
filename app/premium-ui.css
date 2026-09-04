@@ -54,9 +54,15 @@ html:has(.composer:focus-within) .aiScreen{padding-bottom:max(10px,var(--safe-bo
 .dieFace[data-n="1"] i:nth-child(5),.dieFace[data-n="2"] i:nth-child(1),.dieFace[data-n="2"] i:nth-child(9),.dieFace[data-n="3"] i:nth-child(1),.dieFace[data-n="3"] i:nth-child(5),.dieFace[data-n="3"] i:nth-child(9),.dieFace[data-n="4"] i:nth-child(1),.dieFace[data-n="4"] i:nth-child(3),.dieFace[data-n="4"] i:nth-child(7),.dieFace[data-n="4"] i:nth-child(9),.dieFace[data-n="5"] i:nth-child(1),.dieFace[data-n="5"] i:nth-child(3),.dieFace[data-n="5"] i:nth-child(5),.dieFace[data-n="5"] i:nth-child(7),.dieFace[data-n="5"] i:nth-child(9),.dieFace[data-n="6"] i:nth-child(1),.dieFace[data-n="6"] i:nth-child(3),.dieFace[data-n="6"] i:nth-child(4),.dieFace[data-n="6"] i:nth-child(6),.dieFace[data-n="6"] i:nth-child(7),.dieFace[data-n="6"] i:nth-child(9){opacity:1}
 @keyframes dieRoll{50%{transform:rotate(18deg) scale(1.08)} }
 .coinFlip{width:88px;height:88px;margin:8px auto;perspective:480px}
-.coinFlip b{width:88px;height:88px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,#ffe7a8,#c98922 58%,#7a4b08);color:#3a2308;font-size:16px;font-weight:900;box-shadow:inset 0 -8px 16px rgba(0,0,0,.25),0 10px 24px rgba(201,137,34,.35)}
-.coinFlip.spinning b{animation:coinSpin 1.15s ease-in-out}
+.coin3d{width:88px;height:88px;position:relative;transform-style:preserve-3d}
+.coinFace{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;color:#3a2308;font-size:16px;font-weight:900;box-shadow:inset 0 -8px 16px rgba(0,0,0,.25),0 10px 24px rgba(201,137,34,.35)}
+.coinHeads{background:radial-gradient(circle at 30% 30%,#ffe7a8,#c98922 58%,#7a4b08)}
+.coinTails{background:radial-gradient(circle at 30% 30%,#e8d7a2,#9a6b16 58%,#5a3608);transform:rotateY(180deg)}
+.coinFlip.spinning .coin3d{animation:coinSpin 1.15s ease-in-out}
+.coinFlip.tails .coin3d{transform:rotateY(180deg)}
 @keyframes coinSpin{to{transform:rotateY(720deg)}}
+.coinFlip.tails.spinning .coin3d{animation:coinSpinTails 1.15s ease-in-out}
+@keyframes coinSpinTails{to{transform:rotateY(900deg)}}
 .rpsRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .rpsRow button{min-height:72px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px}
 .rpsGlyph{width:28px;height:28px;display:block;background:currentColor;mask-size:contain;mask-repeat:no-repeat;mask-position:center;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center}

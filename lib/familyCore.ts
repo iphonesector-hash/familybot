@@ -1,4 +1,5 @@
 import {createClient} from "@supabase/supabase-js";
+import {extractBalePhotoUrl} from "@/lib/avatarResolve";
 
 type BaleIdentity={id:number;first_name?:string;last_name?:string;username?:string;photo_url?:string};
 export type FamilyContext={
@@ -28,7 +29,8 @@ export async function ensureFamilyMember(chatId:number,chatTitle:string|undefine
   if(!familyRow)throw new Error("family_bootstrap_failed");
   const display=[user.first_name,user.last_name].filter(Boolean).join(" ")||user.username||`عضو ${user.id}`;
   const payload:Record<string,unknown>={family_id:familyRow.id,bale_user_id:user.id,first_name:user.first_name??null,last_name:user.last_name??null,username:user.username??null,display_name:display,last_active_at:new Date().toISOString()};
-  if(user.photo_url)payload.avatar_url=user.photo_url;
+  const photo=extractBalePhotoUrl(user);
+  if(photo)payload.avatar_url=photo;
   const member=await s.from("members").upsert(payload,{onConflict:"family_id,bale_user_id"}).select("id,bale_user_id,display_name,first_name,avatar_url,xp,coins,level,streak,created_at,role,is_founder").single();
   if(member.error)throw member.error;
   const settings=await s.from("group_settings").upsert({family_id:familyRow.id},{onConflict:"family_id",ignoreDuplicates:true});

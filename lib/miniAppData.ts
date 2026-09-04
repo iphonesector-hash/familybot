@@ -1,10 +1,24 @@
 import {createClient} from "@supabase/supabase-js";
+import {usableHttpUrl} from "@/lib/avatarResolve";
 
 const MEMORY_BUCKET="familybot-memories";
+const AVATAR_BUCKET="family-avatars";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function nextBirthday(dateText:string){const birthday=new Date(`${dateText}T00:00:00Z`),now=new Date();let next=new Date(Date.UTC(now.getUTCFullYear(),birthday.getUTCMonth(),birthday.getUTCDate()));if(next.getTime()<Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))next=new Date(Date.UTC(now.getUTCFullYear()+1,birthday.getUTCMonth(),birthday.getUTCDate()));return{next:next.toISOString(),days:Math.ceil((next.getTime()-Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))/86400000)}}
 async function signedMemoryMedia(s:ReturnType<typeof db>,value:string|null|undefined){if(!value)return null;if(!value.startsWith("storage:"))return value;const signed=await s.storage.from(MEMORY_BUCKET).createSignedUrl(value.slice(8),1800);return signed.error?null:signed.data.signedUrl}
+async function signedAvatar(s:ReturnType<typeof db>,value:string|null|undefined){
+  if(!value)return null;
+  if(value.startsWith("storage:")){
+    const signed=await s.storage.from(AVATAR_BUCKET).createSignedUrl(value.slice(8),1800);
+    return signed.error?null:signed.data.signedUrl;
+  }
+  return usableHttpUrl(value);
+}
 function founderRow<T extends {is_founder?:boolean|null;role?:string|null}>(row:T){return{...row,is_founder:Boolean(row.is_founder||row.role==="founder")}}
+async function withResolvedAvatar<T extends {avatar_url?:string|null}>(s:ReturnType<typeof db>,row:T){
+  const resolved=await signedAvatar(s,row.avatar_url);
+  return {...row,avatar_url:resolved,resolved_avatar_url:resolved};
+}
 
 export async function readMiniAppDashboard(familyId:string,userId:number){
   const s=db(),now=new Date().toISOString();
@@ -24,7 +38,7 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   ]);
   for(const r of[familyRes,profileRes,membersRes,allMembersRes,leaderboardRes,birthdaysRes,tasksRes,eventsRes,memoriesVisibilityRes,memoriesListRes,relationsRes,ownedRes])if(r.error)throw r.error;
   const family=familyRes.data;if(!family)throw new Error("Family not found");
-  const profile=profileRes.data?founderRow(profileRes.data):null;
+  const profile=profileRes.data?founderRow(await withResolvedAvatar(s,profileRes.data)):null;
   const ownMemberId=profile?.id||"";
   const viewerRes=ownMemberId?await s.from("memory_viewers").select("memory_id").eq("member_id",ownMemberId):{data:[],error:null};
   if(viewerRes.error)throw viewerRes.error;
@@ -32,9 +46,10 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   const visible=(r:{id?:string;creator_member_id?:string|null;visibility?:string|null})=>r.visibility==="family"||r.creator_member_id===ownMemberId||(r.visibility==="selected"&&Boolean(r.id&&allowed.has(r.id)));
   const raw=(memoriesListRes.data??[]).filter(visible).slice(0,24);
   const memories=await Promise.all(raw.map(async r=>({...r,media_url:await signedMemoryMedia(s,r.media_url)})));
-  const birthdays=(birthdaysRes.data??[]).map(r=>({...r,...nextBirthday(r.birthday as string)})).sort((a,b)=>a.days-b.days).slice(0,12);
-  const leaderboard=(leaderboardRes.data??[]).map(founderRow);
-  const all=(allMembersRes.data??[]).map(founderRow);
+  const birthdays=await Promise.all((birthdaysRes.data??[]).map(async r=>({...await withResolvedAvatar(s,r),...nextBirthday(r.birthday as string)})));
+  birthdays.sort((a,b)=>a.days-b.days);
+  const leaderboard=await Promise.all((leaderboardRes.data??[]).map(async r=>founderRow(await withResolvedAvatar(s,r))));
+  const all=await Promise.all((allMembersRes.data??[]).map(async r=>founderRow(await withResolvedAvatar(s,r))));
   const ownXp=Number(profile?.xp||0),rank=profile?all.filter(r=>Number(r.xp||0)>ownXp).length+1:null;
   const memberXp=all.reduce((n,r)=>n+Number(r.xp||0),0),familyXp=Math.max(Number(family.xp||0),memberXp),derived=Math.max(1,Math.floor(familyXp/500)+1),level=Math.max(Number(family.level||1),derived),floor=(level-1)*500,ceil=level*500;
   return{
@@ -42,7 +57,7 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
     profile:profile?{...profile,rank}:null,
     members:all,
     leaderboard,
-    birthdays,
+    birthdays:birthdays.slice(0,12),
     tasks:tasksRes.data??[],events:eventsRes.data??[],memories,relationships:relationsRes.data??[],ownedItems:ownedRes.data??[],
     permissions:{isFounder:Boolean(profile?.is_founder),canManage:Boolean(profile?.is_founder)},
     generatedAt:now
