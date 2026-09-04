@@ -14,7 +14,7 @@ function callSafe(target:unknown,method:string,...args:unknown[]){
 
 export default function NativeBaleNav(){
   const pathname=usePathname();
-  const {webApp,inBale,supported,isIframe}=useBaleMiniApp();
+  const {webApp,inBale,supported,isIframe,initData}=useBaleMiniApp();
 
   useEffect(()=>{
     if(!webApp||!inBale)return;
@@ -62,6 +62,7 @@ export default function NativeBaleNav(){
     };
   },[webApp,inBale,isIframe,pathname]);
 
-  if(inBale&&!supported)return <div className="miniappCompatibilityNotice">نسخه بله شما قدیمی است؛ برای استفاده کامل از Family Bot بله را به آخرین نسخه به‌روزرسانی کنید.</div>;
+  const blocked=inBale&&!supported&&!initData&&!sessionGet("familybot.session");
+  if(blocked)return <div className="miniappCompatibilityNotice">نسخه بله شما قدیمی است؛ برای استفاده کامل از Family Bot بله را به آخرین نسخه به‌روزرسانی کنید.</div>;
   return null;
 }

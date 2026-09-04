@@ -55,6 +55,10 @@ function readWebApp(): BaleWebApp | null {
   }
 }
 
+function hasWorkingSession(){
+  try { return Boolean(sessionStorage.getItem("familybot.session")); } catch { return false; }
+}
+
 export function useBaleMiniApp() {
   const [webApp, setWebApp] = useState<BaleWebApp | null>(null);
   const [user, setUser] = useState<BaleUser | null>(null);
@@ -103,7 +107,8 @@ export function useBaleMiniApp() {
     theme = webApp?.themeParams && typeof webApp.themeParams === "object" ? webApp.themeParams : {};
     version = typeof webApp?.version === "string" ? webApp.version : "";
     isIframe = Boolean(webApp?.isIframe);
-    supported = webApp?.isMiniAppSupported !== false;
+    const hasIdentity = initData.length > 8 || Boolean(webApp?.initDataUnsafe?.user?.id) || hasWorkingSession();
+    supported = !webApp || webApp.isMiniAppSupported !== false || hasIdentity;
   } catch {}
 
   return { webApp, user, sendData, haptic, inBale: Boolean(webApp), supported, version, isIframe, initData, startParam, theme };

@@ -17,7 +17,9 @@ export default function BaleBridge(){
     const root=document.documentElement;
     root.classList.toggle("inside-bale",inBale);
     root.classList.toggle("outside-bale",!inBale);
-    root.classList.toggle("bale-miniapp-unsupported",inBale&&!supported);
+    const blocked=inBale&&!supported&&!webApp?.initData&&!sessionStorage.getItem("familybot.session");
+    root.classList.toggle("bale-miniapp-unsupported",blocked);
+    root.classList.toggle("bale-miniapp-blocked",blocked);
     if(user?.first_name) root.dataset.baleFirstName=user.first_name; else delete root.dataset.baleFirstName;
 
     const vars:Record<string,string|undefined>={

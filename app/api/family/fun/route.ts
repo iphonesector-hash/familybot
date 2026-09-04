@@ -1,2 +1,34 @@
-import {NextRequest,NextResponse} from "next/server";import {verifyFamilySession} from "@/lib/familySession";
-const bank={joke:["چرا کامپیوتر رفت دکتر؟ چون ویروس گرفته بود 😄","به مودم گفتم آروم‌تر کار کن؛ گفت من فقط وقتی وصل باشم حرف می‌زنم!"],fact:["اختاپوس سه قلب دارد.","اثر انگشت هر انسان تقریباً منحصربه‌فرد است."],motivation:["یک کار کوچکِ امروز، از ده تصمیم بزرگِ فردا باارزش‌تره.","امروز فقط یک قدم جلوتر برو."],hafez:[{text:"دوش وقت سحر از غصه نجاتم دادند\nو اندر آن ظلمت شب آب حیاتم دادند",interpretation:"نشانه‌ی عبور از دوره‌ای سخت و رسیدن به روشنایی و امید است؛ با آرامش ادامه بده."},{text:"رسید مژده که ایام غم نخواهد ماند\nچنان نماند و چنین نیز هم نخواهد ماند",interpretation:"شرایط ثابت نمی‌ماند؛ این فال به صبر، امید و استقبال از تغییر دعوت می‌کند."}]};const riddles=[{q:"آن چیست که هرچه از آن بیشتر برداری، بزرگ‌تر می‌شود؟",a:"چاله"},{q:"چه چیزی مال توست ولی دیگران بیشتر از تو از آن استفاده می‌کنند؟",a:"نامت"}];function s(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}function pick<T>(a:T[]){return a[Math.floor(Math.random()*a.length)]}export async function POST(req:NextRequest){if(!s(req))return NextResponse.json({ok:false,error:"unauthorized"},{status:401});const b=await req.json().catch(()=>({})),type=String(b.type||"");if(type==="riddle"){const r=pick(riddles);return NextResponse.json({ok:true,data:{type,text:r.q,answer:r.a}})}if(type==="hafez"){const h=pick(bank.hafez);return NextResponse.json({ok:true,data:{type,text:h.text,interpretation:h.interpretation}})}if(type==="joke"||type==="fact"||type==="motivation")return NextResponse.json({ok:true,data:{type,text:pick(bank[type])}});return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400})}
+import {NextRequest,NextResponse} from "next/server";
+import {verifyFamilySession} from "@/lib/familySession";
+import {FUN_BANK,CULTURE_EXTRA,pickFresh,type FunKind} from "@/lib/funBank";
+import {DEZFULI_POEMS,DEZFULI_PROVERBS} from "@/lib/dezfuliCulture";
+
+function s(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
+
+export async function POST(req:NextRequest){
+  if(!s(req)) return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+  const b=await req.json().catch(()=>({}));
+  const type=String(b.type||"") as FunKind|"dezfuli-proverb"|"dezfuli-poem"|"proverb"|"poem";
+  const recent=Array.isArray(b.recent)?b.recent.map(String).slice(0,24):[];
+  if(type==="riddle"||type==="joke"||type==="fact"||type==="motivation"||type==="hafez"){
+    const item=pickFresh(FUN_BANK[type],recent);
+    return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,answer:type==="riddle"?item.extra:"",interpretation:type==="hafez"?item.extra:""}});
+  }
+  if(type==="dezfuli-proverb"){
+    const item=pickFresh(DEZFULI_PROVERBS,recent);
+    return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,interpretation:item.meaning}});
+  }
+  if(type==="dezfuli-poem"){
+    const item=pickFresh(DEZFULI_POEMS,recent);
+    return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,interpretation:item.meaning}});
+  }
+  if(type==="proverb"){
+    const item=pickFresh(CULTURE_EXTRA.proverbs,recent);
+    return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,interpretation:item.meaning}});
+  }
+  if(type==="poem"){
+    const item=pickFresh(CULTURE_EXTRA.poems,recent);
+    return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,interpretation:item.meaning}});
+  }
+  return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400});
+}
