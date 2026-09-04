@@ -6,7 +6,7 @@ import {sessionGet} from "@/lib/safeSessionStorage";
 import {stageFor} from "@/lib/sagoolCatalog";
 import {houseSceneSrc} from "@/lib/houseProgression";
 import {useBaleMiniApp} from "@/lib/useBaleMiniApp";
-import {resolveAvatarUrl} from "@/lib/avatarResolve";
+import {pickDisplayAvatar} from "@/lib/avatarResolve";
 
 type Birthday={display_name?:string|null;first_name?:string|null;days:number};
 type Profile={display_name?:string|null;first_name?:string|null;avatar_url?:string|null;level:number;xp:number;coins:number;streak:number;rank?:number|null;is_founder?:boolean}|null;
@@ -23,7 +23,7 @@ export default function HomeDashboard(){
   useEffect(()=>{const s=sessionGet("familybot.session");if(!s)return;Promise.all([fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()),fetch("/api/family/sagool",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).catch(()=>null)]).then(([x,p])=>{if(x.ok&&x.dashboard){setD(x.dashboard);setLive(true)}if(p?.ok&&p.data?.state)setSagool(p.data.state)}).catch(()=>{})},[]);
   const founder=Boolean(d.profile?.is_founder||d.permissions?.isFounder);
   const sagoolAsset=stageFor(sagool?.level||1).asset;
-  const avatar=(!brokenAvatar&&resolveAvatarUrl(d.profile?.avatar_url,user?.photo_url))||"";
+  const avatar=(!brokenAvatar&&pickDisplayAvatar({stored:d.profile?.avatar_url,live:user?.photo_url}))||"";
   const cards=useMemo<FeatureCard[]>(()=>[
     {icon:"tree",title:"شجره‌نامه",text:"درخت تصویری و روابط خانواده",href:"/section/tree",tone:"violet"},
     {icon:"wheel",title:"گردونه شانس",text:"هر ۲۴ ساعت یک جایزه",href:"/section/wheel",tone:"gold"},

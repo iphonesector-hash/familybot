@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useBaleMiniApp } from "../lib/useBaleMiniApp";
+import { visualCssVars } from "@/lib/visualViewport";
 
 function callSafe(target:unknown,method:string,...args:unknown[]){
   try{
@@ -33,12 +34,27 @@ export default function BaleBridge(){
     callSafe(webApp,"expand");
     if(theme.header_bg_color)callSafe(webApp,"setHeaderColor",theme.header_bg_color);
 
-    const syncViewport=()=>{const height=window.visualViewport?.height||window.innerHeight;root.style.setProperty("--app-vh",`${Math.round(height)}px`)};
+    const syncViewport=()=>{
+      const vv=window.visualViewport;
+      const visualHeight=vv?.height||window.innerHeight;
+      const offsetTop=vv?.offsetTop||0;
+      const next=visualCssVars({innerHeight:window.innerHeight,visualHeight,offsetTop});
+      root.style.setProperty("--visual-vh",next["--visual-vh"]);
+      root.style.setProperty("--keyboard-inset",next["--keyboard-inset"]);
+      root.style.setProperty("--vv-offset-top",next["--vv-offset-top"]);
+      root.style.setProperty("--app-vh",next.open?next["--visual-vh"]:`${Math.round(window.innerHeight)}px`);
+      root.classList.toggle("keyboardOpen",next.open);
+    };
     syncViewport();
     const vv=window.visualViewport;
     vv?.addEventListener("resize",syncViewport);
+    vv?.addEventListener("scroll",syncViewport);
     window.addEventListener("orientationchange",syncViewport);
-    return()=>{vv?.removeEventListener("resize",syncViewport);window.removeEventListener("orientationchange",syncViewport)};
+    return()=>{
+      vv?.removeEventListener("resize",syncViewport);
+      vv?.removeEventListener("scroll",syncViewport);
+      window.removeEventListener("orientationchange",syncViewport);
+    };
   },[inBale,supported,theme,user?.first_name,webApp]);
 
   return null;

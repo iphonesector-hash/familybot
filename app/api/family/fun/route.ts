@@ -2,8 +2,9 @@ import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
 import {resolveContent,type ContentKind} from "@/lib/contentSources";
-import {FUN_BANK,riddleOptions} from "@/lib/funBank";
+import {riddleOptions} from "@/lib/funBank";
 import {challengeReward} from "@/lib/challengeRewards";
+import {interpretHafez} from "@/lib/contentRemote";
 
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
@@ -16,6 +17,7 @@ export async function POST(req:NextRequest){
   const b=await req.json().catch(()=>({}));
   const action=String(b.action||"");
   const type=String(b.type||"") as ContentKind;
+  const recent=[...Array.isArray(b.recent)?b.recent.map(String):[],...Array.isArray(b.recentHashes)?b.recentHashes.map(String):[]].slice(0,50);
   if(action==="riddle.answer"||(type==="riddle"&&action==="answer")){
     try{
       const id=String(b.sessionId||"");
@@ -51,23 +53,27 @@ export async function POST(req:NextRequest){
     }
   }
   if(!KINDS.has(type)) return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400});
-  const recent=Array.isArray(b.recent)?b.recent.map(String).slice(0,24):[];
+  const sourced=await resolveContent(type,recent);
   if(type==="riddle"){
     try{
-      const item=FUN_BANK.riddle.find(x=>!recent.includes(x.id))||FUN_BANK.riddle[Math.floor(Math.random()*FUN_BANK.riddle.length)];
-      const options=shuffle(riddleOptions(item));
-      const answer=String(item.extra||"").split("/")[0].trim();
-      const index=Math.max(0,options.findIndex(x=>x===answer));
+      const options=shuffle(sourced.options?.length?sourced.options:riddleOptions({id:sourced.id,text:sourced.text,extra:sourced.extra}));
+      const answer=String(sourced.extra||"").split("/")[0].trim();
+      const index=Math.max(0,options.findIndex(x=>x===answer||x.includes(answer)));
       const s=db();
       const pay=challengeReward("riddle");
-      const ins=await s.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"riddle",prompt:item.text,answer:String(index),options,reward_coins:pay.coins,expires_at:new Date(Date.now()+10*60*1000).toISOString()}).select("id").single();
+      const ins=await s.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"riddle",prompt:sourced.text,answer:String(index),options,reward_coins:pay.coins,expires_at:new Date(Date.now()+10*60*1000).toISOString()}).select("id").single();
       if(ins.error)throw ins.error;
-      return NextResponse.json({ok:true,data:{type:"riddle",id:item.id,sessionId:ins.data.id,text:item.text,options,source:"curated-local"}});
+      return NextResponse.json({ok:true,data:{type:"riddle",id:sourced.id,sessionId:ins.data.id,text:sourced.text,options,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,contentHash:sourced.contentHash}});
     }catch(e){
       console.error("riddle start failed",e);
       return NextResponse.json({ok:false,error:"riddle_failed"},{status:500});
     }
   }
-  const item=resolveContent(type,recent);
-  return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,interpretation:item.extra||"",source:item.source}});
+  let interpretation=sourced.extra||"";
+  if(type==="dezfuli-word")interpretation=sourced.options?.length?"":(sourced.extra||"");
+  if(type==="hafez"&&sourced.source==="ganjoor"){
+    interpretation=await interpretHafez(sourced.text);
+  }
+  const quizOptions=type==="dezfuli-word"&&sourced.options?.length?sourced.options:undefined;
+  return NextResponse.json({ok:true,data:{type,id:sourced.id,text:sourced.text,interpretation,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,sourceUrl:sourced.sourceUrl,contentHash:sourced.contentHash,fetchedAt:sourced.fetchedAt,options:quizOptions}});
 }

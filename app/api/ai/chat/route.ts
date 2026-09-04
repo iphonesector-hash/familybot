@@ -6,9 +6,10 @@ import {createFamilyTask} from "@/lib/familyMutations";
 import {createFamilyEvent,createFamilyPoll,transferFamilyCoins} from "@/lib/familyFeatures";
 import {findFamilyMemberByName,normalizeFaNumber} from "@/lib/memberLookup";
 import {readAiMemory,rememberAiTurn} from "@/lib/aiMemory";
+import {aiProviderMeta,completeChat} from "@/lib/aiProvider";
 
 const Body=z.object({message:z.string().min(1).max(4000),history:z.array(z.object({role:z.enum(["user","assistant"]),content:z.string().max(4000)})).max(20).default([])});
-const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند.`;
+const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند. اگر کاربر فقط سلام کرد، با «سلام» شروع کن و خودت را معرفی کن.`;
 
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 function fa(n:number){return new Intl.NumberFormat("fa-IR").format(n)}
@@ -63,38 +64,23 @@ export async function POST(req:NextRequest){
     }
     const key=process.env.GROQ_API_KEY||process.env.AI_API_KEY;
     if(!key){logAi("provider_missing_key");return NextResponse.json({reply:"سکتور AI به Family Core وصله، اما کلید مدل زبانی تنظیم نشده."})}
-    const base=(process.env.AI_BASE_URL||"https://api.groq.com/openai/v1").replace(/\/$/,"");
-    const model=process.env.AI_MODEL||"llama-3.3-70b-versatile";
-    logAi("provider_selected",{provider:process.env.AI_PROVIDER||"groq",model,baseHost:(()=>{try{return new URL(base).host}catch{return "unknown"}})()});
+    const meta=aiProviderMeta();
+    logAi("provider_selected",{provider:meta.provider,model:meta.model,baseHost:meta.baseHost});
     const memory=await readAiMemory(session.familyId,session.userId,10).catch(()=>[]);
     const web=await webSearch(body.message);
     const context=dashboard?`\nFamily Context خصوصی و معتبر: ${familyContext(dashboard)}`:"\nFamily Context در دسترس نیست.";
     const webContext=web.ok?`\nنتایج جستجوی وب (ممکن است ناقص باشند؛ به‌عنوان داده عمومی تازه):\n• ${web.text}`:web.used?"\nجستجوی زنده وب الان در دسترس نبود. اگر سؤال قیمت/خبر است، همین را واضح بگو.":"";
-    let response:Response;
-    try{
-      response=await fetch(`${base}/chat/completions`,{
-        method:"POST",
-        headers:{"content-type":"application/json",authorization:`Bearer ${key}`},
-        body:JSON.stringify({model,temperature:.48,messages:[{role:"system",content:SYSTEM+context+webContext},...memory.filter(x=>x.role!=="summary").map(x=>({role:x.role,content:x.content})),...body.history.slice(-6),{role:"user",content:body.message}]}),
-        signal:AbortSignal.timeout(14000)
-      });
-    }catch(e){
-      const timeout=e instanceof Error&&(e.name==="TimeoutError"||e.name==="AbortError");
-      logAi(timeout?"provider_timeout":"provider_network_fail",{kind:e instanceof Error?e.name:"unknown"});
-      return NextResponse.json({error:timeout?"پاسخ مدل بیش از حد طول کشید. دوباره بفرست.":"ارتباط با مدل زبانی برقرار نشد."},{status:504});
+    const result=await completeChat({
+      messages:[{role:"system",content:SYSTEM+context+webContext},...memory.filter(x=>x.role!=="summary").map(x=>({role:x.role as "user"|"assistant",content:x.content})),...body.history.slice(-6),{role:"user",content:body.message}],
+      temperature:.48,
+      timeoutMs:14000,
+      logTag:"[ai.chat]"
+    });
+    if(!result.ok){
+      logAi("final_reply",{ok:false,kind:result.timeout?"timeout":"provider"});
+      return NextResponse.json({error:result.error},{status:result.status===0?502:result.status===504?504:502});
     }
-    logAi("provider_http",{status:response.status});
-    if(!response.ok){
-      logAi("provider_error",{status:response.status});
-      return NextResponse.json({error:`AI provider returned ${response.status}`},{status:502});
-    }
-    let data:any;
-    try{data=await response.json()}catch{
-      logAi("malformed_provider_response");
-      return NextResponse.json({error:"پاسخ مدل قابل خواندن نبود."},{status:502});
-    }
-    let reply=String(data?.choices?.[0]?.message?.content||"").trim();
-    if(!reply){logAi("empty_response");return NextResponse.json({error:"empty_response"},{status:502})}
+    let reply=result.text;
     if(web.used&&!web.ok&&shouldSearch(body.message))reply=`${reply}\n\nجستجوی زنده وب الان در دسترس نبود؛ این پاسخ از دانش مدل است، نه قیمت لحظه‌ای.`;
     void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});
     logAi("final_reply",{ok:true,kind:"model",searched:web.used,webOk:web.ok});
