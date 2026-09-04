@@ -58,7 +58,9 @@
 .missionCard{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .missionCard:last-child{border-bottom:0}
 .growthTrack{display:flex;gap:6px;overflow:auto;padding:6px 0 2px}
-.growthTrack span{min-width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+.growthTrack span{min-width:46px;height:58px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:3px 2px 2px}
+.growthTrack span img{width:38px;height:38px;object-fit:contain;background:transparent}
+.growthTrack span i{font-style:normal;font-size:9px;opacity:.8}
 .growthTrack span.on{background:linear-gradient(160deg,#7b45ff,#39e0ff);color:#081018}
 .wheelReady{color:#9be7ff;font-weight:800}
 .appShell{overflow-x:hidden}

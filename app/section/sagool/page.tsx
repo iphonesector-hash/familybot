@@ -4,7 +4,7 @@ import {Icon,IconOrb} from "../../ui";
 import Accordion from "../../ui/Accordion";
 import StoreItemArt from "../../StoreItemArt";
 import {SagoolMission,SagoolState,sagoolAdvice,stageFor} from "@/lib/sagoolCatalog";
-import {CARE_ACTIONS,SAGOOL_LEVELS,sagoolMoodFromNeeds,sagoolXpProgress} from "@/lib/sagoolProgression";
+import {CARE_ACTIONS,SAGOOL_LEVELS,sagoolAsset,sagoolMoodFromNeeds,sagoolXpProgress} from "@/lib/sagoolProgression";
 import {STORE_ITEMS} from "@/lib/storeCatalog";
 
 type Inventory={item_id:string;quantity:number;equipped:boolean;acquired_at:string};
@@ -79,7 +79,7 @@ export default function SagoolPage(){
   <Accordion title="مسیر رشد سگول" summary={`سطح ${fa(state.level)} از ۱۰`} icon={<Icon name="spark" size={18}/>}>
    <p style={{fontSize:13,lineHeight:1.9,marginTop:0}}>با غذا، آب، بازی و خواب XP می‌گیری. هر کار ۲۰ ثانیه کول‌داون دارد تا سگول خسته نشود. ماموریت‌ها XP و سکه اضافه می‌دهند. رسیدن به آستانه XP یعنی ارتقای سطح.</p>
    <p style={{fontSize:12,color:"#c9bfd8"}}>سطح فعلی {fa(state.level)} · XP {fa(state.xp)}{xp.maxed?" · حداکثر رشد":` · تا سطح بعد ${fa(xp.target-xp.current)}`}</p>
-   <div className="growthTrack">{SAGOOL_LEVELS.map(l=><span className={l.level<=state.level?"on":""} key={l.level}>{fa(l.level)}</span>)}</div>
+   <div className="growthTrack">{SAGOOL_LEVELS.map(l=><span className={l.level<=state.level?"on":""} key={l.level} title={l.title}><img src={sagoolAsset(l.level)} alt={`سطح ${l.level}`}/><i>{fa(l.level)}</i></span>)}</div>
   </Accordion>
 
   <Accordion title="فروشگاه سگول" summary={`${fa(sagoolStore.length)} آیتم مراقبت`} icon={<Icon name="store" size={18}/>}>
