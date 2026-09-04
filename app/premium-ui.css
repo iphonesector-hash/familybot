@@ -27,10 +27,16 @@
 .homeFeature h2{margin:0;font-size:15px}
 .homeFeature p{margin:4px 0 0;font-size:11px;color:#c9bfd8}
 .aiBanner .mascotVisual,.aiBanner img{background:transparent}
-.aiScreen{display:flex;flex-direction:column;min-height:100dvh;padding-bottom:calc(148px + env(safe-area-inset-bottom)) !important}
-.aiScreen .chatList{flex:1;display:flex;flex-direction:column;gap:8px;padding-bottom:8px;min-height:180px}
-.aiScreen .quickGrid{margin-bottom:6px}
-.aiScreen .composer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));width:min(100% - 16px,620px);display:flex;gap:8px;padding:8px;background:rgba(8,6,28,.94);backdrop-filter:blur(18px);z-index:45;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.aiScreen{display:flex;flex-direction:column;min-height:var(--app-vh);height:var(--app-vh);padding-bottom:calc(var(--j-nav) + var(--safe-bottom) + 10px)!important;overflow:hidden}
+.aiScroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.aiScreen .chatList{display:flex;flex-direction:column;gap:8px;padding-bottom:8px;min-height:120px}
+.aiScreen .quickGrid{margin-bottom:8px}
+.aiScreen .composer{position:relative;left:auto;transform:none;bottom:auto;width:100%;display:flex;align-items:center;gap:8px;padding:6px;background:rgba(8,6,28,.94);backdrop-filter:blur(18px);z-index:20;border:1px solid rgba(255,255,255,.08);border-radius:18px;flex:0 0 auto}
+.aiScreen .composer input{flex:1;min-width:0;min-height:48px;border:0;outline:0;background:transparent;color:#fff;font:inherit;padding:12px 11px}
+.aiScreen .composer .sendBtn{flex:0 0 48px;width:48px;min-width:48px;min-height:48px;height:48px}
+.aiLockedBar,.aiSessionNotice{margin:8px 0;padding:12px 14px;border-radius:16px;background:rgba(18,24,62,.92);border:1px solid rgba(188,202,255,.16);color:#efe9ff;font-size:13px;line-height:1.8;text-align:center}
+.aiLockedBar{flex:0 0 auto}
+html:has(.composer:focus-within) .aiScreen{padding-bottom:max(10px,var(--safe-bottom))!important}
 .gamePanel{display:grid;gap:10px;padding-top:4px;text-align:center}
 .dieFace{width:84px;height:84px;border-radius:18px;margin:8px auto;background:linear-gradient(145deg,#f6f0ff,#c9b6ff);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px;box-shadow:0 10px 24px rgba(123,69,255,.35)}
 .dieFace.rolling{animation:dieRoll .7s ease}
