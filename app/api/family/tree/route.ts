@@ -2,22 +2,23 @@ import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
 import {isAdmin} from "@/lib/bale";
+import {RELATION_TYPES,isTreeOnlyMember,validateRelation,type TreeRel} from "@/lib/familyTree";
 
 const AVATAR_BUCKET="family-avatars";
-const RELATION_TYPES=new Set(["پدر","مادر","همسر","فرزند","برادر","خواهر","پدربزرگ","مادربزرگ","عمو","عمه","دایی","خاله","نوه"]);
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 async function memberBelongs(familyId:string,id:string){const r=await db().from("members").select("id").eq("id",id).eq("family_id",familyId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data)}
 async function isFounder(familyId:string,userId:number){const r=await db().from("members").select("is_founder,role").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data?.is_founder||r.data?.role==="founder")}
 async function canManage(familyId:string,chatId:number,userId:number){if(await isFounder(familyId,userId))return true;return isAdmin(chatId,userId).catch(()=>false)}
 async function signedAvatar(supabase:ReturnType<typeof db>,value:string|null){if(!value)return null;if(!value.startsWith("storage:"))return value;const path=value.slice(8);const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);return signed.error?null:signed.data.signedUrl}
+function stubBaleId(){return -(Date.now()*1000+Math.floor(Math.random()*1000))}
 
 export async function GET(req:NextRequest){
   try{
     const s=sessionFrom(req);if(!s)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
     const supabase=db();
     const [members,rels]=await Promise.all([
-      supabase.from("members").select("id,bale_user_id,display_name,first_name,last_name,relation_label,avatar_url,level").eq("family_id",s.familyId).order("created_at"),
+      supabase.from("members").select("id,bale_user_id,display_name,first_name,last_name,relation_label,avatar_url,birthday,level").eq("family_id",s.familyId).order("created_at"),
       supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId)
     ]);
     if(members.error)throw members.error;if(rels.error)throw rels.error;
@@ -47,16 +48,68 @@ export async function POST(req:NextRequest){
       const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);if(signed.error)throw signed.error;
       return NextResponse.json({ok:true,avatarUrl:signed.data.signedUrl});
     }
-    const body=await req.json() as {action?:string;relationId?:string;memberId?:string;displayName?:string;relationLabel?:string;fromMemberId?:string;toMemberId?:string;relationType?:string};
+    const body=await req.json() as {
+      action?:string;relationId?:string;memberId?:string;displayName?:string;relationLabel?:string;
+      firstName?:string;lastName?:string;birthday?:string|null;
+      fromMemberId?:string;toMemberId?:string;relationType?:string;
+    };
     const action=String(body.action||"");
+    if(action==="member.create"){
+      const firstName=String(body.firstName||"").trim().slice(0,60);
+      const lastName=String(body.lastName||"").trim().slice(0,60);
+      const displayName=String(body.displayName||"").trim().slice(0,100)||[firstName,lastName].filter(Boolean).join(" ");
+      const relationLabel=String(body.relationLabel||"").trim().slice(0,80)||null;
+      const birthday=body.birthday?String(body.birthday).slice(0,10):null;
+      if(!firstName&&!displayName)return NextResponse.json({ok:false,error:"name_required"},{status:400});
+      const payload={
+        family_id:s.familyId,
+        bale_user_id:stubBaleId(),
+        first_name:firstName||displayName,
+        last_name:lastName||null,
+        display_name:displayName||firstName,
+        relation_label:relationLabel,
+        birthday,
+      };
+      const ins=await supabase.from("members").insert(payload).select("id").single();
+      if(ins.error)return NextResponse.json({ok:false,error:ins.error.message||"member_create_failed"},{status:400});
+      return NextResponse.json({ok:true,memberId:ins.data.id});
+    }
     if(action==="member.update"){
       const id=String(body.memberId||"");if(!await memberBelongs(s.familyId,id))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
-      const upd=await supabase.from("members").update({display_name:String(body.displayName||"").trim().slice(0,100)||null,relation_label:String(body.relationLabel||"").trim().slice(0,80)||null}).eq("id",id).eq("family_id",s.familyId);if(upd.error)throw upd.error;return NextResponse.json({ok:true});
+      const patch:Record<string,unknown>={
+        display_name:String(body.displayName||"").trim().slice(0,100)||null,
+        relation_label:String(body.relationLabel||"").trim().slice(0,80)||null,
+      };
+      if(body.firstName!==undefined)patch.first_name=String(body.firstName||"").trim().slice(0,60)||null;
+      if(body.lastName!==undefined)patch.last_name=String(body.lastName||"").trim().slice(0,60)||null;
+      if(body.birthday!==undefined)patch.birthday=body.birthday?String(body.birthday).slice(0,10):null;
+      const upd=await supabase.from("members").update(patch).eq("id",id).eq("family_id",s.familyId);if(upd.error)throw upd.error;return NextResponse.json({ok:true});
+    }
+    if(action==="member.photo.remove"){
+      const id=String(body.memberId||"");if(!await memberBelongs(s.familyId,id))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      const current=await supabase.from("members").select("avatar_url").eq("id",id).eq("family_id",s.familyId).maybeSingle();
+      if(current.error)throw current.error;
+      const value=String(current.data?.avatar_url||"");
+      if(value.startsWith("storage:"))await supabase.storage.from(AVATAR_BUCKET).remove([value.slice(8)]).catch(()=>undefined);
+      const upd=await supabase.from("members").update({avatar_url:null}).eq("id",id).eq("family_id",s.familyId);if(upd.error)throw upd.error;
+      return NextResponse.json({ok:true});
+    }
+    if(action==="member.delete"){
+      const id=String(body.memberId||"");
+      const row=await supabase.from("members").select("id,bale_user_id").eq("id",id).eq("family_id",s.familyId).maybeSingle();
+      if(row.error)throw row.error;if(!row.data)return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      if(!isTreeOnlyMember(row.data))return NextResponse.json({ok:false,error:"linked_member"},{status:409});
+      const del=await supabase.from("members").delete().eq("id",id).eq("family_id",s.familyId);if(del.error)throw del.error;
+      return NextResponse.json({ok:true});
     }
     if(action==="relation.save"){
       const from=String(body.fromMemberId||""),to=String(body.toMemberId||""),type=String(body.relationType||"").trim();
-      if(!from||!to||from===to||!RELATION_TYPES.has(type))return NextResponse.json({ok:false,error:"invalid_relation"},{status:400});
+      if(!(RELATION_TYPES as readonly string[]).includes(type))return NextResponse.json({ok:false,error:"invalid_relation"},{status:400});
       if(!await memberBelongs(s.familyId,from)||!await memberBelongs(s.familyId,to))return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
+      const existing=await supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId);
+      if(existing.error)throw existing.error;
+      const problem=validateRelation((existing.data||[]) as TreeRel[],from,to,type);
+      if(problem)return NextResponse.json({ok:false,error:problem},{status:400});
       const row=await supabase.from("relationships").upsert({family_id:s.familyId,from_member_id:from,to_member_id:to,relation_type:type},{onConflict:"from_member_id,to_member_id,relation_type"});if(row.error)throw row.error;return NextResponse.json({ok:true});
     }
     if(action==="relation.delete"){
