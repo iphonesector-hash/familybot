@@ -147,6 +147,7 @@ export function pickFresh<T extends {id:string}>(items:readonly T[], recent:stri
 export function riddleOptions(item:Item){
   const correct=String(item.extra||"").split("/")[0].trim();
   const pool=(item.options||[]).map(x=>x.trim()).filter(Boolean);
-  const unique=[...new Set([correct,...pool].filter(Boolean))];
+  const fillers=["سایه","آینه","ابر","زمان","کیف","نامه"];
+  const unique=[...new Set([correct,...pool,...fillers].filter(Boolean))];
   return unique.slice(0,4);
 }

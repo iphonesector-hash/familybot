@@ -3,7 +3,7 @@ import {useEffect,useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import Avatar from "../../ui/Avatar";
 import {useBaleMiniApp} from "@/lib/useBaleMiniApp";
-import {avatarInitials,resolveAvatarUrl} from "@/lib/avatarResolve";
+import {avatarInitials,pickDisplayAvatar} from "@/lib/avatarResolve";
 type Row={id:string;display_name?:string|null;first_name?:string|null;avatar_url?:string|null;resolved_avatar_url?:string|null;xp:number;coins:number;level:number;is_founder?:boolean};
 type Dashboard={leaderboard:Row[];profile?:Row&{rank?:number|null}|null};
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
@@ -12,7 +12,7 @@ export default function LeaderboardPage(){
   const[d,setD]=useState<Dashboard>({leaderboard:[]});
   useEffect(()=>{const s=sessionStorage.getItem("familybot.session");if(!s)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&x.dashboard)setD(x.dashboard)}).catch(()=>{})},[]);
   const top=d.leaderboard.slice(0,5);
-  const mine=resolveAvatarUrl(d.profile?.resolved_avatar_url||d.profile?.avatar_url,user?.photo_url);
+  const mine=pickDisplayAvatar({stored:d.profile?.resolved_avatar_url||d.profile?.avatar_url,live:user?.photo_url});
   return <main className="appShell"><div className="ambient ambientA"/><div className="starField"/><header className="appHeader"><a href="/" className="roundButton">←</a><div className="wordmark"><b>پروفایل و رتبه</b><span>۵ نفر اول خانواده</span></div><IconOrb name="trophy" tone="gold"/></header>
   <section className="premiumPanel" style={{padding:18,display:"grid",gridTemplateColumns:"auto 1fr",gap:14,alignItems:"center"}}>
     <Avatar src={mine} alt={d.profile?.display_name||""} size={74} fallback={avatarInitials(d.profile?.display_name||d.profile?.first_name||user?.first_name)}/>

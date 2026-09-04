@@ -34,8 +34,9 @@ export default function FunPage(){
     const x=await r.json();
     if(!x.ok){setText("محتوا فعلاً در دسترس نیست.");return}
     if(x.data.id)writeRecent(String(x.data.id));
+    if(x.data.contentHash)writeRecent(String(x.data.contentHash));
     setText(x.data.text);
-    setSource(String(x.data.source||"curated-local"));
+    setSource(String(x.data.sourceLabel||x.data.source||"curated-local"));
     if(k==="riddle"&&Array.isArray(x.data.options)&&x.data.sessionId){
       setRiddle({sessionId:String(x.data.sessionId),text:String(x.data.text),options:x.data.options.map(String)});
       setAnswer("");
