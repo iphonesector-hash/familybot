@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import {readdirSync,statSync} from "node:fs";
+import {createHash} from "node:crypto";
+import {readFileSync,readdirSync,statSync} from "node:fs";
 import {join} from "node:path";
 
 const THRESH = [0,80,200,360,560,820,1140,1540,2040,2680];
@@ -84,10 +85,18 @@ assert.equal(sagoolLevelFromXp(79),1);
 assert.equal(sagoolLevelFromXp(80),2);
 assert.equal(sagoolLevelFromXp(2679),9);
 assert.equal(sagoolLevelFromXp(2680),10);
-for(let i=1;i<=10;i++){
-  const file=join(root,"sagool/levels",`${String(i).padStart(2,"0")}.jpg`);
-  assert.ok(statSync(file).size>20_000,`sagool ${i}`);
+const sagoolHashes=[];
+function sagoolAsset(level){
+  const lv=Math.min(10,Math.max(1,Math.floor(level)||1));
+  return `/assets/sagool/levels/${String(lv).padStart(2,"0")}.png`;
 }
+for(let i=1;i<=10;i++){
+  const file=join(root,"sagool/levels",`${String(i).padStart(2,"0")}.png`);
+  assert.ok(statSync(file).size>20_000,`sagool ${i}`);
+  sagoolHashes.push(createHash("sha1").update(readFileSync(file)).digest("hex"));
+  assert.equal(sagoolAsset(i),`/assets/sagool/levels/${String(i).padStart(2,"0")}.png`);
+}
+assert.equal(new Set(sagoolHashes).size,10,"sagool level sprites must be 10 distinct files");
 
 // House assets 1-10 distinct files
 const houseFiles=[];

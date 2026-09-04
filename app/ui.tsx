@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-export type IconName = "home"|"family"|"games"|"ai"|"profile"|"birthday"|"memories"|"reminder"|"gift"|"store"|"tasks"|"trophy"|"coins"|"calendar"|"tree"|"poll"|"shield"|"spark";
+export type IconName = "home"|"family"|"games"|"ai"|"profile"|"birthday"|"memories"|"reminder"|"gift"|"store"|"tasks"|"trophy"|"coins"|"calendar"|"tree"|"poll"|"shield"|"spark"|"wallet"|"wheel"|"tools"|"community"|"secret"|"house";
+
 export type MascotMood = "idle"|"listening"|"thinking"|"speaking"|"celebrate"|"sleepy"|"love";
 
 const paths: Record<IconName, ReactNode> = {
@@ -22,7 +23,14 @@ const paths: Record<IconName, ReactNode> = {
   poll:<><path d="M5 20V9M12 20V4M19 20v-7"/></>,
   shield:<><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="m9 12 2 2 4-4"/></>,
   spark:<><path d="m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5zM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></>,
+  wallet:<><rect x="3" y="7" width="18" height="12" rx="3"/><path d="M16 13h3"/></>,
+  wheel:<><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/></>,
+  tools:<><path d="M8 8 4 4l2-2 4 4M14 10l6 8-2 2-8-6"/><circle cx="8" cy="8" r="2"/></>,
+  community:<><circle cx="8" cy="9" r="2.4"/><circle cx="16" cy="9" r="2.4"/><circle cx="12" cy="15" r="2.4"/></>,
+  secret:<><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+  house:<><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M10 21v-6h4v6"/></>,
 };
+
 
 export function Icon({name,size=24,className=""}:{name:IconName,size?:number,className?:string}){
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;

@@ -18,7 +18,13 @@ async function readAll(familyId:string,userId:number,{tick=false}:{tick?:boolean
   s.from("sagool_inventory").select("item_id,quantity,equipped,acquired_at").eq("family_id",familyId).eq("member_id",m.id).order("acquired_at",{ascending:false})
  ]);for(const r of[missions,actions,claims,inventory])if(r.error)throw r.error;
  const ms=(missions.data||[]).map((x:any)=>{const start=x.cadence==="weekly"?week:today,progress=(actions.data||[]).filter((a:any)=>dayKey(a.created_at)>=start&&(x.action_type==="care_any"||a.action===x.action_type)).length,claimed=(claims.data||[]).some((c:any)=>c.mission_key===x.code&&String(c.claim_date)>=start);return{code:x.code,title:x.title,description:x.description,actionType:x.action_type,target:Number(x.target||1),rewardCoins:Number(x.reward_coins||0),rewardXp:Number(x.reward_xp||0),cadence:x.cadence,progress:Math.min(progress,Number(x.target||1)),complete:progress>=Number(x.target||1),claimed}});
- return{state:state(p.data),missions:ms,inventory:inventory.data||[],founder:Boolean(m.is_founder||m.role==="founder")}}
+ const COOL_MS=20_000;
+ const cooldowns:Record<string,number>={};
+ for(const a of(actions.data||[]) as Array<{action:string;created_at:string}>){
+  const left=COOL_MS-(Date.now()-new Date(a.created_at).getTime());
+  if(left>0) cooldowns[a.action]=Math.max(cooldowns[a.action]||0,left);
+ }
+ return{state:state(p.data),missions:ms,inventory:inventory.data||[],founder:Boolean(m.is_founder||m.role==="founder"),cooldowns}}
 export async function GET(req:NextRequest){const ses=auth(req);if(!ses)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});try{return NextResponse.json({ok:true,data:await readAll(ses.familyId,ses.userId,{tick:true})},{headers:{"cache-control":"no-store"}})}catch(e){console.error("sagool read",e);return NextResponse.json({ok:false,error:"sagool_read_failed"},{status:500})}}
 export async function POST(req:NextRequest){const ses=auth(req);if(!ses)return NextResponse.json({ok:false,error:"unauthorized"},{status:401});try{const body=await req.json(),type=String(body.type||"interact"),s=db(),m=await member(s,ses.familyId,ses.userId);
  if(type==="claim_mission"){const key=String(body.missionKey||"");const r=await s.rpc("sagool_claim_daily_mission_atomic",{p_family_id:ses.familyId,p_member_id:m.id,p_mission_key:key});if(r.error)throw r.error;return NextResponse.json({ok:true,data:{claim:r.data,...await readAll(ses.familyId,ses.userId)}})}

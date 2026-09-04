@@ -1,2 +1,17 @@
-import {NextRequest,NextResponse} from "next/server";import {verifyFamilySession} from "@/lib/familySession";
-const bank={joke:["چرا کامپیوتر رفت دکتر؟ چون ویروس گرفته بود 😄","به مودم گفتم آروم‌تر کار کن؛ گفت من فقط وقتی وصل باشم حرف می‌زنم!"],fact:["اختاپوس سه قلب دارد.","اثر انگشت هر انسان تقریباً منحصربه‌فرد است."],motivation:["یک کار کوچکِ امروز، از ده تصمیم بزرگِ فردا باارزش‌تره.","امروز فقط یک قدم جلوتر برو."],hafez:[{text:"دوش وقت سحر از غصه نجاتم دادند\nو اندر آن ظلمت شب آب حیاتم دادند",interpretation:"نشانه‌ی عبور از دوره‌ای سخت و رسیدن به روشنایی و امید است؛ با آرامش ادامه بده."},{text:"رسید مژده که ایام غم نخواهد ماند\nچنان نماند و چنین نیز هم نخواهد ماند",interpretation:"شرایط ثابت نمی‌ماند؛ این فال به صبر، امید و استقبال از تغییر دعوت می‌کند."}]};const riddles=[{q:"آن چیست که هرچه از آن بیشتر برداری، بزرگ‌تر می‌شود؟",a:"چاله"},{q:"چه چیزی مال توست ولی دیگران بیشتر از تو از آن استفاده می‌کنند؟",a:"نامت"}];function s(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}function pick<T>(a:T[]){return a[Math.floor(Math.random()*a.length)]}export async function POST(req:NextRequest){if(!s(req))return NextResponse.json({ok:false,error:"unauthorized"},{status:401});const b=await req.json().catch(()=>({})),type=String(b.type||"");if(type==="riddle"){const r=pick(riddles);return NextResponse.json({ok:true,data:{type,text:r.q,answer:r.a}})}if(type==="hafez"){const h=pick(bank.hafez);return NextResponse.json({ok:true,data:{type,text:h.text,interpretation:h.interpretation}})}if(type==="joke"||type==="fact"||type==="motivation")return NextResponse.json({ok:true,data:{type,text:pick(bank[type])}});return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400})}
+import {NextRequest,NextResponse} from "next/server";
+import {verifyFamilySession} from "@/lib/familySession";
+import {resolveContent,type ContentKind} from "@/lib/contentSources";
+
+function s(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
+
+const KINDS=new Set<ContentKind>(["joke","fact","riddle","motivation","hafez","proverb","poem","dezfuli-proverb","dezfuli-poem","dezfuli-word"]);
+
+export async function POST(req:NextRequest){
+  if(!s(req)) return NextResponse.json({ok:false,error:"unauthorized"},{status:401});
+  const b=await req.json().catch(()=>({}));
+  const type=String(b.type||"") as ContentKind;
+  if(!KINDS.has(type)) return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400});
+  const recent=Array.isArray(b.recent)?b.recent.map(String).slice(0,24):[];
+  const item=resolveContent(type,recent);
+  return NextResponse.json({ok:true,data:{type,id:item.id,text:item.text,answer:type==="riddle"?item.extra:"",interpretation:item.extra||"",source:item.source}});
+}
