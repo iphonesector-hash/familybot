@@ -52,53 +52,71 @@ function fileIdFromChat(data:any):string|null{
 
 export async function resolveBaleProfilePhoto(userId:number){
   const cached=memory.get(userId);
-  if(cached&&Date.now()-cached.at<DAY)return {ok:true as const,method:"memory",path:cached.path,status:"cached"};
-  if(!token())return {ok:false as const,method:"none",path:null,status:"no_token"};
+  if(cached&&Date.now()-cached.at<DAY)return {ok:true as const,method:"memory",path:cached.path,status:"cached",pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:"skipped_cache",getChatPhoto:"skipped_cache",downloaded:true,stored:true}};
+  if(!token())return {ok:false as const,method:"none",path:null,status:"no_token",pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:"no_token",getChatPhoto:"no_token",downloaded:false,stored:false}};
 
   const profile=await baleCall("getUserProfilePhotos",{user_id:userId,limit:1});
   let fileId=profile.ok?fileIdFromPhotos(profile.data):null;
   let method=fileId?"getUserProfilePhotos":"none";
+  let getChatStatus="not_needed";
   if(!fileId){
     const chat=await baleCall("getChat",{chat_id:userId});
     fileId=chat.ok?fileIdFromChat(chat.data):null;
     method=fileId?"getChat":"none";
+    getChatStatus=fileId?"succeeded":chat.status;
     if(!fileId){
       return {
         ok:false as const,
         method:"unsupported_or_empty",
         path:null,
-        status:`profile=${profile.status};chat=${chat.status}`
+        status:`profile=${profile.status};chat=${chat.status}`,
+        pipeline:{
+          miniappPhotoSupplied:false,
+          getUserProfilePhotos:profile.ok?"empty":profile.status,
+          getChatPhoto:chat.status,
+          downloaded:false,
+          stored:false
+        }
       };
     }
   }
 
   const file=await baleCall("getFile",{file_id:fileId});
   const filePath=String(file.data?.result?.file_path||"");
-  if(!file.ok||!filePath)return {ok:false as const,method,path:null,status:`getFile_${file.status}`};
+  if(!file.ok||!filePath)return {ok:false as const,method,path:null,status:`getFile_${file.status}`,pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:method==="getUserProfilePhotos"?"succeeded":profile.status,getChatPhoto:method==="getChat"?"succeeded":getChatStatus,downloaded:false,stored:false}};
 
   const binary=await fetch(`${FILE_BASE}${token()}/${filePath}`,{cache:"no-store",signal:AbortSignal.timeout(6000)});
-  if(!binary.ok)return {ok:false as const,method,path:null,status:`download_${binary.status}`};
+  if(!binary.ok)return {ok:false as const,method,path:null,status:`download_${binary.status}`,pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:method==="getUserProfilePhotos"?"succeeded":profile.status,getChatPhoto:method==="getChat"?"succeeded":getChatStatus,downloaded:false,stored:false}};
   const buf=Buffer.from(await binary.arrayBuffer());
-  if(buf.length<40)return {ok:false as const,method,path:null,status:"download_empty"};
+  const pipe={
+    miniappPhotoSupplied:false,
+    getUserProfilePhotos:method==="getUserProfilePhotos"?"succeeded":profile.status,
+    getChatPhoto:method==="getChat"?"succeeded":getChatStatus,
+    downloaded:false,
+    stored:false
+  };
+  if(buf.length<40)return {ok:false as const,method,path:null,status:"download_empty",pipeline:pipe};
 
   const supabase=db();
   const path=`bale/${userId}.jpg`;
   if(supabase){
     const up=await supabase.storage.from(AVATAR_BUCKET).upload(path,buf,{contentType:"image/jpeg",upsert:true});
-    if(up.error)return {ok:false as const,method,path:null,status:`storage_${up.error.message}`};
+    if(up.error)return {ok:false as const,method,path:null,status:`storage_${up.error.message}`,pipeline:{...pipe,downloaded:true,stored:false}};
   }
+  pipe.downloaded=true;
+  pipe.stored=true;
   memory.set(userId,{path:`storage:${path}`,at:Date.now()});
-  return {ok:true as const,method,path:`storage:${path}`,status:"stored"};
+  return {ok:true as const,method,path:`storage:${path}`,status:"stored",pipeline:pipe};
 }
 
 export async function ensureMemberBaleAvatar(member:{id:string;family_id:string;bale_user_id:number;avatar_url?:string|null}){
-  if(isFamilyUpload(member.avatar_url))return {used:false,reason:"family_upload",path:member.avatar_url||null};
-  if(isServerBaleAvatar(member.avatar_url))return {used:false,reason:"already_resolved",path:member.avatar_url||null};
+  if(isFamilyUpload(member.avatar_url))return {used:false,reason:"family_upload",path:member.avatar_url||null,pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:"skipped",getChatPhoto:"skipped",downloaded:false,stored:false}};
+  if(isServerBaleAvatar(member.avatar_url))return {used:false,reason:"already_resolved",path:member.avatar_url||null,pipeline:{miniappPhotoSupplied:false,getUserProfilePhotos:"skipped",getChatPhoto:"skipped",downloaded:true,stored:true}};
   const resolved=await resolveBaleProfilePhoto(member.bale_user_id);
-  if(!resolved.ok||!resolved.path)return {used:false,reason:resolved.status,path:null};
+  if(!resolved.ok||!resolved.path)return {used:false,reason:resolved.status,path:null,pipeline:resolved.pipeline};
   const supabase=db();
   if(supabase){
     await supabase.from("members").update({avatar_url:resolved.path}).eq("id",member.id).eq("family_id",member.family_id);
   }
-  return {used:true,reason:resolved.method,path:resolved.path};
+  return {used:true,reason:resolved.method,path:resolved.path,pipeline:resolved.pipeline};
 }

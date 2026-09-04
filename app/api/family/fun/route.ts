@@ -63,15 +63,17 @@ export async function POST(req:NextRequest){
       const pay=challengeReward("riddle");
       const ins=await s.from("game_sessions").insert({family_id:session.familyId,chat_id:session.chatId,game_type:"riddle",prompt:sourced.text,answer:String(index),options,reward_coins:pay.coins,expires_at:new Date(Date.now()+10*60*1000).toISOString()}).select("id").single();
       if(ins.error)throw ins.error;
-      return NextResponse.json({ok:true,data:{type:"riddle",id:sourced.id,sessionId:ins.data.id,text:sourced.text,options,source:sourced.source,sourceLabel:sourced.sourceLabel,contentHash:sourced.contentHash}});
+      return NextResponse.json({ok:true,data:{type:"riddle",id:sourced.id,sessionId:ins.data.id,text:sourced.text,options,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,contentHash:sourced.contentHash}});
     }catch(e){
       console.error("riddle start failed",e);
       return NextResponse.json({ok:false,error:"riddle_failed"},{status:500});
     }
   }
   let interpretation=sourced.extra||"";
+  if(type==="dezfuli-word")interpretation=sourced.options?.length?"":(sourced.extra||"");
   if(type==="hafez"&&sourced.source==="ganjoor"){
     interpretation=await interpretHafez(sourced.text);
   }
-  return NextResponse.json({ok:true,data:{type,id:sourced.id,text:sourced.text,interpretation,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceUrl:sourced.sourceUrl,contentHash:sourced.contentHash,fetchedAt:sourced.fetchedAt}});
+  const quizOptions=type==="dezfuli-word"&&sourced.options?.length?sourced.options:undefined;
+  return NextResponse.json({ok:true,data:{type,id:sourced.id,text:sourced.text,interpretation,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,sourceUrl:sourced.sourceUrl,contentHash:sourced.contentHash,fetchedAt:sourced.fetchedAt,options:quizOptions}});
 }

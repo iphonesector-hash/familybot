@@ -2,10 +2,10 @@
 import {useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import Accordion from "../../ui/Accordion";
-import {DEZFULI_WORDS} from "@/lib/dezfuliCulture";
 
 type Kind="joke"|"fact"|"riddle"|"motivation"|"hafez"|"proverb"|"poem"|"dezfuli-word"|"dezfuli-proverb"|"dezfuli-poem";
 type Riddle={sessionId:string;text:string;options:string[]};
+type Quiz={id:string;text:string;options:string[]};
 const KEY="familybot.funRecent";
 function readRecent(){try{return JSON.parse(sessionStorage.getItem(KEY)||"[]") as string[]}catch{return []}}
 function writeRecent(id:string){const next=[id,...readRecent().filter(x=>x!==id)].slice(0,28);try{sessionStorage.setItem(KEY,JSON.stringify(next))}catch{}}
@@ -15,22 +15,16 @@ export default function FunPage(){
   const[text,setText]=useState("یکی از بخش‌ها را انتخاب کن");
   const[answer,setAnswer]=useState("");
   const[source,setSource]=useState("");
-  const[quiz,setQuiz]=useState<typeof DEZFULI_WORDS[number]|null>(null);
+  const[quiz,setQuiz]=useState<Quiz|null>(null);
   const[riddle,setRiddle]=useState<Riddle|null>(null);
   const[score,setScore]=useState(0);
   const[busy,setBusy]=useState(false);
 
   async function get(k:Kind){
     setAnswer("");setQuiz(null);setRiddle(null);setSource("");
-    if(k==="dezfuli-word"){
-      const recent=readRecent();
-      const pool=DEZFULI_WORDS.filter(x=>!recent.includes(x.id));
-      const q=(pool.length?pool:DEZFULI_WORDS)[Math.floor(Math.random()*(pool.length||DEZFULI_WORDS.length))];
-      writeRecent(q.id);setQuiz(q);setText(`معنی «${q.word}» چیه؟`);setSource(q.source||"dezfuli-curated");return;
-    }
     const s=sessionStorage.getItem("familybot.session");
     if(!s)return setText("Mini App را از داخل بله باز کن.");
-    const r=await fetch("/api/family/fun",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:k,recent:readRecent()})});
+    const r=await fetch("/api/family/fun",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:k,recent:readRecent(),recentHashes:readRecent()})});
     const x=await r.json();
     if(!x.ok){setText("محتوا فعلاً در دسترس نیست.");return}
     if(x.data.id)writeRecent(String(x.data.id));
@@ -40,6 +34,10 @@ export default function FunPage(){
     if(k==="riddle"&&Array.isArray(x.data.options)&&x.data.sessionId){
       setRiddle({sessionId:String(x.data.sessionId),text:String(x.data.text),options:x.data.options.map(String)});
       setAnswer("");
+      return;
+    }
+    if(k==="dezfuli-word"&&Array.isArray(x.data.options)&&x.data.id){
+      setQuiz({id:String(x.data.id),text:String(x.data.text),options:x.data.options.map(String)});
       return;
     }
     setAnswer(x.data.interpretation||"");

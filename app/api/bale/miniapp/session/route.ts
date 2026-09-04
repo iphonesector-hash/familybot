@@ -28,15 +28,18 @@ export async function POST(req:NextRequest){
   if(init.user.username)patch.username=String(init.user.username).slice(0,120);
   const photo=extractBalePhotoUrl(init.user);
   let serverResolve="skipped";
+  let pipeline:Record<string,unknown>|{miniappPhotoSupplied:boolean}={miniappPhotoSupplied:Boolean(photo)};
   if(photo&&!isFamilyUpload(selected.avatar_url)){
     patch.avatar_url=photo;
     serverResolve="miniapp_photo";
+    pipeline={miniappPhotoSupplied:true,getUserProfilePhotos:"skipped_miniapp",getChatPhoto:"skipped_miniapp",downloaded:false,stored:false};
   }else if(!photo&&!isFamilyUpload(selected.avatar_url)){
     const resolved=await ensureMemberBaleAvatar({id:selected.id,family_id:selected.family_id,bale_user_id:init.user.id,avatar_url:selected.avatar_url});
     serverResolve=resolved.reason;
+    pipeline=resolved.pipeline||pipeline;
     if(resolved.path&&!isFamilyUpload(selected.avatar_url))patch.avatar_url=resolved.path;
   }
-  console.info("[bale.photo]",{...diag,serverResolveAttempted:serverResolve!=="skipped"&&serverResolve!=="miniapp_photo",serverResolve});
+  console.info("[bale.photo]",{...diag,miniappPhotoSupplied:Boolean(photo),serverResolveAttempted:serverResolve!=="skipped"&&serverResolve!=="miniapp_photo",serverResolve,pipeline});
   await supabase.from("members").update(patch).eq("id",selected.id).eq("family_id",selected.family_id);
   return NextResponse.json({ok:true,status:"ready",session:token,canManage,family:{id:selected.family_id,name:selected.families?.name||"خانواده",chatId},user:{...init.user,photo_url:photo||init.user.photo_url},photoDiagnostic:diag});
  }catch(error){console.error("Bale Mini App session bootstrap failed",error);return NextResponse.json({ok:false,error:"bootstrap_failed"},{status:500})}
