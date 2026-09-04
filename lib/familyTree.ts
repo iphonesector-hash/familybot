@@ -20,6 +20,10 @@ export function isTreeOnlyMember(m:Pick<TreeMember,"bale_user_id">){
   return m.bale_user_id==null||Number(m.bale_user_id)<0;
 }
 
+export function treeOnlyMemberInsert(fields:Record<string,unknown>){
+  return {...fields,bale_user_id:null};
+}
+
 export function memberName(m:TreeMember){
   const full=[m.first_name,m.last_name].filter(Boolean).join(" ");
   return (m.display_name||full||m.first_name||"عضو خانواده").trim();

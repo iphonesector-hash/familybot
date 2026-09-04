@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {verifyFamilySession} from "@/lib/familySession";
 import {isAdmin} from "@/lib/bale";
-import {RELATION_TYPES,isTreeOnlyMember,validateRelation,type TreeRel} from "@/lib/familyTree";
+import {RELATION_TYPES,isTreeOnlyMember,treeOnlyMemberInsert,validateRelation,type TreeRel} from "@/lib/familyTree";
 
 const AVATAR_BUCKET="family-avatars";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
@@ -11,7 +11,6 @@ async function memberBelongs(familyId:string,id:string){const r=await db().from(
 async function isFounder(familyId:string,userId:number){const r=await db().from("members").select("is_founder,role").eq("family_id",familyId).eq("bale_user_id",userId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data?.is_founder||r.data?.role==="founder")}
 async function canManage(familyId:string,chatId:number,userId:number){if(await isFounder(familyId,userId))return true;return isAdmin(chatId,userId).catch(()=>false)}
 async function signedAvatar(supabase:ReturnType<typeof db>,value:string|null){if(!value)return null;if(!value.startsWith("storage:"))return value;const path=value.slice(8);const signed=await supabase.storage.from(AVATAR_BUCKET).createSignedUrl(path,60*30);return signed.error?null:signed.data.signedUrl}
-function stubBaleId(){return -(Date.now()*1000+Math.floor(Math.random()*1000))}
 
 export async function GET(req:NextRequest){
   try{
@@ -61,17 +60,21 @@ export async function POST(req:NextRequest){
       const relationLabel=String(body.relationLabel||"").trim().slice(0,80)||null;
       const birthday=body.birthday?String(body.birthday).slice(0,10):null;
       if(!firstName&&!displayName)return NextResponse.json({ok:false,error:"name_required"},{status:400});
-      const payload={
+      const payload=treeOnlyMemberInsert({
         family_id:s.familyId,
-        bale_user_id:stubBaleId(),
         first_name:firstName||displayName,
         last_name:lastName||null,
         display_name:displayName||firstName,
         relation_label:relationLabel,
         birthday,
-      };
+      });
       const ins=await supabase.from("members").insert(payload).select("id").single();
-      if(ins.error)return NextResponse.json({ok:false,error:ins.error.message||"member_create_failed"},{status:400});
+      if(ins.error){
+        const raw=String(ins.error.message||"");
+        const code=String((ins.error as {code?:string}).code||"");
+        if(code==="23502"||/bale_user_id/i.test(raw))return NextResponse.json({ok:false,error:"tree_offline_members_required"},{status:409});
+        return NextResponse.json({ok:false,error:raw||"member_create_failed"},{status:400});
+      }
       return NextResponse.json({ok:true,memberId:ins.data.id});
     }
     if(action==="member.update"){

@@ -1,3 +1,9 @@
+function isTreeOnlyMember(m){
+  return m.bale_user_id==null||Number(m.bale_user_id)<0;
+}
+function treeOnlyMemberInsert(fields){
+  return {...fields,bale_user_id:null};
+}
 function validateRelation(rels,from,to,type){
   const PARENT=new Set(["پدر","مادر","پدربزرگ","مادربزرگ"]);
   const CHILD=new Set(["فرزند","نوه"]);
@@ -40,6 +46,13 @@ function wheelDelta(current,index,count,turns=6){
   if(delta<=0)delta+=360;
   return turns*360+delta;
 }
+
+const created=treeOnlyMemberInsert({family_id:"fam",first_name:"علی"});
+if(created.bale_user_id!==null)throw new Error("new tree member must use null bale_user_id");
+if(Object.values(created).some(v=>typeof v==="number"&&v<0))throw new Error("no negative sentinel in create payload");
+if(isTreeOnlyMember({bale_user_id:12345}))throw new Error("positive bale member is not tree-only");
+if(!isTreeOnlyMember({bale_user_id:null}))throw new Error("null is tree-only");
+if(!isTreeOnlyMember({bale_user_id:-991}))throw new Error("legacy negative is tree-only");
 
 const rels=[{from_member_id:"a",to_member_id:"b",relation_type:"پدر"}];
 if(validateRelation(rels,"a","a","پدر")!=="self_relation")throw new Error("self parent");

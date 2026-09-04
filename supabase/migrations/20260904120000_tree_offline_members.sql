@@ -1,5 +1,9 @@
 -- Additive: allow family-tree members who are not Bale users.
--- Existing rows stay intact. Unique bale_user_id remains for real accounts only.
+-- Existing rows stay intact:
+--   positive bale_user_id = real Bale accounts
+--   negative bale_user_id = legacy preview sentinels (kept readable/deletable)
+--   new tree-only members use NULL after this migration.
+-- No DROP TABLE / TRUNCATE / data rewrite.
 
 alter table familybot.members alter column bale_user_id drop not null;
 
