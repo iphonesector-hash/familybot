@@ -34,26 +34,32 @@ export default function BaleBridge(){
     callSafe(webApp,"expand");
     if(theme.header_bg_color)callSafe(webApp,"setHeaderColor",theme.header_bg_color);
 
-    const syncViewport=()=>{
+    const debug=new URLSearchParams(location.search).get("debug")==="1";
+    const syncViewport=(event?:Event)=>{
       const vv=window.visualViewport;
       const visualHeight=vv?.height||window.innerHeight;
       const offsetTop=vv?.offsetTop||0;
       const next=visualCssVars({innerHeight:window.innerHeight,visualHeight,offsetTop});
       root.style.setProperty("--visual-vh",next["--visual-vh"]);
       root.style.setProperty("--keyboard-inset",next["--keyboard-inset"]);
-      root.style.setProperty("--vv-offset-top",next["--vv-offset-top"]);
-      root.style.setProperty("--app-vh",next.open?next["--visual-vh"]:`${Math.round(window.innerHeight)}px`);
+      root.style.setProperty("--vv-top",next["--vv-top"]);
+      root.style.setProperty("--app-vh",`${Math.round(window.innerHeight)}px`);
       root.classList.toggle("keyboardOpen",next.open);
+      if(debug)console.debug("[bale.viewport]",{event:event?.type||"init",innerHeight:window.innerHeight,visualHeight:Math.round(visualHeight),offsetTop:Math.round(offsetTop),scrollY:Math.round(window.scrollY),activeElement:document.activeElement?.tagName||"none",keyboardOpen:next.open});
     };
     syncViewport();
     const vv=window.visualViewport;
     vv?.addEventListener("resize",syncViewport);
     vv?.addEventListener("scroll",syncViewport);
     window.addEventListener("orientationchange",syncViewport);
+    document.addEventListener("focusin",syncViewport);
+    document.addEventListener("focusout",syncViewport);
     return()=>{
       vv?.removeEventListener("resize",syncViewport);
       vv?.removeEventListener("scroll",syncViewport);
       window.removeEventListener("orientationchange",syncViewport);
+      document.removeEventListener("focusin",syncViewport);
+      document.removeEventListener("focusout",syncViewport);
     };
   },[inBale,supported,theme,user?.first_name,webApp]);
 

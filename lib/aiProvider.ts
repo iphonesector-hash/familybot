@@ -26,13 +26,14 @@ export function resolveChatCompletionsUrl(raw?:string):string{
 
 export function aiProviderMeta(){
   const resolvedChatUrl=resolveChatCompletionsUrl();
-  let baseHost="unknown";
-  try{baseHost=new URL(resolvedChatUrl).host}catch{/* ignore */}
+  let baseHost="unknown",pathname="unknown";
+  try{const url=new URL(resolvedChatUrl);baseHost=url.host;pathname=url.pathname}catch{/* ignore */}
   return {
     provider:process.env.AI_PROVIDER||"groq",
     model:process.env.AI_MODEL||DEFAULT_MODEL,
     resolvedChatUrl,
     baseHost,
+    pathname,
     keyConfigured:Boolean(process.env.GROQ_API_KEY||process.env.AI_API_KEY)
   };
 }
@@ -55,28 +56,23 @@ export async function completeChat(input:{
     console.info(tag,"provider_missing_key");
     return {ok:false,error:"missing_key",status:0};
   }
-  console.info(tag,"provider_selected",{provider:meta.provider,model:meta.model,baseHost:meta.baseHost});
+  const providerLog=(model:string,status:number)=>console.info("[ai.provider]",{provider:meta.provider,model,host:meta.baseHost,pathname:meta.pathname,status});
   try{
-    const body:Record<string,unknown>={
-      model:meta.model,
-      temperature:input.temperature??0.48,
-      messages:input.messages
-    };
-    if(input.maxTokens)body.max_tokens=input.maxTokens;
-    const response=await fetch(meta.resolvedChatUrl,{
-      method:"POST",
-      headers:{"content-type":"application/json",authorization:`Bearer ${key}`},
-      body:JSON.stringify(body),
-      signal:AbortSignal.timeout(input.timeoutMs??14000)
-    });
-    console.info(tag,"provider_http",{status:response.status});
-    if(!response.ok){
-      return {ok:false,error:`AI provider returned ${response.status}`,status:response.status};
+    const request=async(model:string)=>{const body:Record<string,unknown>={model,temperature:input.temperature??0.48,messages:input.messages};if(input.maxTokens)body.max_tokens=input.maxTokens;const response=await fetch(meta.resolvedChatUrl,{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify(body),signal:AbortSignal.timeout(input.timeoutMs??14000)});const data=await response.json().catch(()=>null);providerLog(model,response.status);return{response,data}};
+    let model=meta.model;
+    let {response,data}=await request(model);
+    if(response.status===404){
+      const modelsUrl=new URL("/openai/v1/models",meta.resolvedChatUrl).toString();
+      const listed=await fetch(modelsUrl,{headers:{authorization:`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(5000)});
+      const payload=await listed.json().catch(()=>null);
+      const ids=(Array.isArray(payload?.data)?payload.data:[]).map((row:any)=>String(row?.id||"")).filter(Boolean) as string[];
+      const preferred=[process.env.AI_FALLBACK_MODEL,"llama-3.1-8b-instant","llama-3.3-70b-versatile"].filter(Boolean) as string[];
+      const fallback=preferred.find(id=>id!==model&&ids.includes(id))||ids.find(id=>id!==model&&/llama|qwen|gpt|gemma/i.test(id)&&!/guard|whisper|tts|prompt/i.test(id));
+      console.info("[ai.provider]",{provider:meta.provider,model,host:meta.baseHost,pathname:"/openai/v1/models",status:listed.status,configuredModelAvailable:ids.includes(model),fallbackSelected:Boolean(fallback)});
+      if(fallback){model=fallback;({response,data}=await request(model));}
     }
-    let data:any=null;
-    try{data=await response.json()}catch{
-      return {ok:false,error:"پاسخ مدل قابل خواندن نبود.",status:502};
-    }
+    if(!response.ok)return {ok:false,error:`AI provider returned ${response.status}`,status:response.status};
+    if(!data)return {ok:false,error:"پاسخ مدل قابل خواندن نبود.",status:502};
     const text=String(data?.choices?.[0]?.message?.content||"").trim();
     if(!text)return {ok:false,error:"empty_response",status:response.status};
     return {ok:true,text,status:response.status};

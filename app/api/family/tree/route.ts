@@ -4,7 +4,7 @@ import {verifyFamilySession} from "@/lib/familySession";
 import {isAdmin} from "@/lib/bale";
 import {RELATION_TYPES,isTreeOnlyMember,treeOnlyMemberInsert,validateRelation,type TreeRel} from "@/lib/familyTree";
 
-const AVATAR_BUCKET="family-avatars";
+const AVATAR_BUCKET="familybot-avatars";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 async function memberBelongs(familyId:string,id:string){const r=await db().from("members").select("id").eq("id",id).eq("family_id",familyId).maybeSingle();if(r.error)throw r.error;return Boolean(r.data)}

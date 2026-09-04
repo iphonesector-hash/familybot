@@ -32,15 +32,17 @@ export async function POST(req:NextRequest){
   if(photo&&!isFamilyUpload(selected.avatar_url)){
     patch.avatar_url=photo;
     serverResolve="miniapp_photo";
-    pipeline={miniappPhotoSupplied:true,getUserProfilePhotos:"skipped_miniapp",getChatPhoto:"skipped_miniapp",downloaded:false,stored:false};
+    pipeline={miniappPhotoSupplied:true,getUserProfilePhotos:"unsupported_not_called",getChatPhoto:"skipped_miniapp",getFile:"skipped_miniapp",downloaded:false,stored:false};
   }else if(!photo&&!isFamilyUpload(selected.avatar_url)){
     const resolved=await ensureMemberBaleAvatar({id:selected.id,family_id:selected.family_id,bale_user_id:init.user.id,avatar_url:selected.avatar_url});
     serverResolve=resolved.reason;
     pipeline=resolved.pipeline||pipeline;
     if(resolved.path&&!isFamilyUpload(selected.avatar_url))patch.avatar_url=resolved.path;
   }
-  console.info("[bale.photo]",{...diag,miniappPhotoSupplied:Boolean(photo),serverResolveAttempted:serverResolve!=="skipped"&&serverResolve!=="miniapp_photo",serverResolve,pipeline});
-  await supabase.from("members").update(patch).eq("id",selected.id).eq("family_id",selected.family_id);
+  const finalValue=String(patch.avatar_url||selected.avatar_url||"");
+  const finalAvatarSource=isFamilyUpload(finalValue)?"uploaded-family":photo?"miniapp":finalValue.startsWith("storage:bale/")?"bale-api":"none";
+  console.info("[bale.photo]",{initUserPresent:diag.userPresent,baleUserIdPresent:diag.userIdPresent,miniAppPhotoPresent:Boolean(photo),miniAppPhotoUsable:Boolean(photo),fallbackAttempt:!photo,getUserProfilePhotosStatus:(pipeline as any).getUserProfilePhotos||"unsupported_not_called",getChatStatus:(pipeline as any).getChatPhoto||"not_attempted",getFileStatus:(pipeline as any).getFile||"not_attempted",fileDownloaded:Boolean((pipeline as any).downloaded),storageUploadSucceeded:Boolean((pipeline as any).stored),avatarStoredAsStoragePath:finalValue.startsWith("storage:"),signedUrlGenerated:false,finalAvatarPresent:Boolean(finalValue),finalAvatarSource});
+  const updated=await supabase.from("members").update(patch).eq("id",selected.id).eq("family_id",selected.family_id);if(updated.error)throw updated.error;
   return NextResponse.json({ok:true,status:"ready",session:token,canManage,family:{id:selected.family_id,name:selected.families?.name||"خانواده",chatId},user:{...init.user,photo_url:photo||init.user.photo_url},photoDiagnostic:diag});
  }catch(error){console.error("Bale Mini App session bootstrap failed",error);return NextResponse.json({ok:false,error:"bootstrap_failed"},{status:500})}
 }

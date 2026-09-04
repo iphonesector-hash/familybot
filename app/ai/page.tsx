@@ -30,7 +30,7 @@ export default function AiPage(){
     try{
       const r=await fetch("/api/ai/chat",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({message:value,history})});
       const x=await r.json().catch(()=>({}));
-      const reply=String(x.reply||x.error||`خطای ${r.status}`);
+      const reply=r.status===401?"نشست بله منقضی شده؛ مینی‌اپ را ببند و دوباره از داخل بله باز کن.":String(x.reply||x.error||`خطای ${r.status}`);
       setMsgs(v=>[...v,{role:"assistant",content:reply}]);
       if(r.ok&&x.reply)void speak(reply);
       else notify(reply);
@@ -44,6 +44,7 @@ export default function AiPage(){
   async function toggle(){if(listening){recorder.current?.stop();setListening(false);return}if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")return notify("ضبط صدا روی این نسخه آماده نیست");try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const preferred=["audio/mp4","audio/webm;codecs=opus","audio/webm"].find(t=>MediaRecorder.isTypeSupported(t));const r=new MediaRecorder(stream,preferred?{mimeType:preferred}:undefined);chunks.current=[];r.ondataavailable=e=>{if(e.data.size)chunks.current.push(e.data)};r.onstop=()=>{stream.getTracks().forEach(t=>t.stop());void transcribe(new Blob(chunks.current,{type:r.mimeType||preferred||"audio/webm"}))};recorder.current=r;r.start();setListening(true)}catch{notify("اجازه میکروفون صادر نشد")}}
   useEffect(()=>{const s=token();setReady(Boolean(s));if(!s)return;fetch("/api/ai/history",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&Array.isArray(x.messages)&&x.messages.length){const history=x.messages.filter((m:Msg)=>m?.role==="user"||m?.role==="assistant").slice(-20).map((m:Msg)=>({role:m.role,content:String(m.content||"")}));setMsgs([{role:"assistant",content:INTRO},...history])}}).catch(()=>undefined)},[]);
   useEffect(()=>{chatEnd.current?.scrollIntoView({behavior:"smooth",block:"end"})},[msgs,busy]);
+  useEffect(()=>{document.documentElement.classList.add("aiRoute");return()=>document.documentElement.classList.remove("aiRoute")},[]);
   const mood:MascotMood=listening?"listening":busy?"thinking":speaking?"speaking":"idle";
   return (
     <main className="appShell aiScreen">
@@ -85,7 +86,8 @@ export default function AiPage(){
       </div>
       {ready?(
         <form className="composer" onSubmit={e=>void send(e)}>
-          <input
+          <textarea
+            rows={2}
             value={input}
             onChange={e=>setInput(e.target.value)}
             placeholder="پیامت رو برای سکتور بنویس..."

@@ -27,10 +27,11 @@ function run(name, list, n=20){
 }
 
 const fun=readFileSync(new URL("../lib/funBank.ts", import.meta.url),"utf8");
+const curated=readFileSync(new URL("../lib/curatedJokes.ts", import.meta.url),"utf8");
 const dez=readFileSync(new URL("../lib/dezfuliCulture.ts", import.meta.url),"utf8");
 
 const kinds=[
-  run("joke", ids(fun,"j")),
+  run("joke", ids(curated,"j")),
   run("fact", ids(fun,"f")),
   run("riddle", ids(fun,"r")),
   run("motivation", ids(fun,"m")),

@@ -65,7 +65,7 @@ export async function POST(req:NextRequest){
     const key=process.env.GROQ_API_KEY||process.env.AI_API_KEY;
     if(!key){logAi("provider_missing_key");return NextResponse.json({reply:"سکتور AI به Family Core وصله، اما کلید مدل زبانی تنظیم نشده."})}
     const meta=aiProviderMeta();
-    logAi("provider_selected",{provider:meta.provider,model:meta.model,baseHost:meta.baseHost});
+    logAi("provider_selected",{provider:meta.provider,model:meta.model,host:meta.baseHost,pathname:meta.pathname,keyConfigured:meta.keyConfigured});
     const memory=await readAiMemory(session.familyId,session.userId,10).catch(()=>[]);
     const web=await webSearch(body.message);
     const context=dashboard?`\nFamily Context خصوصی و معتبر: ${familyContext(dashboard)}`:"\nFamily Context در دسترس نیست.";
