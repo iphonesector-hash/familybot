@@ -3,19 +3,12 @@ import {useCallback,useEffect,useMemo,useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import Accordion from "../../ui/Accordion";
 import StoreItemArt from "../../StoreItemArt";
-import {STORE_ITEMS,StoreItem} from "@/lib/storeCatalog";
+import {STORE_ITEMS} from "@/lib/storeCatalog";
+import {STORE_GROUPS} from "@/lib/storeGroups";
 
 type Owned={id:string;item_id:string;item_name:string;item_kind:string};
 type Profile={coins?:number;is_founder?:boolean};
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
-
-const GROUPS:[string,string,string,(i:StoreItem)=>boolean][]=[
-  ["مصالح خانه","آجر، سیمان، چوب و رنگ","خانه",(i)=>i.kind==="material"],
-  ["دکور و مبلمان","آیتم‌های یکتای خانه","خانه",(i)=>i.kind==="house"],
-  ["مراقبت سگول","غذا، آب، اسباب‌بازی","سگول",(i)=>i.kind==="sagool"&&/food|water|bone|ball|bed|sleep|shampoo|feeder|disc|hydration|royal_food/i.test(i.id)],
-  ["پوشیدنی سگول","قلاده، شنل و استایل","سگول",(i)=>i.kind==="sagool"&&!/food|water|bone|ball|bed|sleep|shampoo|feeder|disc|hydration|royal_food/i.test(i.id)],
-  ["پروفایل","قاب و جلوه‌های هویتی","پروفایل",(i)=>i.kind==="profile"],
-];
 
 export default function StorePage(){
  const[profile,setProfile]=useState<Profile>({});
@@ -38,15 +31,29 @@ export default function StorePage(){
  }catch(e){setNote(e instanceof Error&&e.message==="insufficient_coins"?"سکه کافی نداری.":"خرید انجام نشد.")}finally{setBusy("")}}
  const own=new Set(owned.map(x=>x.item_id));
  const founder=Boolean(profile.is_founder);
+ const inventory=useMemo(()=>{
+  const unique=owned.map(row=>{
+    const item=STORE_ITEMS.find(x=>x.id===row.item_id);
+    return {id:row.item_id,name:row.item_name||item?.name||row.item_id,kind:row.item_kind,qty:1,stackable:false};
+  });
+  const mats=STORE_ITEMS.filter(i=>i.stackable&&i.material).map(i=>({id:i.id,name:i.name,kind:"material",qty:qty[i.material||""]||0,stackable:true})).filter(x=>x.qty>0);
+  return [...mats, ...unique];
+ },[owned,qty]);
  return <main className="appShell storePage">
   <div className="ambient ambientA"/><div className="starField"/>
   <header className="appHeader"><a className="roundButton" href="/">←</a><div className="wordmark"><b>فروشگاه جهانی</b><span>{founder?"∞":fa(Number(profile.coins||0))} Family Coin</span></div><IconOrb name="store" tone="violet"/></header>
   <section className="premiumPanel" style={{padding:16}}><span className="eyebrow"><Icon name="coins" size={14}/> موجودی {founder?"∞":fa(Number(profile.coins||0))}</span><h1 style={{fontSize:24,margin:"8px 0 4px"}}>فروشگاه JAHANI</h1><p style={{margin:0,fontSize:12,color:"#c9bfd8"}}>مصالح قابل تکرار هستند؛ دکور و پوشیدنی‌ها یکتا می‌مانند.</p></section>
-  {GROUPS.map(([title,sub,,test],idx)=>{
-    const items=STORE_ITEMS.filter(test);
+  <Accordion title="دارایی‌های من" summary={inventory.length?`${fa(inventory.length)} مورد`:"هنوز چیزی خریداری نشده"} icon={<Icon name="store" size={18}/>} defaultOpen>
+   {inventory.length?<div className="storeGrid" style={{marginTop:4}}>{inventory.map(i=><article className="dashboardCard storeAssetCard" key={`${i.id}-${i.stackable?"mat":"own"}`}>
+     <StoreItemArt itemId={i.id} size={64} label={i.name}/>
+     <div><h2>{i.name}</h2><p>{i.stackable?`موجودی انبار: ${fa(i.qty)}`:"آیتم یکتا"}</p></div>
+   </article>)}</div>:<p style={{fontSize:12,color:"#c9bfd8"}}>بعد از خرید، آیتم‌ها و مصالح اینجا دیده می‌شوند.</p>}
+  </Accordion>
+  {STORE_GROUPS.map((g,idx)=>{
+    const items=STORE_ITEMS.filter(g.match);
     if(!items.length)return null;
-    const open=focus==="sagool"?title.includes("سگول"):focus==="profile"?title.includes("پروفایل"):idx<2;
-    return <Accordion key={title} title={title} summary={`${sub} · ${fa(items.length)} آیتم`} defaultOpen={open}>
+    const open=focus==="sagool"?g.id==="care"||g.id==="toys"||g.id==="accessories":focus==="profile"?g.id==="profile":idx<2;
+    return <Accordion key={g.id} title={g.title} summary={`${g.summary} · ${fa(items.length)} آیتم`} defaultOpen={open}>
       <div className="storeGrid" style={{marginTop:4}}>{items.map(i=>{
         const stacked=Boolean(i.stackable);
         const have=own.has(i.id);
