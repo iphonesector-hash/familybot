@@ -11,7 +11,7 @@ export function visualCssVars(input:{innerHeight:number;visualHeight:number;offs
   return {
     "--visual-vh":`${Math.round(input.visualHeight)}px`,
     "--keyboard-inset":`${inset}px`,
-    "--vv-offset-top":`${Math.round(input.offsetTop||0)}px`,
+    "--vv-top":`${Math.round(input.offsetTop||0)}px`,
     open:keyboardOpen(inset,input.offsetTop)
   };
 }

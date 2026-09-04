@@ -2,7 +2,7 @@ import {createClient} from "@supabase/supabase-js";
 import {usableHttpUrl} from "@/lib/avatarResolve";
 
 const MEMORY_BUCKET="familybot-memories";
-const AVATAR_BUCKET="family-avatars";
+const AVATAR_BUCKET="familybot-avatars";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
 function nextBirthday(dateText:string){const birthday=new Date(`${dateText}T00:00:00Z`),now=new Date();let next=new Date(Date.UTC(now.getUTCFullYear(),birthday.getUTCMonth(),birthday.getUTCDate()));if(next.getTime()<Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))next=new Date(Date.UTC(now.getUTCFullYear()+1,birthday.getUTCMonth(),birthday.getUTCDate()));return{next:next.toISOString(),days:Math.ceil((next.getTime()-Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))/86400000)}}
 async function signedMemoryMedia(s:ReturnType<typeof db>,value:string|null|undefined){if(!value)return null;if(!value.startsWith("storage:"))return value;const signed=await s.storage.from(MEMORY_BUCKET).createSignedUrl(value.slice(8),1800);return signed.error?null:signed.data.signedUrl}
@@ -39,6 +39,7 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
   for(const r of[familyRes,profileRes,membersRes,allMembersRes,leaderboardRes,birthdaysRes,tasksRes,eventsRes,memoriesVisibilityRes,memoriesListRes,relationsRes,ownedRes])if(r.error)throw r.error;
   const family=familyRes.data;if(!family)throw new Error("Family not found");
   const profile=profileRes.data?founderRow(await withResolvedAvatar(s,profileRes.data)):null;
+  if(profile){const stored=String(profileRes.data?.avatar_url||"");console.info("[bale.photo]",{avatarStoredAsStoragePath:stored.startsWith("storage:"),signedUrlGenerated:Boolean(profile.resolved_avatar_url),finalAvatarPresent:Boolean(profile.resolved_avatar_url),finalAvatarSource:isFamilyUploadPath(stored)?"uploaded-family":stored.startsWith("storage:bale/")?"bale-api":profile.resolved_avatar_url?"miniapp":"none"})}
   const ownMemberId=profile?.id||"";
   const viewerRes=ownMemberId?await s.from("memory_viewers").select("memory_id").eq("member_id",ownMemberId):{data:[],error:null};
   if(viewerRes.error)throw viewerRes.error;
@@ -63,3 +64,5 @@ export async function readMiniAppDashboard(familyId:string,userId:number){
     generatedAt:now
   };
 }
+
+function isFamilyUploadPath(value:string){return value.startsWith("storage:")&&!value.startsWith("storage:bale/")}

@@ -15,6 +15,7 @@ const csp = [
 ].join("; ");
 
 const nextConfig:NextConfig={
+  env:{NEXT_PUBLIC_BUILD_SHA:process.env.VERCEL_GIT_COMMIT_SHA||process.env.GIT_COMMIT_SHA||"local",NEXT_PUBLIC_BUILD_TIME:new Date().toISOString()},
   async headers(){
     return [{
       source:"/:path*",

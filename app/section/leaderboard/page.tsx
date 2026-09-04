@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useState} from "react";
+import {ChangeEvent,useEffect,useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import Avatar from "../../ui/Avatar";
 import {useBaleMiniApp} from "@/lib/useBaleMiniApp";
@@ -10,13 +10,15 @@ const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
 export default function LeaderboardPage(){
   const {user}=useBaleMiniApp();
   const[d,setD]=useState<Dashboard>({leaderboard:[]});
+  const[uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState("");
   useEffect(()=>{const s=sessionStorage.getItem("familybot.session");if(!s)return;fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${s}`},cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&x.dashboard)setD(x.dashboard)}).catch(()=>{})},[]);
   const top=d.leaderboard.slice(0,5);
   const mine=pickDisplayAvatar({stored:d.profile?.resolved_avatar_url||d.profile?.avatar_url,live:user?.photo_url});
+  async function uploadAvatar(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value="";if(!file)return;const s=sessionStorage.getItem("familybot.session");if(!s)return;setUploading(true);setUploadMessage("");try{const form=new FormData();form.set("file",file);const r=await fetch("/api/family/profile/avatar",{method:"POST",headers:{authorization:`Bearer ${s}`},body:form}),x=await r.json();if(!r.ok||!x.ok)throw new Error();setD(v=>({...v,profile:v.profile?{...v.profile,avatar_url:x.avatarUrl,resolved_avatar_url:x.avatarUrl}:v.profile}));setUploadMessage("عکس پروفایل ذخیره شد.")}catch{setUploadMessage("ذخیره عکس انجام نشد؛ یک JPG، PNG یا WebP زیر ۴ مگابایت انتخاب کن.")}finally{setUploading(false)}}
   return <main className="appShell"><div className="ambient ambientA"/><div className="starField"/><header className="appHeader"><a href="/" className="roundButton">←</a><div className="wordmark"><b>پروفایل و رتبه</b><span>۵ نفر اول خانواده</span></div><IconOrb name="trophy" tone="gold"/></header>
   <section className="premiumPanel" style={{padding:18,display:"grid",gridTemplateColumns:"auto 1fr",gap:14,alignItems:"center"}}>
     <Avatar src={mine} alt={d.profile?.display_name||""} size={74} fallback={avatarInitials(d.profile?.display_name||d.profile?.first_name||user?.first_name)}/>
-    <div><span className="eyebrow">رتبه من</span><h1 style={{fontSize:28,margin:"6px 0"}}>{d.profile?.is_founder?"FOUNDER · ∞":d.profile?.rank?`#${fa(Number(d.profile.rank))}`:"—"}</h1><p style={{fontSize:12,color:"#aaa0c7",margin:0}}>{d.profile?.display_name||d.profile?.first_name||"عضو خانواده"}</p></div>
+    <div><span className="eyebrow">رتبه من</span><h1 style={{fontSize:28,margin:"6px 0"}}>{d.profile?.is_founder?"FOUNDER · ∞":d.profile?.rank?`#${fa(Number(d.profile.rank))}`:"—"}</h1><p style={{fontSize:12,color:"#aaa0c7",margin:0}}>{d.profile?.display_name||d.profile?.first_name||"عضو خانواده"}</p><label className="ghostCta" style={{cursor:"pointer",marginTop:8}}>{uploading?"در حال ذخیره…":"انتخاب عکس پروفایل"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={uploadAvatar} style={{display:"none"}}/></label>{uploadMessage?<small style={{display:"block",marginTop:7,lineHeight:1.7}}>{uploadMessage}</small>:null}</div>
   </section>
   <section style={{display:"grid",gap:10,margin:"14px 0 95px"}}>{top.map((r,i)=><article className="premiumPanel" key={r.id} style={{padding:12,display:"grid",gridTemplateColumns:"52px 1fr auto",alignItems:"center",gap:12}}><Avatar src={r.resolved_avatar_url||r.avatar_url} alt={r.display_name||""} size={50} fallback={avatarInitials(r.display_name||r.first_name)}/><div><h2 style={{fontSize:15,margin:0}}>{r.display_name||r.first_name||"عضو خانواده"}</h2><p style={{fontSize:11,color:"#aaa0c7",margin:"4px 0"}}>Lv.{fa(r.level)} · {r.is_founder?"∞ XP":`${fa(r.xp)} XP`}</p></div><b style={{fontSize:22,color:i===0?"#ffc247":"#8f85aa"}}>{i+1}</b></article>)}{!top.length&&<div className="adminNotice">هنوز امتیازی ثبت نشده.</div>}</section></main>;
 }

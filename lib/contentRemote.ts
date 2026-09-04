@@ -5,6 +5,7 @@ import {CULTURE_EXTRA,FUN_BANK,pickFresh,riddleOptions,type FunKind} from "@/lib
 import {DEZFULI_POEMS,DEZFULI_PROVERBS,DEZFULI_WORDS,dezfuliSourceLabel,dezfuliSourceMode} from "@/lib/dezfuliCulture";
 import {cachedDezfuliRemote} from "@/lib/dezfuliIngest";
 import {WIKI_CHISTAN_RIDDLES} from "@/lib/riddleGrounded";
+import {validateContent,validateJoke} from "@/lib/contentValidation";
 
 export type ContentKind=FunKind|"proverb"|"poem"|"dezfuli-proverb"|"dezfuli-poem"|"dezfuli-word";
 export type SourceMode="live"|"cached-remote"|"verified-import"|"sector-ai"|"curated-local";
@@ -22,8 +23,8 @@ export type SourcedItem={
   contentHash:string;
 };
 
-export const JOKE_SOURCE_ORDER=["wikiquote-fa","wikipedia-fa-humor","sector-ai","curated-local"] as const;
-export const RIDDLE_SOURCE_ORDER=["wikipedia-fa-chistan","wiki-chistan-import","sector-ai","curated-local"] as const;
+export const JOKE_SOURCE_ORDER=["sector-ai","curated-local"] as const;
+export const RIDDLE_SOURCE_ORDER=["wikipedia-fa-chistan","wiki-chistan-import","curated-local"] as const;
 export const DEZFULI_SOURCE_ORDER=["dezfuli-ingest","dezfuli-verified-import"] as const;
 
 type Adapter={
@@ -114,33 +115,6 @@ async function wikiApi(params:Record<string,string>){
   return r.json();
 }
 
-async function wikiquoteJoke():Promise<SourcedItem|null>{
-  const data=await timed(5000,async()=>{
-    const url=`https://fa.wikiquote.org/w/api.php?${new URLSearchParams({action:"query",list:"search",srsearch:"طنز",srlimit:"8",format:"json",origin:"*"})}`;
-    const r=await fetch(url,{cache:"no-store",headers:{accept:"application/json","user-agent":"FamilyBot/1.0"},signal:AbortSignal.timeout(5000)});
-    if(!r.ok)throw new Error("wikiquote_http");
-    return r.json();
-  });
-  const hits=Array.isArray(data?.query?.search)?data.query.search:[];
-  const snippets=hits.map((row:any)=>String(row.snippet||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()).filter((s:string)=>isFamilySafe(s)&&s.length>=24&&s.length<=220);
-  if(!snippets.length)return null;
-  const text=snippets[Math.floor(Math.random()*snippets.length)];
-  return item({kind:"joke",text,source:"wikiquote-fa",sourceLabel:"ویکی‌گفتاورد",sourceMode:"live",sourceUrl:"https://fa.wikiquote.org"});
-}
-
-const HUMOR_PAGES=["اجی_مگی_لا_ترجی","لطیفه","متل"];
-async function wikipediaHumor():Promise<SourcedItem|null>{
-  const title=HUMOR_PAGES[Math.floor(Math.random()*HUMOR_PAGES.length)];
-  const data=await timed(5000,()=>wikiApi({action:"query",prop:"extracts",exlimit:"1",explaintext:"1",exchars:"400",titles:title}));
-  const pages=data?.query?.pages||{};
-  const page=Object.values(pages)[0] as any;
-  const extract=String(page?.extract||"").replace(/\s+/g," ").trim();
-  if(!isFamilySafe(extract)||extract.length<40)return null;
-  const sentence=extract.split(/(?<=[.؟!])\s+/).find((s:string)=>s.length>=24&&s.length<=180)||extract.slice(0,180);
-  if(!isFamilySafe(sentence))return null;
-  return item({kind:"joke",text:sentence,source:"wikipedia-fa-humor",sourceLabel:"ویکی‌پدیا",sourceMode:"live",sourceUrl:`https://fa.wikipedia.org/wiki/${title}`});
-}
-
 function groundedWikiRiddle(recent:string[]):SourcedItem|null{
   const unused=WIKI_CHISTAN_RIDDLES.filter(x=>!recent.includes(x.id)&&!isDuplicate(contentHash("riddle",x.text),recent));
   if(!unused.length)return null;
@@ -189,21 +163,20 @@ async function wikipediaChistanLive(recent:string[]):Promise<SourcedItem|null>{
 
 async function aiFill(kind:ContentKind):Promise<SourcedItem|null>{
   const prompts:Partial<Record<ContentKind,string>>={
-    joke:"یک جوک کوتاه فارسی خانوادگی بساز. سیاسی، توهین‌آمیز یا جنسی نباشد. فقط متن جوک.",
-    riddle:"یک چیستان کوتاه فارسی خانوادگی بساز. خروجی دقیقاً با این برچسب‌ها:\nسؤال: ...\nجواب: ...\nگزینه۲: ...\nگزینه۳: ...\nگزینه۴: ...\nتوضیح: ...",
+    joke:"یک جوک کوتاه و طبیعی فارسی برای جمع خانوادگی بنویس. جوک باید واقعاً ساختار شوخی و پایان خنده‌دار داشته باشد. متن توضیحی، مقاله، تعریف طنز، جمله انگیزشی یا لطیفه بی‌معنی ننویس. سیاسی، جنسی، توهین‌آمیز، قومیتی، مذهبی یا تحقیرکننده نباشد. حداکثر چند جمله کوتاه. فقط خود جوک را بنویس.",
     motivation:"یک جمله انگیزشی کوتاه فارسی برای فضای خانواده بنویس.",
-    fact:"یک دانستنی کوتاه و معتبر فارسی بنویس. حدس نزن."
   };
   const prompt=prompts[kind];
   if(!prompt)return null;
-  const result=await timed(5500,()=>completeChat({
-    messages:[{role:"user",content:prompt}],
-    temperature:.7,
-    timeoutMs:5000,
-    logTag:"[ai.content]"
-  }));
+  let result=await timed(5500,()=>completeChat({messages:[{role:"user",content:prompt}],temperature:.7,timeoutMs:5000,logTag:"[ai.content]"}));
   if(!result?.ok)return null;
-  const text=result.text.trim();
+  let text=result.text.trim();
+  if(kind==="joke"&&!validateJoke({text,source:"sector-ai",sourceMode:"sector-ai"}).accepted){
+    console.info("[content.reject]",{kind:"joke",source:"sector-ai",reason:validateJoke({text}).reason});
+    result=await timed(5500,()=>completeChat({messages:[{role:"user",content:`${prompt}\nپاسخ قبلی رد شد. حتماً یک موقعیت کوتاه و پایان غافلگیرکننده روشن بنویس؛ فقط خود جوک.`}],temperature:.65,timeoutMs:5000,logTag:"[ai.content]"}));
+    if(!result?.ok)return null;text=result.text.trim();
+    const retry=validateJoke({text,source:"sector-ai",sourceMode:"sector-ai"});if(!retry.accepted){console.info("[content.reject]",{kind:"joke",source:"sector-ai",reason:retry.reason});return null;}
+  }
   if(!isFamilySafe(text))return null;
   if(kind==="riddle"){
     const q=text.match(/سؤال[:：]\s*(.+)/)?.[1]?.trim()||text.split("\n")[0]?.trim();
@@ -274,20 +247,10 @@ const remoteAdapters:Adapter[]=[
     if(!raw||isDuplicate(raw.contentHash,recent))return null;
     return raw;
   }},
-  {id:"wikiquote-fa",kinds:["joke"],resolve:async(_kind,recent)=>{
-    const raw=await wikiquoteJoke();
-    if(!raw||isDuplicate(raw.contentHash,recent))return null;
-    return raw;
-  }},
-  {id:"wikipedia-fa-humor",kinds:["joke"],resolve:async(_kind,recent)=>{
-    const raw=await wikipediaHumor();
-    if(!raw||isDuplicate(raw.contentHash,recent))return null;
-    return raw;
-  }},
   {id:"wikipedia-fa-chistan",kinds:["riddle"],resolve:async(_kind,recent)=>wikipediaChistanLive(recent)},
   {id:"wiki-chistan-import",kinds:["riddle"],resolve:async(_kind,recent)=>groundedWikiRiddle(recent)},
   {id:"dezfuli-ingest",kinds:["dezfuli-word"],resolve:async(_kind,recent)=>remoteDezfuliWord(recent)},
-  {id:"sector-ai",kinds:["joke","riddle","motivation","fact"],resolve:async(kind,recent)=>{
+  {id:"sector-ai",kinds:["joke","motivation"],resolve:async(kind,recent)=>{
     const raw=await aiFill(kind);
     if(!raw||isDuplicate(raw.contentHash,recent))return null;
     return raw;
@@ -309,6 +272,8 @@ export async function resolveContentAsync(kind:ContentKind, recent:string[]):Pro
     if(!adapter.kinds.includes(kind))continue;
     const found=await adapter.resolve(kind,recent);
     if(found){
+      const quality=validateContent(kind,found);
+      if(!quality.accepted){console.info("[content.reject]",{kind,source:found.source,reason:quality.reason});logSource(kind,adapter.id,"quality_rejected",found.sourceMode);continue;}
       cache.set(found.contentHash,{item:found,exp:now+ttl(kind)});
       logSource(kind,adapter.id,"success",found.sourceMode);
       return found;
@@ -317,6 +282,8 @@ export async function resolveContentAsync(kind:ContentKind, recent:string[]):Pro
   }
   const local=localItem(kind,recent);
   if(local){
+    const quality=validateContent(kind,local);
+    if(!quality.accepted){console.info("[content.reject]",{kind,source:local.source,reason:quality.reason});throw new Error(`invalid_curated_${kind}`);}
     logSource(kind,local.source,"fallback",local.sourceMode);
     return local;
   }

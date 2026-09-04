@@ -1,8 +1,11 @@
+import {CURATED_JOKES} from "@/lib/curatedJokes";
+
 export type FunKind="joke"|"fact"|"riddle"|"motivation"|"hafez";
 type Item={id:string;text:string;extra?:string;options?:string[]};
 
 export const FUN_BANK:Record<FunKind,Item[]>={
- joke:[
+ joke:CURATED_JOKES,
+ /* Replaced: these one-line personifications did not consistently have a punchline.
   {id:"j1",text:"به وای‌فای گفتم پایدار باش؛ گفت من هم مثل حال‌وهوای جمعه غیرقابل پیش‌بینی‌ام."},
   {id:"j2",text:"ساعت زنگ زد. من هم زنگ زدم به ساعت و گفتم امروز مرخصی دارم."},
   {id:"j3",text:"یخچال گفت اگر دوباره درم را نیمه‌باز بگذاری، خودم داستان زندگی‌ات را فریز می‌کنم."},
@@ -23,7 +26,7 @@ export const FUN_BANK:Record<FunKind,Item[]>={
   {id:"j18",text:"بالش گفت اگر باز نیمه‌شب تصمیم بزرگ بگیری، من استعفا می‌دهم."},
   {id:"j19",text:"یادداشت چسبان گفت مرا روی مانیتور نگذار؛ حواست را من نمی‌دزدیم، تو خودت می‌سپاری."},
   {id:"j20",text:"چتر گفت فقط روز بارانی دوستت نیستم؛ روز آفتابی هم حاضرم بی‌مصرف بمانم."},
- ],
+ */
  fact:[
   {id:"f1",text:"اختاپوس سه قلب دارد و خونش آبی‌رنگ است."},
   {id:"f2",text:"اثر انگشت هر انسان تقریباً منحصربه‌فرد است، حتی در دوقلوهای همسان."},
