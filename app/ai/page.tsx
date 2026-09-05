@@ -5,6 +5,7 @@ import {Icon,Mascot,type MascotMood} from "../ui";
 type Msg={role:"user"|"assistant";content:string;sources?:Array<{title:string;url:string;publishedAt?:string}>;fetchedAt?:string};
 const INTRO="درود بر شما، من هوش مصنوعی سکتور هستم؛ چطور می‌تونم کمکتون کنم؟";
 const quick=[["calendar","ثبت برنامه","دورهمی جمعه ساعت ۲۰ ثبت کن"],["birthday","تولدهای نزدیک","تولدهای نزدیک رو بهم بگو"],["poll","نظرسنجی","نظرسنجی شام کجا باشه گزینه‌ها: خونه، رستوران بساز"],["spark","جستجوی اینترنت","در اینترنت آخرین خبر مهم فناوری امروز رو جستجو کن"]] as const;
+function speechText(v:string){return v.replace(/https?:\/\/\S+/gi," ").replace(/[`*_#~>|\[\](){}]/g," ").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu," ").replace(/\s+/g," ").trim()}
 
 export default function AiPage(){
   const[msgs,setMsgs]=useState<Msg[]>([{role:"assistant",content:INTRO}]);
@@ -17,13 +18,13 @@ export default function AiPage(){
   const recorder=useRef<MediaRecorder|null>(null),chunks=useRef<Blob[]>([]),audio=useRef<HTMLAudioElement|null>(null),chatEnd=useRef<HTMLDivElement|null>(null);
   function token(){return sessionStorage.getItem("familybot.session")||""}
   function notify(t:string){setToast(t);setTimeout(()=>setToast(""),2300)}
-  async function speak(text:string){const s=token();if(!s)return;audio.current?.pause();try{const r=await fetch("/api/voice/tts",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({text})});if(!r.ok)throw 0;const u=URL.createObjectURL(await r.blob()),a=new Audio(u);audio.current=a;a.onplay=()=>setSpeaking(true);a.onended=()=>{setSpeaking(false);URL.revokeObjectURL(u)};await a.play()}catch{if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(text);u.lang="fa-IR";u.onstart=()=>setSpeaking(true);u.onend=()=>setSpeaking(false);window.speechSynthesis.cancel();window.speechSynthesis.speak(u)}}}
+  async function speak(text:string){const clean=speechText(text),s=token();if(!s||!clean)return;audio.current?.pause();try{const r=await fetch("/api/voice/tts",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({text:clean})});if(!r.ok)throw 0;const u=URL.createObjectURL(await r.blob()),a=new Audio(u);audio.current=a;a.onplay=()=>setSpeaking(true);a.onended=()=>{setSpeaking(false);URL.revokeObjectURL(u)};await a.play()}catch{if("speechSynthesis" in window&&typeof SpeechSynthesisUtterance!=="undefined"){const u=new SpeechSynthesisUtterance(clean),voices=window.speechSynthesis.getVoices(),faVoice=voices.find(v=>/^fa(?:-|$)/i.test(v.lang));u.lang="fa-IR";u.rate=.95;if(faVoice)u.voice=faVoice;u.onstart=()=>setSpeaking(true);u.onend=()=>setSpeaking(false);window.speechSynthesis.cancel();window.speechSynthesis.speak(u)}else notify("خواندن صوتی روی این WebView پشتیبانی نمی‌شود")}}
   async function send(e?:FormEvent,valueOverride?:string){
     e?.preventDefault();
     const value=(valueOverride??input).trim(),s=token();
     if(!value||busy)return;
     if(!s)return notify("برای استفاده از سکتور AI، مینی‌اپ را از داخل بله باز کنید.");
-    const history=msgs.slice(-10);
+    const history=msgs.slice(-20);
     setMsgs(v=>[...v,{role:"user",content:value}]);
     setInput("");
     setBusy(true);
