@@ -1,11 +1,20 @@
 import {classifyLiveQuery} from "./classifier";
-import {failed,marketQuote,tavilyProvider,type SearchProvider,type SearchResult} from "./provider";
+import {failed,groqCompoundProvider,marketQuote,tavilyProvider,type SearchProvider,type SearchResult} from "./provider";
 export {LIVE_SEARCH_WARNING} from "./provider";
 export async function searchLive(query:string,provider:SearchProvider=tavilyProvider):Promise<SearchResult>{
   const kind=classifyLiveQuery(query);
   if(kind==="none")return{used:false,ok:false,provider:"none",fetchedAt:new Date().toISOString(),sources:[]};
   if(kind==="currency"||kind==="gold"||kind==="crypto")return marketQuote(query,kind);
-  try{return await provider.search(query,kind)}catch{return failed("search","provider_failed")}
+  try{
+    const primary=await provider.search(query,kind);
+    if(primary.ok||provider!==tavilyProvider)return primary;
+    const fallback=await groqCompoundProvider.search(query,kind);
+    if(fallback.ok)return fallback;
+    return failed("search",`${primary.provider}:${primary.error||"failed"};${fallback.provider}:${fallback.error||"failed"}`,[...(primary.missingEnv||[]),...(fallback.missingEnv||[])]);
+  }catch{
+    if(provider!==tavilyProvider)return failed("search","provider_failed");
+    try{return await groqCompoundProvider.search(query,kind)}catch{return failed("search","provider_failed")}
+  }
 }
 export function groundedSearchContext(result:SearchResult){
   if(!result.ok)return "";
