@@ -1,6 +1,7 @@
 import {NextRequest, NextResponse} from "next/server";
 import {verifyFamilySession} from "@/lib/familySession";
 import {
+  addCloseMember,
   addComment,
   addMemorialMessage,
   getArticle,
@@ -11,6 +12,7 @@ import {
   getPerson,
   lightCandle,
   listArticles,
+  listCloseCircle,
   listGallery,
   listJournal,
   listLegends,
@@ -19,6 +21,7 @@ import {
   listPeople,
   moderateLegacy,
   readLegacyHome,
+  removeCloseMember,
   saveAlbum,
   saveArticle,
   saveJournal,
@@ -28,6 +31,7 @@ import {
   savePerson,
   searchLegacy,
   toggleReaction,
+  untagMedia,
 } from "@/lib/familyLegacy";
 
 function sessionFrom(req: NextRequest) {
@@ -73,6 +77,7 @@ export async function GET(req: NextRequest) {
       case "journal": data = await listJournal(s.familyId, s.chatId, s.userId); break;
       case "journalItem": data = await getJournal(s.familyId, s.chatId, s.userId, id); break;
       case "members": data = await listMembersForPicker(s.familyId); break;
+      case "circle": data = await listCloseCircle(s.familyId, s.chatId, s.userId, req.nextUrl.searchParams.get("owner") || undefined); break;
       default: return NextResponse.json({ok: false, error: "unknown_view"}, {status: 400});
     }
     return NextResponse.json({ok: true, data}, {headers: {"cache-control": "no-store"}});
@@ -102,6 +107,9 @@ export async function POST(req: NextRequest) {
       case "comment.add": data = await addComment(s.familyId, s.chatId, s.userId, String(p.targetType || ""), String(p.targetId || ""), String(p.body || "")); break;
       case "reaction.toggle": data = await toggleReaction(s.familyId, s.chatId, s.userId, String(p.targetType || ""), String(p.targetId || ""), String(p.emoji || "")); break;
       case "moderate": data = await moderateLegacy(s.familyId, s.chatId, s.userId, {targetType: String(p.targetType || ""), id: String(p.id || ""), status: String(p.status || "")}); break;
+      case "circle.add": data = await addCloseMember(s.familyId, s.chatId, s.userId, String(p.closeMemberId || ""), p.ownerMemberId ? String(p.ownerMemberId) : undefined); break;
+      case "circle.remove": data = await removeCloseMember(s.familyId, s.chatId, s.userId, String(p.closeMemberId || ""), p.ownerMemberId ? String(p.ownerMemberId) : undefined); break;
+      case "media.untag": data = await untagMedia(s.familyId, s.chatId, s.userId, String(p.id || ""), String(p.memberId || "")); break;
       default: return NextResponse.json({ok: false, error: "unknown_action"}, {status: 400});
     }
     return NextResponse.json({ok: true, data}, {headers: {"cache-control": "no-store"}});

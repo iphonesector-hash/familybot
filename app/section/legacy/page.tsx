@@ -28,8 +28,8 @@ const modules=[
 ];
 
 export default function LegacyHome(){
-  const[d,setD]=useState<Home>(empty),[q,setQ]=useState(""),[hits,setHits]=useState<Array<{type:string;id:string;title:string;href:string}>>([]),[live,setLive]=useState(false);
-  const load=useCallback(()=>{const s=sessionStorage.getItem("familybot.session");if(!s)return;legacyGet("home").then(x=>{setD(x);setLive(true)}).catch(()=>undefined)},[]);
+  const[d,setD]=useState<Home>(empty),[q,setQ]=useState(""),[hits,setHits]=useState<Array<{type:string;id:string;title:string;href:string}>>([]),[live,setLive]=useState(false),[err,setErr]=useState(""),[loading,setLoading]=useState(true);
+  const load=useCallback(()=>{const s=sessionStorage.getItem("familybot.session");if(!s){setLoading(false);setErr("برای دیدن آرشیو زنده، Mini App را از بله باز کن.");return}legacyGet("home").then(x=>{setD(x);setLive(true);setErr("")}).catch(e=>setErr(e instanceof Error?e.message:"بارگذاری انجام نشد.")).finally(()=>setLoading(false))},[]);
   useEffect(()=>load(),[load]);
   async function search(e:FormEvent){e.preventDefault();if(!q.trim())return setHits([]);try{const r=await legacyGet("search",{q});setHits(r.results||[])}catch{setHits([])}}
   return <main className="appShell">
@@ -44,6 +44,8 @@ export default function LegacyHome(){
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="جستجو در افراد، دانشنامه، خاطرات و آلبوم‌ها"/>
       <button className="primaryCta" style={{minWidth:88}}>جستجو</button>
     </form>
+    {loading?<div className="legacyEmpty">در حال بارگذاری...</div>:null}
+    {err?<div className="adminNotice">{err}</div>:null}
     {hits.length?<section className="premiumPanel" style={{padding:14,marginTop:12}}>{hits.map(h=><a key={h.type+h.id} href={h.href} className="dashboardCard" style={{display:"block",marginBottom:8}}><b>{h.title}</b><p>{h.type}</p></a>)}</section>:null}
     <section className="premiumPanel" style={{padding:16,marginTop:16}}>
       <div className="sectionHeading"><div><span className="eyebrow">امروز در تاریخ خانواده</span><h2>چنین روزی</h2></div></div>

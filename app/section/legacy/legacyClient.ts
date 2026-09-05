@@ -48,6 +48,8 @@ export function persianError(code: string) {
     slow_down: "لطفاً کمی صبر کن و دوباره بفرست.",
     invalid_reaction: "این واکنش برای این بخش مناسب نیست.",
     member_not_found: "عضو خانواده پیدا نشد.",
+    invalid_close_member: "نمی‌توانی خودت را به دایره نزدیکان اضافه کنی.",
+    close_circle_limit: "دایره نزدیکان پر است.",
   };
   return map[code] || "ثبت انجام نشد.";
 }

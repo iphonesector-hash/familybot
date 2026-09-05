@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
 import {useParams} from "next/navigation";
-import {legacyGet} from "../../legacyClient";
+import {legacyAct,legacyGet} from "../../legacyClient";
 import {Comments,Engage,LegacyChrome} from "../../LegacyChrome";
 
 export default function MediaDetail(){
@@ -16,7 +16,7 @@ export default function MediaDetail(){
       {i.media_kind==="video"?<video src={i.media_url||""} controls style={{width:"100%",borderRadius:22}}/>:<img src={i.media_url||""} alt="" style={{width:"100%",borderRadius:22,maxHeight:420,objectFit:"contain",background:"#000"}}/>}
     </button>
     {i.description?<p className="legacyArticle">{i.description}</p>:null}
-    <div className="legacyMeta">{(d.tags||[]).map((t:any)=><a key={t.id} className="legacySoft" href={`/section/legacy/people?member=${t.id}`}>{t.name}</a>)}</div>
+    <div className="legacyMeta">{(d.tags||[]).map((t:any)=><span key={t.id} className="legacySoft"><a href={`/section/legacy/people?member=${t.id}`}>{t.name}</a>{d.me?.isAdmin||d.me?.memberId===i.uploader_member_id||d.me?.memberId===t.id?<button className="ghostCta" style={{minHeight:32,marginRight:6}} onClick={()=>void legacyAct("media.untag",{id:i.id,memberId:t.id}).then(load)}>حذف تگ</button>:null}</span>)}</div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
       {d.prev?<a className="ghostCta" href={`/section/legacy/gallery/${d.prev.id}`}>قبلی</a>:<span/>}
       {d.next?<a className="ghostCta" href={`/section/legacy/gallery/${d.next.id}`}>بعدی</a>:null}

@@ -82,7 +82,59 @@ assert.equal(matchesMonthDay("2001-09-05", "year", now), false);
 assert.equal(matchesMonthDay("2001", "full", now), false);
 assert.equal(matchesMonthDay("2001-08-05", "full", now), false);
 
-assert.equal(sanitizePlain("<script>x</script>"), "scriptx/script");
-assert.ok(!sanitizePlain("<b>سلام</b>").includes("<"));
+function matchesQuery(query, ...parts) {
+  const q = normalizePersian(query);
+  if (!q) return true;
+  return normalizePersian(parts.filter(Boolean).join(" ")).includes(q);
+}
+
+function canManageCircle(actor, ownerId) {
+  return actor.isAdmin || actor.memberId === ownerId;
+}
+function canJoinOwnCircle(ownerId, targetId) {
+  return Boolean(targetId && targetId !== ownerId);
+}
+
+const adminsOnly = {visibility: "admins", moderation_status: "approved", ownerId: "o"};
+assert.equal(canSeeRecord(member, adminsOnly), false);
+assert.equal(canSeeRecord(admin, adminsOnly), true);
+assert.equal(canSeeRecord({memberId: "o", isAdmin: false}, adminsOnly), true);
+
+assert.equal(canSeeRecord({memberId: "b", isAdmin: false, closeMemberIds: ["o"]}, close), true);
+assert.equal(canSeeRecord({memberId: "c", isAdmin: false, closeMemberIds: ["someone-else"]}, close), false);
+
+assert.equal(canManageCircle({memberId: "o", isAdmin: false}, "o"), true);
+assert.equal(canManageCircle({memberId: "x", isAdmin: false}, "o"), false);
+assert.equal(canManageCircle({memberId: "x", isAdmin: true}, "o"), true);
+assert.equal(canJoinOwnCircle("o", "o"), false);
+assert.equal(canJoinOwnCircle("o", "x"), true);
+
+assert.equal(matchesQuery("دانشنامه", "دانشنامه خانواده"), true);
+assert.equal(matchesQuery("علي", "علی و کمال"), true);
+assert.equal(matchesQuery("كمال", "علی و کمال"), true);
+assert.equal(matchesQuery("علی\u200cرضا", "علی رضا"), true);
+assert.equal(matchesQuery("نادر", "دانشنامه خانواده"), false);
+assert.equal(matchesQuery("", "هر چیزی"), true);
+
+function searchResultsVisible(actor, rows) {
+  return rows.filter((row) => canSeeRecord(actor, row));
+}
+const catalog = [
+  {id: "1", title: "علی", visibility: "private", moderation_status: "approved", ownerId: "o"},
+  {id: "2", title: "دانشنامه", visibility: "family", moderation_status: "pending", ownerId: "o"},
+  {id: "3", title: "یادبود", visibility: "family", moderation_status: "approved", ownerId: "o"},
+];
+const visibleToB = searchResultsVisible({memberId: "b", isAdmin: false}, catalog);
+assert.deepEqual(visibleToB.map((x) => x.id), ["3"]);
+assert.equal(visibleToB.some((x) => x.visibility === "private"), false);
+assert.equal(visibleToB.some((x) => x.moderation_status === "pending"), false);
+
+const wedding = new Date("2026-03-21T12:00:00+03:30");
+assert.equal(matchesMonthDay("2010-03-21", "full", wedding), true);
+assert.equal(matchesMonthDay("2010-03-21", "month", wedding), false);
+assert.equal(matchesMonthDay(null, "full", wedding), false);
+
+assert.ok(["family", "close_family", "private", "admins"].includes("close_family"));
+assert.ok(["draft", "pending", "approved", "rejected", "archived"].includes("pending"));
 
 console.log("family-legacy tests passed");

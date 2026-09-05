@@ -35,11 +35,11 @@ async function actorFor(familyId: string, chatId: number, userId: number): Promi
   if (me.error) throw me.error;
   if (!me.data) throw new Error("member_not_found");
   const admin = (await isFamilyFounder(familyId, userId).catch(() => false)) || (await isAdmin(chatId, userId).catch(() => false));
-  const close = await s.from("family_close_circle").select("close_member_id").eq("family_id", familyId).eq("member_id", me.data.id);
+  const inbound = await s.from("family_close_circle").select("member_id").eq("family_id", familyId).eq("close_member_id", me.data.id);
   return {
     memberId: me.data.id,
     isAdmin: admin,
-    closeMemberIds: (close.data || []).map((x) => x.close_member_id),
+    closeMemberIds: (inbound.data || []).map((x) => x.member_id),
     userId,
     familyId,
   };
@@ -740,4 +740,56 @@ export async function listMembersForPicker(familyId: string) {
   const r = await db().from("members").select("id,display_name,first_name,last_name,relation_label").eq("family_id", familyId).order("created_at");
   if (r.error) throw r.error;
   return (r.data || []).map((m) => ({id: m.id, name: (m.display_name || [m.first_name, m.last_name].filter(Boolean).join(" ") || "عضو").trim(), relation: m.relation_label}));
+}
+
+export async function listCloseCircle(familyId: string, chatId: number, userId: number, ownerMemberId?: string) {
+  const actor = await actorFor(familyId, chatId, userId);
+  const ownerId = ownerMemberId || actor.memberId;
+  if (ownerId !== actor.memberId && !actor.isAdmin) throw new Error("forbidden");
+  const belongs = await db().from("members").select("id").eq("id", ownerId).eq("family_id", familyId).maybeSingle();
+  if (!belongs.data) throw new Error("member_not_found");
+  const rows = await db().from("family_close_circle").select("close_member_id,created_at").eq("family_id", familyId).eq("member_id", ownerId).order("created_at");
+  if (rows.error) throw rows.error;
+  const names = await memberNameMap(familyId);
+  return {
+    me: actor,
+    ownerId,
+    members: (rows.data || []).map((r) => names.get(r.close_member_id)).filter(Boolean),
+  };
+}
+
+export async function addCloseMember(familyId: string, chatId: number, userId: number, closeMemberId: string, ownerMemberId?: string) {
+  const actor = await actorFor(familyId, chatId, userId);
+  const ownerId = ownerMemberId || actor.memberId;
+  if (ownerId !== actor.memberId && !actor.isAdmin) throw new Error("forbidden");
+  const target = String(closeMemberId || "");
+  if (!target || target === ownerId) throw new Error("invalid_close_member");
+  const ok = await db().from("members").select("id").eq("id", target).eq("family_id", familyId).maybeSingle();
+  if (!ok.data) throw new Error("member_not_found");
+  const ownerOk = await db().from("members").select("id").eq("id", ownerId).eq("family_id", familyId).maybeSingle();
+  if (!ownerOk.data) throw new Error("member_not_found");
+  const count = await db().from("family_close_circle").select("close_member_id", {count: "exact", head: true}).eq("family_id", familyId).eq("member_id", ownerId);
+  if ((count.count || 0) >= 50) throw new Error("close_circle_limit");
+  const r = await db().from("family_close_circle").upsert({family_id: familyId, member_id: ownerId, close_member_id: target}, {onConflict: "family_id,member_id,close_member_id"}).select("close_member_id").maybeSingle();
+  if (r.error) throw r.error;
+  return listCloseCircle(familyId, chatId, userId, ownerId);
+}
+
+export async function removeCloseMember(familyId: string, chatId: number, userId: number, closeMemberId: string, ownerMemberId?: string) {
+  const actor = await actorFor(familyId, chatId, userId);
+  const ownerId = ownerMemberId || actor.memberId;
+  if (ownerId !== actor.memberId && !actor.isAdmin) throw new Error("forbidden");
+  const del = await db().from("family_close_circle").delete().eq("family_id", familyId).eq("member_id", ownerId).eq("close_member_id", String(closeMemberId || ""));
+  if (del.error) throw del.error;
+  return listCloseCircle(familyId, chatId, userId, ownerId);
+}
+
+export async function untagMedia(familyId: string, chatId: number, userId: number, mediaId: string, memberId: string) {
+  const actor = await actorFor(familyId, chatId, userId);
+  const item = await db().from("family_legacy_media").select("id,uploader_member_id,family_id").eq("id", mediaId).eq("family_id", familyId).maybeSingle();
+  if (!item.data) throw new Error("not_found");
+  if (!actor.isAdmin && item.data.uploader_member_id !== actor.memberId && memberId !== actor.memberId) throw new Error("forbidden");
+  const del = await db().from("family_legacy_media_tags").delete().eq("media_id", mediaId).eq("member_id", memberId);
+  if (del.error) throw del.error;
+  return {removed: true, memberId};
 }

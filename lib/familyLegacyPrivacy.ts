@@ -42,7 +42,7 @@ export const MEMORIAL_REACTIONS = ["❤️", "🕊️"] as const;
 export type AccessActor = {
   memberId: string;
   isAdmin: boolean;
-  closeMemberIds?: string[];
+  closeMemberIds?: string[]; // owner ids whose close circle includes this viewer
 };
 
 export type AccessRecord = {
