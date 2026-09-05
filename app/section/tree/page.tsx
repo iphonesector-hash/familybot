@@ -27,7 +27,7 @@ const errText:Record<string,string>={
   duplicate_relation:"این ارتباط قبلاً ثبت شده.",
   linked_member:"عضو متصل به بله از شجره حذف نمی‌شود.",
   name_required:"نام لازم است.",
-  invalid_link:"اتصال فقط از فرد دستی به عضو ثبت‌شده ممکن است.",
+  member_has_legacy:"این فرد دستی به دانشنامه، یادبود، خاطره یا معرفی اعضا وصل است. اول آن محتوا را جدا کنید؛ حذف خاموش انجام نمی‌شود.",
 };
 
 function ageFrom(birthday?:string|null){
@@ -289,14 +289,12 @@ function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:Tr
   const[label,setLabel]=useState(member.relation_label||"");
   const[birth,setBirth]=useState((member.birthday||"").slice(0,10));
   const[death,setDeath]=useState((member.death_date||"").slice(0,10));
-  const[linkTo,setLinkTo]=useState("");
   useEffect(()=>{
     setFirst(member.first_name||"");setLast(member.last_name||"");setLabel(member.relation_label||"");
     setBirth((member.birthday||"").slice(0,10));setDeath((member.death_date||"").slice(0,10));
   },[member]);
   const mine=rels.filter(r=>r.from_member_id===member.id||r.to_member_id===member.id);
   const names=new Map(members.map(m=>[m.id,memberName(m)]));
-  const registered=members.filter(m=>!isTreeOnlyMember(m)&&m.id!==member.id);
   return <section className="premiumPanel treeSheet">
     <span className="eyebrow">ویرایش فرد</span>
     <h2>{memberName(member)}</h2>
@@ -320,14 +318,8 @@ function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:Tr
       <span>{names.get(r.from_member_id)} · {r.relation_type} · {names.get(r.to_member_id)}</span>
       <button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("فقط این ارتباط حذف شود؟ حساب کاربری پاک نمی‌شود."))void onSave({action:"relation.delete",relationId:r.id})}}>حذف ارتباط</button>
     </div>)}
-    {isTreeOnlyMember(member)&&registered.length>0&&<>
-      <h3>اتصال به عضو خانواده</h3>
-      <p className="treeHint">فرد دستی را به عضو بله وصل می‌کند؛ روابط حفظ می‌شوند.</p>
-      <select value={linkTo} onChange={e=>setLinkTo(e.target.value)}><option value="">انتخاب عضو ثبت‌شده</option>{registered.map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>
-      <button disabled={busy||!linkTo} onClick={()=>void onSave({action:"member.link",offlineId:member.id,registeredId:linkTo})}>اتصال بدون حذف تاریخچه</button>
-    </>}
     <div className="treeActions">
-      {isTreeOnlyMember(member)&&<button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("فرد دستی از شجره حذف شود؟ عضو بله حذف نمی‌شود."))void onSave({action:"member.delete",memberId:member.id})}}>حذف فرد دستی</button>}
+      {isTreeOnlyMember(member)&&<button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("فرد دستی از شجره حذف شود؟ نسبت‌ها پاک می‌شوند. عضو بله و محتوای خانواده ما حذف نمی‌شود."))void onSave({action:"member.delete",memberId:member.id})}}>حذف فرد دستی</button>}
       <button onClick={onClose}>بستن</button>
     </div>
   </section>;

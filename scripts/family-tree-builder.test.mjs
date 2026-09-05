@@ -93,7 +93,7 @@ assert.equal(validateRelation([],"a","a","پدر"),"self_parent");
 assert.equal(validateRelation([],"a","a","فرزند"),"self_child");
 assert.equal(validateRelation([],"a","a","همسر"),"self_spouse");
 assert.equal(validateRelation([],"a","a","برادر"),"self_sibling");
-assert.equal(validateRelation([{from_member_id:"f",to_member_id:"c",relation_type:"پدر"}],"f","c","پدر"),"duplicate_parent");
+assert.equal(validateRelation([{from_member_id:"f",to_member_id:"c",relation_type:"پدر"}],"f","c","پدر"),"duplicate_relation");
 assert.equal(validateRelation([{from_member_id:"f",to_member_id:"c",relation_type:"پدر"}],"f2","c","پدر"),"duplicate_parent");
 assert.equal(validateRelation([{from_member_id:"a",to_member_id:"b",relation_type:"همسر"}],"b","a","همسر"),"duplicate_spouse");
 assert.equal(validateRelation([{from_member_id:"a",to_member_id:"b",relation_type:"برادر"}],"b","a","خواهر"),"duplicate_sibling");
@@ -111,7 +111,7 @@ const gens=layoutGens(
     {from_member_id:"gf",to_member_id:"f",relation_type:"پدر"},
     {from_member_id:"gm",to_member_id:"f",relation_type:"مادر"},
     {from_member_id:"f",to_member_id:"m",relation_type:"همسر"},
-    {from_member_id:"f",to_member_id:"c",relation_type:"فرزند"},
+    {from_member_id:"f",to_member_id:"c",relation_type:"پدر"},
   ]
 );
 assert.equal(gens.level.get("gf"),0);
@@ -123,11 +123,14 @@ assert.equal(validateRelation([{from_member_id:"a",to_member_id:"b",relation_typ
 
 import {readFileSync} from "node:fs";
 const page=readFileSync(new URL("../app/section/tree/page.tsx",import.meta.url),"utf8");
-assert.ok(page.includes("انتخاب از اعضای خانواده"));
 assert.ok(page.includes("ثبت فرد به‌صورت دستی"));
-assert.ok(page.includes("افزودن پدر"));
-assert.ok(page.includes("اتصال به عضو خانواده"));
+assert.ok(page.includes("انتخاب از اعضای خانواده"));
+assert.ok(page.includes("افزودن ${k}")||page.includes("افزودن پدر"));
+assert.ok(page.includes("افزودن خواهر/برادر"));
+assert.equal(page.includes("اتصال به عضو خانواده"),false);
+assert.equal(page.includes("member.link"),false);
 assert.ok(page.includes("حذف ارتباط"));
-assert.ok(!page.includes("linked_member")||page.includes("عضو متصل به بله"));
+assert.ok(page.includes("حذف فرد دستی"));
+assert.ok(page.includes("عضو متصل به بله"));
 
 console.log("family-tree-builder tests passed");

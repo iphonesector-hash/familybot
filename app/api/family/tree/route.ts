@@ -145,30 +145,19 @@ export async function POST(req:NextRequest){
       const row=await supabase.from("members").select("id,bale_user_id").eq("id",id).eq("family_id",s.familyId).maybeSingle();
       if(row.error)throw row.error;if(!row.data)return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
       if(!isTreeOnlyMember(row.data))return NextResponse.json({ok:false,error:"linked_member"},{status:409});
+      const deps=await Promise.all([
+        supabase.from("family_people_profiles").select("id",{count:"exact",head:true}).eq("family_id",s.familyId).eq("member_id",id),
+        supabase.from("family_legends").select("id",{count:"exact",head:true}).eq("family_id",s.familyId).eq("member_id",id),
+        supabase.from("family_memorials").select("id",{count:"exact",head:true}).eq("family_id",s.familyId).eq("member_id",id),
+        supabase.from("family_legacy_article_members").select("article_id",{count:"exact",head:true}).eq("member_id",id),
+        supabase.from("family_legacy_media_tags").select("media_id",{count:"exact",head:true}).eq("member_id",id),
+        supabase.from("family_journal_posts").select("id",{count:"exact",head:true}).eq("family_id",s.familyId).eq("author_member_id",id),
+        supabase.from("memories").select("id",{count:"exact",head:true}).eq("family_id",s.familyId).eq("creator_member_id",id),
+      ]);
+      if(deps.some(d=>!d.error&&Number(d.count||0)>0))return NextResponse.json({ok:false,error:"member_has_legacy"},{status:409});
+      await supabase.from("relationships").delete().eq("family_id",s.familyId).or(`from_member_id.eq.${id},to_member_id.eq.${id}`);
       const del=await supabase.from("members").delete().eq("id",id).eq("family_id",s.familyId);if(del.error)throw del.error;
       return NextResponse.json({ok:true});
-    }
-    if(action==="member.link"){
-      const offlineId=String(body.offlineId||"");const registeredId=String(body.registeredId||"");
-      if(offlineId===registeredId)return NextResponse.json({ok:false,error:"invalid_relation"},{status:400});
-      const [offline,registered]=await Promise.all([
-        supabase.from("members").select("id,bale_user_id").eq("id",offlineId).eq("family_id",s.familyId).maybeSingle(),
-        supabase.from("members").select("id,bale_user_id").eq("id",registeredId).eq("family_id",s.familyId).maybeSingle(),
-      ]);
-      if(!offline.data||!registered.data)return NextResponse.json({ok:false,error:"member_not_found"},{status:404});
-      if(!isTreeOnlyMember(offline.data)||isTreeOnlyMember(registered.data))return NextResponse.json({ok:false,error:"invalid_link"},{status:400});
-      const rels=await supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId);
-      if(rels.error)throw rels.error;
-      for(const rel of rels.data||[]){
-        const from=rel.from_member_id===offlineId?registeredId:rel.from_member_id;
-        const to=rel.to_member_id===offlineId?registeredId:rel.to_member_id;
-        if(from===to){await supabase.from("relationships").delete().eq("id",rel.id);continue;}
-        if(from!==rel.from_member_id||to!==rel.to_member_id){
-          await supabase.from("relationships").delete().eq("id",rel.id);
-          await supabase.from("relationships").upsert({family_id:s.familyId,from_member_id:from,to_member_id:to,relation_type:rel.relation_type},{onConflict:"from_member_id,to_member_id,relation_type"});
-        }
-      }
-      return NextResponse.json({ok:true,keepOffline:true});
     }
     if(action==="relation.save"){
       const from=String(body.fromMemberId||""),to=String(body.toMemberId||""),type=String(body.relationType||"").trim();
