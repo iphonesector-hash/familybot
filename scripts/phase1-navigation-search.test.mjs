@@ -34,11 +34,16 @@ const oldEnv={...process.env};
 let networkCalls=0;
 try{
   delete process.env.TAVILY_API_KEY;delete process.env.NAVASAN_API_KEY;delete process.env.NAVASAN_PRICE_UNIT;
-  globalThis.fetch=async()=>{networkCalls++;throw Error('unexpected network')};
+  globalThis.fetch=async url=>{
+    networkCalls++;
+    if(String(url).startsWith('https://call3.tgju.org/ajax.json'))return Response.json({current:{price_dollar_rl:{p:'1234560'},geram18:{p:'98765430'}}});
+    throw Error('unexpected network');
+  };
   assert.equal((await searchLive('سلام')).used,false);
-  assert.equal((await searchLive('قیمت امروز دلار')).missingEnv[0],'NAVASAN_API_KEY');
+  const fallbackUsd=await searchLive('قیمت امروز دلار');assert.equal(fallbackUsd.ok,true);assert.equal(fallbackUsd.provider,'tgju');assert.match(fallbackUsd.quote,/تومان/);assert.doesNotMatch(fallbackUsd.quote,new RegExp(LIVE_SEARCH_WARNING));
+  const fallbackGold=await searchLive('قیمت طلا');assert.equal(fallbackGold.ok,true);assert.equal(fallbackGold.provider,'tgju');assert.match(fallbackGold.quote,/طلای ۱۸ عیار/);
   assert.equal((await searchLive('آخرین خبر مهم تکنولوژی')).missingEnv[0],'TAVILY_API_KEY');
-  assert.equal(networkCalls,0);
+  assert.equal(networkCalls,2);
   assert.equal((await searchLive('خبر امروز',{search:async()=>{throw Error('offline')}})).ok,false);
   process.env.TAVILY_API_KEY='test-only';
   globalThis.fetch=async(url,options)=>{
@@ -50,10 +55,11 @@ try{
   globalThis.fetch=async()=>Response.json({results:[]});assert.equal((await tavilyProvider.search('خبر','news')).ok,false);
   globalThis.fetch=async()=>new Response('not json');assert.equal((await tavilyProvider.search('خبر','news')).ok,false);
   process.env.NAVASAN_API_KEY='test-only';process.env.NAVASAN_PRICE_UNIT='IRT';
-  globalThis.fetch=async(url)=>{assert.equal(new URL(url).searchParams.get('item'),'usd_sell');return Response.json({usd_sell:{value:'123456',timestamp:Math.floor(Date.now()/1000)}})};
+  globalThis.fetch=async url=>{assert.equal(new URL(url).searchParams.get('item'),'usd_sell');return Response.json({usd_sell:{value:'123456',timestamp:Math.floor(Date.now()/1000)}})};
   const usd=await marketQuote('قیمت امروز دلار','currency');assert.equal(usd.ok,true);assert.match(usd.quote,/تومان/);assert.match(usd.quote,/ریال/);assert.equal(usd.sources[0].url,'https://www.navasan.tech/');
   process.env.NAVASAN_PRICE_UNIT='IRR';const irr=await marketQuote('قیمت امروز دلار','currency');assert.notEqual(irr.quote,usd.quote);
-  globalThis.fetch=async()=>Response.json({usd_sell:{value:'123456',timestamp:1}});assert.equal((await marketQuote('قیمت دلار','currency')).ok,false);
+  globalThis.fetch=async url=>String(url).startsWith('https://api.navasan.tech/')?Response.json({usd_sell:{value:'123456',timestamp:1}}):Response.json({current:{price_dollar_rl:{p:'1234560'}}});
+  const staleFallback=await marketQuote('قیمت دلار','currency');assert.equal(staleFallback.ok,true);assert.equal(staleFallback.provider,'tgju');
   globalThis.fetch=async()=>Response.json({'18ayar':{value:'12345',timestamp:Math.floor(Date.now()/1000)}});assert.equal((await marketQuote('قیمت طلا','gold')).ok,true);
   globalThis.fetch=async()=>Response.json({bitcoin:{usd:123,last_updated_at:Math.floor(Date.now()/1000)}});assert.equal((await marketQuote('بیت کوین','crypto')).ok,true);
   globalThis.fetch=async()=>Response.json({bitcoin:{usd:123,last_updated_at:1}});assert.equal((await marketQuote('بیت کوین','crypto')).ok,false);
@@ -73,6 +79,11 @@ try{
   delete process.env.TAVILY_API_KEY;
   const fail=await(await route.POST(request('آخرین خبر تکنولوژی'))).json();assert.equal(fail.reply,LIVE_SEARCH_WARNING);assert.equal(fail.reply.split(LIVE_SEARCH_WARNING).length-1,1);assert.equal(llmCalls,0);
   process.env.GROQ_API_KEY='test-only';assert.equal((await(await route.POST(request('سلام'))).json()).reply,'سلام');assert.equal(llmCalls,1);
+
+  delete process.env.NAVASAN_API_KEY;delete process.env.NAVASAN_PRICE_UNIT;
+  globalThis.fetch=async url=>{if(String(url).startsWith('https://call3.tgju.org/ajax.json'))return Response.json({current:{price_dollar_rl:{p:'2233000'}}});throw Error('unexpected network')};
+  const marketReply=await(await route.POST(request('دلار چنده'))).json();assert.equal(marketReply.searched,true);assert.equal(marketReply.grounded,true);assert.match(marketReply.reply,/تومان/);assert.notEqual(marketReply.reply,LIVE_SEARCH_WARNING);assert.equal(llmCalls,1);
+
   process.env.TAVILY_API_KEY='test-only';
   globalThis.fetch=async()=>Response.json({results:[{title:'Fixture source',url:'https://example.com/current',content:'TEST CURRENT NEWS EVIDENCE',published_date:new Date().toISOString()}]});
   let groundedPrompt='';
@@ -125,4 +136,4 @@ for(const dest of links('app/FamilyTools.tsx'))graph.get('/section/family').add(
 const reached=new Set(['/']);let changed=true;while(changed){changed=false;for(const from of [...reached])for(const to of graph.get(from)||[])if(!reached.has(to)){reached.add(to);changed=true}}
 const aliases={culture:'fun',wallet:'finance'};
 for(const slug of routes){if(aliases[slug]){assert.match(read(`app/section/${slug}/page.tsx`),new RegExp(`export \\{default\\} from "../${aliases[slug]}/page"`));continue}assert.ok(reached.has('/section/'+slug),`orphan route: ${slug}`)}
-console.log(`phase1: classifier, live failure, provider validation, real route handler, bootstrap lifecycle and ${routes.length} route checks passed (mocked data; NOT real Bale QA)`);
+console.log(`phase1: classifier, resilient live market fallback, provider validation, real route handler, bootstrap lifecycle and ${routes.length} route checks passed (mocked data; NOT real Bale QA)`);
