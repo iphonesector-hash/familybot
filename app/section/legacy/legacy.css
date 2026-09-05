@@ -1,0 +1,53 @@
+.legacyHero{padding:18px 16px;min-height:148px;display:grid;gap:8px;text-align:right;background:
+  linear-gradient(145deg,rgba(62,42,28,.55),rgba(18,22,48,.92)),
+  radial-gradient(circle at 88% 12%,rgba(255,199,95,.18),transparent 42%)}
+.legacyHero h1{font-size:24px;margin:0;letter-spacing:-.3px;line-height:1.55}
+.legacyHero p{margin:0;line-height:1.9;font-size:13px;color:#d7cbb8}
+.legacyModules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.legacyModule{min-height:108px;padding:14px;border-radius:20px;display:grid;align-content:space-between;text-decoration:none;color:inherit;text-align:right}
+.legacyModule small{color:#cbbba4;font-size:11px;line-height:1.7}
+.legacyRail{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding-bottom:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;margin-inline:0}
+.legacyRail > *{min-width:min(210px,78vw);max-width:260px;scroll-snap-align:start}
+.legacyEmpty{padding:22px 16px;border-radius:20px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,220,170,.18);color:#d8cfc0;line-height:2;text-align:center}
+.legacyArticle{white-space:pre-wrap;line-height:2.05;font-size:15px;color:#efe8dc}
+.legacyMeta{display:flex;flex-wrap:wrap;gap:6px}
+.legacySoft{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:5px 10px;font-size:11px}
+.legacyMemorial{background:
+  linear-gradient(180deg,rgba(18,22,36,.96),rgba(10,12,22,.98));
+  border-color:rgba(180,190,220,.14)!important}
+.legacyCandle{width:100%;min-height:54px;border-radius:16px;background:rgba(255,214,140,.08);border:1px solid rgba(255,214,140,.2);color:#ffe7b8;font-weight:800}
+.legacyViewer{position:fixed;inset:0;z-index:120;background:rgba(4,6,16,.92);display:grid;grid-template-rows:auto 1fr auto;padding:max(12px,var(--safe-top)) 12px max(18px,calc(var(--safe-bottom) + 12px))}
+.legacyViewer img,.legacyViewer video{width:100%;max-height:100%;object-fit:contain}
+.legacyForm{display:grid;gap:12px;text-align:right}
+.legacyForm input,.legacyForm textarea,.legacyForm select{width:100%;max-width:100%;min-height:44px;font-size:16px;box-sizing:border-box}
+.legacyForm textarea{min-height:140px;resize:vertical;padding:12px}
+.legacyForm label{display:grid;gap:6px;font-size:12px;color:#d5cfc4;text-align:right}
+.legacyComposer{padding:16px;margin-top:16px}
+.legacyComposer h2{margin:0 0 12px;font-size:18px}
+.legacyFile input[type=file]{font-size:13px;padding:8px;max-width:100%}
+.legacyFileName{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#b9b0cf}
+.legacyHint{display:block;font-size:11px;line-height:1.7;color:#b9b0cf;white-space:normal}
+.legacyStatus{border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.legacyStatus legend{padding:0 6px;font-size:12px;color:#d5cfc4}
+.legacyStatus button{min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font-size:13px}
+.legacyStatus button.active{border-color:rgba(255,199,95,.55);background:rgba(255,199,95,.12)}
+.legacyCheck{display:flex!important;align-items:center;gap:8px;grid-template-columns:none}
+.legacyTabs{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 10px;margin:0}
+.legacyTabs button{flex:0 0 auto;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font-size:13px}
+.legacyTabs button.active{border-color:rgba(255,199,95,.5);background:rgba(255,199,95,.12)}
+.legacyCards{display:grid;gap:10px}
+.legacyCard{display:block;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);text-align:right}
+.legacyCard h2{margin:0;font-size:16px;line-height:1.7}
+.legacyCard p{margin:6px 0 0;font-size:12px;color:#cbbba4}
+.legacyHead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:18px 0 10px;text-align:right}
+.legacyHead h2{margin:4px 0 0;font-size:18px}
+.legacyHead a{flex:0 0 auto;min-height:36px;display:inline-flex;align-items:center;font-size:13px;color:#ffd27a}
+.legacySearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}
+.legacySearch input{min-width:0}
+@media(max-width:430px){
+  .legacyModules{grid-template-columns:1fr}
+  .legacyHero{padding:16px 14px}
+  .legacyHero h1{font-size:21px}
+  .legacyStatus{grid-template-columns:1fr}
+  .legacyForm textarea{min-height:160px}
+}
