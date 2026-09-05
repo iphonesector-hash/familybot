@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import {useBaleMiniApp} from "@/lib/useBaleMiniApp";
 import {sessionGet,sessionRemove,sessionSet} from "@/lib/safeSessionStorage";
+import {writeUiSnapshot} from "@/lib/miniAppUiCache";
 
 type FamilyChoice={id:string;name:string;chatId:number};
 function callSafe(target:unknown,method:string,...args:unknown[]){try{const fn=target&&typeof target==="object"?(target as Record<string,unknown>)[method]:undefined;if(typeof fn==="function")return fn.apply(target,args)}catch{}}
@@ -16,14 +17,16 @@ export default function MiniAppBootstrap(){
     running.current=true;setBusy(true);setError("");
     window.dispatchEvent(new Event("familybot:boot-wait"));
     try{
-      const r=await fetch("/api/bale/miniapp/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({initData,familyId}),cache:"no-store",signal:AbortSignal.timeout(30000)});
+      const r=await fetch("/api/bale/miniapp/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({initData,familyId}),cache:"no-store",signal:AbortSignal.timeout(16000)});
       const d=await r.json();
       if(!r.ok||!d.ok)throw new Error(d.error||"bootstrap_failed");
       if(d.status==="ready"&&d.session){
         if(!sessionSet("familybot.session",String(d.session)))throw new Error("session_storage_unavailable");
         sessionSet("familybot.canManage",d.canManage?"1":"0");
         if(d.family?.id)sessionSet("familybot.familyId",String(d.family.id));
-        // Existing pages read their session on mount; reload only after creation succeeds.
+        writeUiSnapshot({familyId:String(d.family?.id||""),family:d.family||undefined,profile:d.profileSeed||undefined});
+        // Avoid showing a second splash during the one required reload after a fresh Bale session.
+        sessionSet("familybot.splashDone","1");
         window.location.reload();return;
       }
       if(d.status==="choose_family"&&d.families?.length){setChoices(d.families);ready();return}
@@ -36,16 +39,16 @@ export default function MiniAppBootstrap(){
     }finally{running.current=false;setBusy(false)}
   }
   useEffect(()=>{
-    if(!inBale){const timer=setTimeout(ready,3200);return()=>clearTimeout(timer)}
+    if(!inBale){const timer=setTimeout(ready,900);return()=>clearTimeout(timer)}
     let cancelled=false;
     const direct=startParam.startsWith("family_")?startParam.slice(7):"";
     void(async()=>{
       const token=sessionGet("familybot.session");
       if(token){
         try{
-          const r=await fetch("/api/family/dashboard",{headers:{authorization:`Bearer ${token}`},cache:"no-store",signal:AbortSignal.timeout(12000)});
+          const r=await fetch("/api/family/dashboard?view=auth",{headers:{authorization:`Bearer ${token}`},cache:"no-store",signal:AbortSignal.timeout(4500)});
           if(cancelled)return;
-          // Only a server auth rejection invalidates a session, never an ordinary network wait.
+          // A valid signed session does not need the heavy dashboard query before first paint.
           if(r.status!==401){ready();return}
           sessionRemove("familybot.session");
         }catch{if(!cancelled)ready();return}
@@ -57,7 +60,6 @@ export default function MiniAppBootstrap(){
     return()=>{cancelled=true};
   },[inBale,initData,startParam,supported]);
   useEffect(()=>{if(webApp){callSafe(webApp,"ready");callSafe(webApp,"expand")}},[webApp]);
-  // Waiting, avatar resolution and successful refresh must never render an auth dialog.
   if(!error&&!choices.length)return null;
   const botUsername=process.env.NEXT_PUBLIC_BALE_BOT_USERNAME||"My_familybot";
   return <div className="miniappBootstrapOverlay" role="dialog" aria-modal="true" aria-label={error?"خطای ورود":"انتخاب خانواده"} style={{position:"fixed",inset:0,zIndex:9999,display:"grid",placeItems:"center",background:"rgba(5,3,22,.97)",padding:18}}><div className="premiumPanel" style={{maxWidth:420,width:"100%",padding:18,textAlign:"center"}}>

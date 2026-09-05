@@ -13,11 +13,14 @@ export async function GET(req: NextRequest) {
   try {
     const session = sessionFrom(req);
     if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    if(req.nextUrl.searchParams.get("view")==="auth"){
+      return NextResponse.json({ok:true,expiresAt:session.exp},{headers:{"cache-control":"no-store"}});
+    }
     const [dashboard, canManage] = await Promise.all([
       readMiniAppDashboard(session.familyId, session.userId),
       isAdmin(session.chatId, session.userId).catch(() => false),
     ]);
-    return NextResponse.json({ ok: true, dashboard: { ...dashboard, permissions: { canManage } }, expiresAt: session.exp });
+    return NextResponse.json({ ok: true, dashboard: { ...dashboard, permissions: { ...dashboard.permissions, canManage } }, expiresAt: session.exp });
   } catch (error) {
     console.error("family dashboard failed", error);
     return NextResponse.json({ ok: false, error: "dashboard_unavailable" }, { status: 500 });
