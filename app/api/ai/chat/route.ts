@@ -1,3 +1,4 @@
+import {searchLive,groundedSearchContext,LIVE_SEARCH_WARNING} from "@/lib/webSearch";
 import {NextRequest,NextResponse} from "next/server";
 import {z} from "zod";
 import {verifyFamilySession} from "@/lib/familySession";
@@ -29,23 +30,6 @@ async function explicitAction(message:string,session:NonNullable<ReturnType<type
   if(a||b){const name=(a?.[1]||b?.[2]||"").trim(),amount=Number(a?.[2]||b?.[1]||0);try{const target=await findFamilyMemberByName(session.familyId,name),result=await transferFamilyCoins(session.familyId,session.userId,{targetMemberId:target.id,amount});return`🪙 ${fa(result.amount)} سکه به ${result.target.name} منتقل شد.`}catch(e){const m=e instanceof Error?e.message:"";if(m==="member_not_found")return`عضوی با نام «${name}» پیدا نکردم.`;if(m==="insufficient_coins")return"سکه کافی نداری.";throw e}}
   return null;
 }
-function shouldSearch(q:string){return /(اینترنت|جستجو|سرچ|امروز|الان|آخرین|جدیدترین|خبر|قیمت|آب.?وهوا|بروز|به.?روز)/i.test(q)}
-function decode(s:string){return s.replace(/<[^>]+>/g," ").replace(/&/g,"&").replace(/"/g,'"').replace(/&#x27;/g,"'").replace(/\s+/g," ").trim()}
-async function webSearch(q:string){
-  if(!shouldSearch(q))return{used:false,ok:false,text:""};
-  try{
-    const r=await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,{headers:{"user-agent":"Mozilla/5.0 FamilyBot/1.0"},signal:AbortSignal.timeout(6000),cache:"no-store"});
-    if(!r.ok){logAi("web_search_http",{status:r.status});return{used:true,ok:false,text:""}}
-    const html=await r.text();
-    const rows=[...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/g)].slice(0,4).map(m=>decode(m[1]||m[2]||"")).filter(Boolean);
-    const text=rows.join("\n• ").slice(0,3500);
-    return{used:true,ok:Boolean(text),text};
-  }catch(e){
-    logAi("web_search_timeout_or_fail",{kind:e instanceof Error?e.name:"unknown"});
-    return{used:true,ok:false,text:""};
-  }
-}
-
 export async function POST(req:NextRequest){
   try{
     const session=sessionFrom(req);
@@ -62,14 +46,22 @@ export async function POST(req:NextRequest){
       logAi("final_reply",{ok:true,kind:"grounded"});
       return NextResponse.json({reply,grounded:true});
     }
+    const web=await searchLive(body.message);
+    if(web.used&&!web.ok){
+      logAi("live_search_failed",{provider:web.provider,error:web.error,missingEnv:web.missingEnv});
+      return NextResponse.json({reply:LIVE_SEARCH_WARNING,searched:false,grounded:false});
+    }
+    if(web.quote){
+      // Structured prices are rendered verbatim; an LLM cannot alter a rate or unit.
+      return NextResponse.json({reply:web.quote,searched:true,grounded:true,sources:web.sources,fetchedAt:web.fetchedAt});
+    }
     const key=process.env.GROQ_API_KEY||process.env.AI_API_KEY;
     if(!key){logAi("provider_missing_key");return NextResponse.json({reply:"سکتور AI به Family Core وصله، اما کلید مدل زبانی تنظیم نشده."})}
     const meta=aiProviderMeta();
     logAi("provider_selected",{provider:meta.provider,model:meta.model,host:meta.baseHost,pathname:meta.pathname,keyConfigured:meta.keyConfigured});
     const memory=await readAiMemory(session.familyId,session.userId,10).catch(()=>[]);
-    const web=await webSearch(body.message);
     const context=dashboard?`\nFamily Context خصوصی و معتبر: ${familyContext(dashboard)}`:"\nFamily Context در دسترس نیست.";
-    const webContext=web.ok?`\nنتایج جستجوی وب (ممکن است ناقص باشند؛ به‌عنوان داده عمومی تازه):\n• ${web.text}`:web.used?"\nجستجوی زنده وب الان در دسترس نبود. اگر سؤال قیمت/خبر است، همین را واضح بگو.":"";
+    const webContext=groundedSearchContext(web);
     const result=await completeChat({
       messages:[{role:"system",content:SYSTEM+context+webContext},...memory.filter(x=>x.role!=="summary").map(x=>({role:x.role as "user"|"assistant",content:x.content})),...body.history.slice(-6),{role:"user",content:body.message}],
       temperature:.48,
@@ -80,11 +72,10 @@ export async function POST(req:NextRequest){
       logAi("final_reply",{ok:false,kind:result.timeout?"timeout":"provider"});
       return NextResponse.json({error:result.error},{status:result.status===0?502:result.status===504?504:502});
     }
-    let reply=result.text;
-    if(web.used&&!web.ok&&shouldSearch(body.message))reply=`${reply}\n\nجستجوی زنده وب الان در دسترس نبود؛ این پاسخ از دانش مدل است، نه قیمت لحظه‌ای.`;
+    const reply=result.text;
     void rememberAiTurn(session.familyId,session.userId,body.message,reply).catch(()=>{});
     logAi("final_reply",{ok:true,kind:"model",searched:web.used,webOk:web.ok});
-    return NextResponse.json({reply,grounded:Boolean(dashboard),searched:web.ok});
+    return NextResponse.json({reply,grounded:web.ok||Boolean(dashboard),searched:web.ok,sources:web.sources,fetchedAt:web.ok?web.fetchedAt:undefined});
   }catch(e){
     logAi("final_reply",{ok:false,kind:e instanceof Error?e.message:"ai_failed"});
     return NextResponse.json({error:e instanceof Error?e.message:"ai_failed"},{status:400});
