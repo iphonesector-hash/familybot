@@ -260,3 +260,39 @@ create index if not exists family_legacy_comments_target_idx
   on familybot.family_legacy_comments(family_id, target_type, target_id, created_at);
 create index if not exists family_legacy_reactions_target_idx
   on familybot.family_legacy_reactions(family_id, target_type, target_id);
+
+-- Match existing Family Bot server-only ACL. Schema usage is already revoked
+-- from anon/authenticated; lock each new table the same way later migrations do.
+do $$
+declare r record;
+begin
+  for r in
+    select tablename
+    from pg_tables
+    where schemaname = 'familybot'
+      and tablename in (
+        'family_legacy_articles',
+        'family_legacy_article_revisions',
+        'family_legacy_article_members',
+        'family_legacy_article_links',
+        'family_people_profiles',
+        'family_people_relations',
+        'family_legends',
+        'family_memorials',
+        'family_memorial_messages',
+        'family_memorial_candles',
+        'family_albums',
+        'family_legacy_media',
+        'family_legacy_media_tags',
+        'family_journal_posts',
+        'family_legacy_events',
+        'family_legacy_comments',
+        'family_legacy_reactions',
+        'family_close_circle'
+      )
+  loop
+    execute format('alter table familybot.%I enable row level security', r.tablename);
+    execute format('revoke all on table familybot.%I from public, anon, authenticated', r.tablename);
+    execute format('grant all on table familybot.%I to service_role', r.tablename);
+  end loop;
+end $$;
