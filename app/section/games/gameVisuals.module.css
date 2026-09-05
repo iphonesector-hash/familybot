@@ -1,0 +1,25 @@
+.stage{position:relative;isolation:isolate;display:grid;place-items:center;width:100%;height:230px;overflow:hidden;perspective:700px;pointer-events:none;background:radial-gradient(ellipse at 50% 57%,#1b305745,transparent 65%)}
+.halo{position:absolute;width:185px;height:120px;top:70px;border-radius:50%;background:radial-gradient(ellipse,#4cbce520,transparent 70%)}
+.shadow{position:absolute;top:178px;width:100px;height:17px;border-radius:50%;background:radial-gradient(ellipse,#000b,transparent 70%);transform:scaleX(1.1);opacity:.65;transition:transform .3s,opacity .3s}
+.active .shadow{animation:shadowPulse 1s ease-in-out infinite}
+.brand{position:absolute;bottom:12px;font:600 9px/1.4 sans-serif;letter-spacing:3px;color:#b2d6df9c}
+.dicePerspective,.coinPerspective{width:94px;height:94px;transform-style:preserve-3d;transform:rotateX(-17deg) rotateY(-23deg)}
+.die{position:relative;width:94px;height:94px;transform-style:preserve-3d}
+.face{position:absolute;inset:0;box-sizing:border-box;border:2px solid #d9eef5;border-radius:18px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px;padding:17px;background:linear-gradient(135deg,#fff 0%,#edf5f4 32%,#b4c8d1 80%,#8aa2b8);box-shadow:inset 0 0 0 3px #fff6,inset -6px -7px 12px #345b754a,inset 5px 5px 10px #fff,0 0 2px #dcffff;backface-visibility:hidden}
+.face1{transform:translateZ(47px)}.face6{transform:rotateY(180deg) translateZ(47px)}.face3{transform:rotateY(90deg) translateZ(47px)}.face4{transform:rotateY(-90deg) translateZ(47px)}.face2{transform:rotateX(90deg) translateZ(47px)}.face5{transform:rotateX(-90deg) translateZ(47px)}
+.pip{display:block;border-radius:50%;background:radial-gradient(circle at 65% 70%,#253c52,#071322 65%);box-shadow:inset 1px 2px 3px #000c,0 1px 1px #fff;min-width:0;min-height:0}.empty{visibility:hidden}
+.coinPerspective{width:116px;height:116px;transform:rotateX(-12deg)}
+.coin{position:relative;width:116px;height:116px;transform-style:preserve-3d}
+.rim{position:absolute;inset:0;border-radius:50%;transform:translateZ(var(--z));background:repeating-conic-gradient(#f4d78b 0deg 3deg,#735126 3deg 6deg);box-shadow:inset 0 0 0 1px #dba957}
+.coinSide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;border-radius:50%;border:3px solid #e8c36f;background:radial-gradient(circle at 35% 24%,#fff1b9 0%,#d3a847 32%,#f8d97e 48%,#9e6a26 80%,#e8c16a);box-shadow:inset 0 0 0 3px #8a622c,inset 0 0 0 5px #f9e2a8,inset 0 0 0 7px #bb8c36,inset -7px -8px 18px #66421966;backface-visibility:hidden;color:#6e471d;text-shadow:0 1px #fff1b2,0 -1px #735021}
+.coinSide:after{content:"";position:absolute;inset:11px;border:1px dashed #82551c80;border-radius:50%}
+.coinSide b{font-size:33px;line-height:1.25;font-weight:900;z-index:1}.coinSide span{font:800 9px sans-serif;letter-spacing:3px}.coinSide small{font:700 6px sans-serif;letter-spacing:1px}
+.heads{transform:translateZ(5px)}.tails{transform:rotateY(180deg) translateZ(5px);background:radial-gradient(circle at 30% 25%,#fff0b0,#b9842e 45%,#f3cc76 68%,#9c6b2e)}
+.sparks{position:absolute;top:113px;left:50%;opacity:0}.sparks i{position:absolute;width:3px;height:3px;border-radius:50%;background:#ffe6a8;transform:rotate(var(--angle)) translateX(77px)}
+.won .halo{background:radial-gradient(ellipse,#edca5740,transparent 70%)}.won .sparks{animation:celebrate .65s ease-out both}
+.active .die,.active .coin{will-change:transform}
+.srOnly{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@keyframes shadowPulse{50%{transform:scaleX(.7);opacity:.3}}
+@keyframes celebrate{0%{opacity:0;transform:scale(.65)}35%{opacity:1}100%{opacity:0;transform:scale(1.22)}}
+@media(prefers-reduced-motion:reduce){.stage *{animation:none!important;transition:none!important}.active .die,.active .coin{will-change:auto}}
+@media(max-height:480px){.stage{height:205px}.shadow{top:163px}}

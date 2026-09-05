@@ -1,12 +1,14 @@
 "use client";
 
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import {createPortal} from "react-dom";
 import Link from "next/link";
 import {Icon,Mascot} from "../../ui";
 import Accordion from "../../ui/Accordion";
 import Avatar from "../../ui/Avatar";
 import styles from "./games.module.css";
+import {CoinVisual,DiceVisual} from "./GameVisuals";
+import {actionLock,animateLanding,coinResult,diceResult} from "./gameAnimation";
 
 type Leader={display_name?:string|null;first_name?:string|null;xp?:number;avatar_url?:string|null;resolved_avatar_url?:string|null};
 type Dashboard={profile?:{coins?:number;rank?:number|null;streak?:number;xp?:number;level?:number;is_founder?:boolean}|null;leaderboard?:Leader[]};
@@ -45,8 +47,13 @@ export default function GamesPage(){
   const[quiz,setQuiz]=useState<Quiz|null>(null);
   const[trivia,setTrivia]=useState<Quiz|null>(null);
   const[coinGuess,setCoinGuess]=useState<""|"شیر"|"خط">("");
+  const[coinNotice,setCoinNotice]=useState("");
   const[coin,setCoin]=useState<{side:string;guess?:string;correct?:boolean;spinning:boolean;reward?:Reward}|null>(null);
   const[dice,setDice]=useState<{value:number;rolling:boolean}|null>(null);
+  const visualLock=useRef(actionLock());
+  const animationAbort=useRef<AbortController|null>(null);
+  const coinNode=useRef<HTMLDivElement|null>(null),diceNode=useRef<HTMLDivElement|null>(null);
+  useEffect(()=>()=>animationAbort.current?.abort(),[]);
   const[rps,setRps]=useState<{choice:number;bot:number;outcome:string;reward?:Reward}|null>(null);
 
   async function api(action:string,extra:Record<string,unknown>={}){const session=sessionStorage.getItem("familybot.session");if(!session)throw new Error("Mini App را از داخل بله باز کن.");const r=await fetch("/api/family/game",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${session}`},body:JSON.stringify({action,...extra})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||"game_failed");return x.result}
@@ -55,18 +62,36 @@ export default function GamesPage(){
 
   async function playCoin(){
     if(busy||!coinGuess)return;
-    setBusy(true);setNotice("");setCoin({side:"...",guess:coinGuess,spinning:true});
-    try{
-      const r=await api("coin",{guess:coinGuess});
-      window.setTimeout(()=>{
-        setCoin({side:String(r.side),guess:String(r.guess||coinGuess),correct:Boolean(r.correct),spinning:false,reward:r.reward});
-        setNotice(r.correct?rewardText(r.reward):(r.alreadyClaimed?"این پرتاب قبلاً ثبت شده.":`انتخاب تو: ${r.guess} · نتیجه: ${r.side} · باختی`));
+    await visualLock.current.run(async()=>{
+      const abort=new AbortController();animationAbort.current=abort;
+      setBusy(true);setCoinNotice("");setCoin({side:coin?.side||"شیر",guess:coinGuess,spinning:true});
+      try{
+        const r=await api("coin",{guess:coinGuess});
+        const side=coinResult(r.side);
+        if(abort.signal.aborted)return;
+        await animateLanding(coinNode.current,"coin",side,abort.signal);
+        if(abort.signal.aborted)return;
+        setCoin({side,guess:String(r.guess||coinGuess),correct:Boolean(r.correct),spinning:false,reward:r.reward});
+        setCoinNotice(r.correct?rewardText(r.reward):(r.alreadyClaimed?"این پرتاب قبلاً ثبت شده.":`انتخاب تو: ${r.guess} · نتیجه: ${r.side} · باختی`));
         reloadDash();
-      },1100);
-    }catch(e){setCoin(null);setNotice(e instanceof Error?e.message:"شیر یا خط اجرا نشد")}
-    finally{setBusy(false)}
+      }catch(e){if(!abort.signal.aborted){setCoin(null);setCoinNotice(e instanceof Error?e.message:"شیر یا خط اجرا نشد")}}
+      finally{if(!abort.signal.aborted)setBusy(false)}
+    });
   }
-  async function playDice(){if(busy)return;setBusy(true);setNotice("");setDice({value:Math.ceil(Math.random()*6),rolling:true});try{const r=await api("dice");window.setTimeout(()=>setDice({value:Number(r.value)||1,rolling:false}),700)}catch(e){setDice(null);setNotice(e instanceof Error?e.message:"تاس اجرا نشد")}finally{setBusy(false)}}
+  async function playDice(){
+    if(busy)return;
+    await visualLock.current.run(async()=>{
+      const abort=new AbortController();animationAbort.current=abort;
+      setBusy(true);setNotice("");setDice({value:dice?.value||1,rolling:true});
+      try{
+        const r=await api("dice"),value=diceResult(r.value);
+        if(abort.signal.aborted)return;
+        await animateLanding(diceNode.current,"dice",value,abort.signal);
+        if(!abort.signal.aborted)setDice({value,rolling:false});
+      }catch(e){if(!abort.signal.aborted){setDice(null);setNotice(e instanceof Error?e.message:"تاس اجرا نشد")}}
+      finally{if(!abort.signal.aborted)setBusy(false)}
+    });
+  }
   async function playRps(choice:number){if(busy)return;setBusy(true);setNotice("");try{const r=await api("rps",{choice});setRps({choice,bot:Number(r.bot),outcome:String(r.outcome),reward:r.reward});if(r.outcome==="win")setNotice(rewardText(r.reward));reloadDash()}catch(e){setNotice(e instanceof Error?e.message:"سنگ کاغذ قیچی اجرا نشد")}finally{setBusy(false)}}
   async function startTrivia(){setBusy(true);setNotice("");try{setTrivia(await triviaApi("start"))}catch(e){const m=e instanceof Error?e.message:"Family Trivia اجرا نشد";setNotice(m==="trivia_needs_three_members"?"برای Family Trivia حداقل ۳ عضو ثبت‌شده لازم داریم.":m)}finally{setBusy(false)}}
   async function answer(index:number){if(!quiz)return;setBusy(true);try{const r=await api("quiz.answer",{sessionId:quiz.id,option:index});setNotice(r.correct?(r.alreadyClaimed?"این سؤال قبلاً جایزه گرفته.":rewardText(r.reward)):"جواب درست نبود");setQuiz(null);reloadDash()}catch(e){setNotice(e instanceof Error?e.message:"ثبت جواب انجام نشد")}finally{setBusy(false)}}
@@ -90,20 +115,15 @@ export default function GamesPage(){
             <button key={side} disabled={busy} className={coinGuess===side?"primaryCta":""} onClick={()=>setCoinGuess(side)}>{side}</button>
           ))}
         </div>
-        <div className={`coinFlip${coin?.spinning?" spinning":""}${coin&&!coin.spinning&&coin.side==="خط"?" tails":""}`}>
-          <div className="coin3d">
-            <b className="coinFace coinHeads">شیر</b>
-            <b className="coinFace coinTails">خط</b>
-          </div>
-        </div>
+        <CoinVisual nodeRef={coinNode} active={Boolean(coin?.spinning)} side={coin?.side==="خط"?"خط":"شیر"} won={Boolean(coin?.correct&&!coin.spinning)}/>
         <button className="primaryCta" disabled={busy||!coinGuess} onClick={()=>void playCoin()}>{busy&&coin?.spinning?"در حال چرخش...":"پرتاب سکه"}</button>
-        {coin&&!coin.spinning&&<p>انتخاب تو: {coin.guess} · نتیجه: {coin.side} · {coin.correct?"بردی":"باختی"}</p>}
+        <p role="status" style={{minHeight:60,margin:"12px 0 0"}}>{coinNotice}</p>
       </div>
     </Accordion>
 
     <Accordion title="تاس" summary={dice&&!dice.rolling?`عدد ${fa(dice.value)}`:"تاس گرافیکی ۱ تا ۶"} icon={<Icon name="games" size={18}/>}>
       <div className="gamePanel">
-        <div className={`dieFace${dice?.rolling?" rolling":""}`} data-n={String(dice?.value||1)}>{Array.from({length:9},(_,i)=><i key={i}/>)}</div>
+        <DiceVisual nodeRef={diceNode} active={Boolean(dice?.rolling)} value={dice?.value||1}/>
         <button className="primaryCta" disabled={busy} onClick={()=>void playDice()}>{dice?.rolling?"در حال ریختن...":"بریز تاس"}</button>
       </div>
     </Accordion>
