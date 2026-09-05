@@ -15,25 +15,27 @@ export default function StorePage(){
  const cached=readUiSnapshot();
  const[profile,setProfile]=useState<Profile>(cached?.profile||{});
  const[owned,setOwned]=useState<Owned[]>([]);
+ const[ownedProfile,setOwnedProfile]=useState<Owned[]>([]);
  const[busy,setBusy]=useState("");
  const[note,setNote]=useState("");
  const[qty,setQty]=useState<Record<string,number>>({});
  const[focus,setFocus]=useState("");
  const load=useCallback(()=>{const s=sessionStorage.getItem("familybot.session");if(!s)return;const headers={authorization:`Bearer ${s}`};
-  fetch("/api/family/profile/shell",{headers,cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&x.profile){setProfile(x.profile);cacheDashboardShell(x)}}).catch(()=>{});
+  fetch("/api/family/profile/shell",{headers,cache:"no-store"}).then(r=>r.json()).then(x=>{if(x.ok&&x.profile){setProfile(x.profile);setOwnedProfile(Array.isArray(x.ownedProfileItems)?x.ownedProfileItems:[]);cacheDashboardShell(x)}}).catch(()=>{});
   Promise.all([
    fetch("/api/family/dashboard",{headers,cache:"no-store"}).then(r=>r.json()),
    fetch("/api/family/house",{headers,cache:"no-store"}).then(r=>r.json()).catch(()=>null)
-  ]).then(([x,h])=>{if(x.ok&&x.dashboard){setProfile(v=>({...v,...(x.dashboard.profile||{})}));setOwned(x.dashboard.ownedItems||[]);cacheDashboardShell(x.dashboard)}if(h?.ok&&h.data?.materials){const m:Record<string,number>={};for(const row of h.data.materials)m[String(row.material)]=Number(row.quantity||0);setQty(m)}}).catch(()=>{})},[]);
+  ]).then(([x,h])=>{if(x.ok&&x.dashboard){setProfile(v=>({...v,...(x.dashboard.profile||{})}));setOwned((x.dashboard.ownedItems||[]).filter((row:Owned)=>row.item_kind!=="profile"));cacheDashboardShell(x.dashboard)}if(h?.ok&&h.data?.materials){const m:Record<string,number>={};for(const row of h.data.materials)m[String(row.material)]=Number(row.quantity||0);setQty(m)}}).catch(()=>{})},[]);
  useEffect(()=>{load();const q=new URLSearchParams(location.search).get("tab")||"";setFocus(q)},[load]);
  async function buy(id:string){const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(id);const item=STORE_ITEMS.find(x=>x.id===id);try{
   if(item?.stackable&&item.material){const r=await fetch("/api/family/house",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:"buy_material",material:item.material})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);setNote(`+${item.packQty||0} ${item.name} به انبار اضافه شد.`);load();return}
   const r=await fetch("/api/family/action",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({action:"store.purchase",payload:{itemId:id}})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);if(Number.isFinite(Number(x.data?.coins))){const coins=Number(x.data.coins);setProfile(v=>({...v,coins}));patchCachedProfile({coins})}setNote(x.data.alreadyOwned?"این آیتم رو قبلاً داری.":"خرید انجام شد.");load()
  }catch(e){setNote(e instanceof Error&&e.message==="insufficient_coins"?"سکه کافی نداری.":"خرید انجام نشد.")}finally{setBusy("")}}
  async function equip(itemId:string|null){const s=sessionStorage.getItem("familybot.session");if(!s)return setNote("Mini App را از داخل بله باز کن.");setBusy(`equip:${itemId||"none"}`);try{const r=await fetch("/api/family/action",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({action:"profile.equip",payload:{itemId}})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error);const equipped=x.data?.equipped_profile_item||null;setProfile(v=>({...v,equipped_profile_item:equipped}));patchCachedProfile({equipped_profile_item:equipped});setNote(equipped?"قاب پروفایل فعال شد.":"قاب پروفایل برداشته شد.")}catch{setNote("اعمال قاب انجام نشد؛ مطمئن شو این آیتم را خریده‌ای.")}finally{setBusy("")}}
- const own=new Set(owned.map(x=>x.item_id));
+ const combinedOwned=useMemo(()=>[...owned,...ownedProfile],[owned,ownedProfile]);
+ const own=new Set(combinedOwned.map(x=>x.item_id));
  const founder=Boolean(profile.is_founder);
- const inventory=useMemo(()=>{const unique=owned.map(row=>{const item=STORE_ITEMS.find(x=>x.id===row.item_id);return{id:row.item_id,name:row.item_name||item?.name||row.item_id,kind:row.item_kind,qty:1,stackable:false}});const mats=STORE_ITEMS.filter(i=>i.stackable&&i.material).map(i=>({id:i.id,name:i.name,kind:"material",qty:qty[i.material||""]||0,stackable:true})).filter(x=>x.qty>0);return[...mats,...unique]},[owned,qty]);
+ const inventory=useMemo(()=>{const unique=combinedOwned.map(row=>{const item=STORE_ITEMS.find(x=>x.id===row.item_id);return{id:row.item_id,name:row.item_name||item?.name||row.item_id,kind:row.item_kind,qty:1,stackable:false}});const mats=STORE_ITEMS.filter(i=>i.stackable&&i.material).map(i=>({id:i.id,name:i.name,kind:"material",qty:qty[i.material||""]||0,stackable:true})).filter(x=>x.qty>0);return[...mats,...unique]},[combinedOwned,qty]);
  return <main className="appShell storePage">
   <div className="ambient ambientA"/><div className="starField"/>
   <header className="appHeader"><a className="roundButton" href="/">←</a><div className="wordmark"><b>فروشگاه جهانی</b><span>{founder?"∞":fa(Number(profile.coins||0))} Family Coin</span></div><IconOrb name="store" tone="violet"/></header>

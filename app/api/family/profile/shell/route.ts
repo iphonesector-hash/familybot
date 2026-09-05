@@ -19,9 +19,11 @@ export async function GET(req:NextRequest){
     ]);
     if(profileRes.error)throw profileRes.error;if(familyRes.error)throw familyRes.error;if(countRes.error)throw countRes.error;
     const raw=profileRes.data;
+    const ownedProfileRes=raw?await s.from("member_items").select("id,item_id,item_name,item_kind").eq("family_id",session.familyId).eq("member_id",raw.id).eq("item_kind","profile").order("created_at",{ascending:false}):{data:[],error:null};
+    if(ownedProfileRes.error)throw ownedProfileRes.error;
     const resolved=raw?await avatar(s,raw.avatar_url):null;
     const profile=raw?{...raw,avatar_url:resolved,resolved_avatar_url:resolved,is_founder:Boolean(raw.is_founder||raw.role==="founder")}:null;
     const f=familyRes.data;
-    return NextResponse.json({ok:true,family:{id:f.id,name:f.name,level:Number(f.level||1),xp:Number(f.xp||0),coins:Number(f.coins||0),houseLevel:Number(f.house_level||1),membersCount:countRes.count||0},profile},{headers:{"cache-control":"no-store"}});
+    return NextResponse.json({ok:true,family:{id:f.id,name:f.name,level:Number(f.level||1),xp:Number(f.xp||0),coins:Number(f.coins||0),houseLevel:Number(f.house_level||1),membersCount:countRes.count||0},profile,ownedProfileItems:ownedProfileRes.data||[]},{headers:{"cache-control":"no-store"}});
   }catch(error){console.error("profile shell failed",error);return NextResponse.json({ok:false,error:"profile_shell_unavailable"},{status:500})}
 }

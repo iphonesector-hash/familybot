@@ -63,7 +63,15 @@ export function writeUiSnapshot(input:{family?:UiFamily|null;profile?:UiProfile|
 
 export function cacheDashboardShell(dashboard:any){
   if(!dashboard)return;
-  writeUiSnapshot({familyId:String(dashboard.family?.id||""),family:dashboard.family||undefined,profile:dashboard.profile||undefined});
+  let profile=dashboard.profile||undefined;
+  // The full dashboard currently uses short-lived signed avatar URLs. Keep the
+  // longer-lived avatar seeded by the lightweight profile shell instead of
+  // replacing it with a URL that can expire while the Mini App is closed.
+  if(dashboard.generatedAt&&profile){
+    const {avatar_url:_avatar,resolved_avatar_url:_resolved,...rest}=profile;
+    profile=rest;
+  }
+  writeUiSnapshot({familyId:String(dashboard.family?.id||""),family:dashboard.family||undefined,profile});
 }
 
 export function patchCachedProfile(patch:UiProfile){
