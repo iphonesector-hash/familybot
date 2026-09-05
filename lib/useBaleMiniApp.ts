@@ -56,6 +56,13 @@ function readWebApp(): BaleWebApp | null {
   }
 }
 
+// The SDK also creates window.Bale.WebApp in ordinary browsers.
+// These are host hints only; authentication still requires server-verified initData.
+export function isBaleHost(app:BaleWebApp|null,locationHint="",userAgent=""){
+  if(!app)return false;
+  return Boolean(app.initData || app.initDataUnsafe?.user?.id || app.isMiniAppSupported===true || app.isIframe || /(?:[?#&])(?:tg|bale)WebAppData=/.test(locationHint) || /\bBale\b/i.test(userAgent));
+}
+
 function hasWorkingSession(){
   try { return Boolean(sessionStorage.getItem("familybot.session")); } catch { return false; }
 }
@@ -118,5 +125,5 @@ export function useBaleMiniApp() {
     supported = !webApp || webApp.isMiniAppSupported !== false || hasIdentity;
   } catch {}
 
-  return { webApp, user, sendData, haptic, inBale: Boolean(webApp), supported, version, isIframe, initData, startParam, theme };
+  return { webApp, user, sendData, haptic, inBale: isBaleHost(webApp,typeof window!=="undefined"?window.location.search+window.location.hash:"",typeof navigator!=="undefined"?navigator.userAgent:""), supported, version, isIframe, initData, startParam, theme };
 }

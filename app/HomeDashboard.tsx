@@ -25,6 +25,7 @@ export default function HomeDashboard(){
   const sagoolAsset=stageFor(sagool?.level||1).asset;
   const avatar=(!brokenAvatar&&pickDisplayAvatar({stored:d.profile?.avatar_url,live:user?.photo_url}))||"";
   const cards=useMemo<FeatureCard[]>(()=>[
+    {icon:"family",title:"خانواده و ابزارها",text:"اعضا، صندوق و کارهای مشترک",href:"/section/family",tone:"violet"},
     {icon:"tree",title:"شجره‌نامه",text:"درخت تصویری و روابط خانواده",href:"/section/tree",tone:"violet"},
     {icon:"wheel",title:"گردونه شانس",text:"هر ۲۴ ساعت یک جایزه",href:"/section/wheel",tone:"gold"},
     {icon:"store",title:"فروشگاه",text:"خانه، سگول و پروفایل",href:"/section/store",tone:"violet"},
