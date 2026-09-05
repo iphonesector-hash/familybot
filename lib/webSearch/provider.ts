@@ -9,6 +9,36 @@ export function failed(provider:string,error:string,missingEnv?:string[]):Search
 export function safeSourceUrl(raw:unknown){try{const u=new URL(String(raw));return u.protocol==="https:"&&!u.username&&!u.password?u.href:null}catch{return null}}
 function fresh(seconds:unknown,maxAge:number){const n=Number(seconds),age=Date.now()-n*1000;return Number.isFinite(n)&&n>0&&age>=-60000&&age<=maxAge}
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR",{maximumFractionDigits:4}).format(n);
+function marketNumber(raw:unknown){
+  const faDigits="۰۱۲۳۴۵۶۷۸۹",arDigits="٠١٢٣٤٥٦٧٨٩";
+  const normalized=String(raw??"").replace(/[٬،,\s]/g,"").replace(/[۰-۹]/g,d=>String(faDigits.indexOf(d))).replace(/[٠-٩]/g,d=>String(arDigits.indexOf(d)));
+  const n=Number(normalized);return Number.isFinite(n)?n:NaN;
+}
+function sourceTime(raw:unknown){
+  if(raw===null||raw===undefined)return undefined;
+  const numeric=Number(raw);let ms=Number.isFinite(numeric)&&numeric>0?(numeric>1e12?numeric:numeric*1000):Date.parse(String(raw));
+  if(!Number.isFinite(ms)||ms>Date.now()+60000||ms<Date.now()-86400000)return undefined;
+  return new Date(ms).toISOString();
+}
+
+// Public structured fallback for Tehran market quotes. TGJU's current feed reports IRR.
+async function tgjuMarketQuote(kind:LiveKind):Promise<SearchResult>{
+  const item=kind==="currency"?"price_dollar_rl":"geram18";
+  const label=kind==="currency"?"دلار آمریکا، بازار آزاد":"هر گرم طلای ۱۸ عیار";
+  try{
+    const r=await fetch(`https://call3.tgju.org/ajax.json?rev=${Date.now()}`,{headers:{"user-agent":"Mozilla/5.0 (compatible; JAHANI-FamilyBot/1.0)"},cache:"no-store",signal:AbortSignal.timeout(8000)});
+    if(!r.ok)return failed("tgju",`http_${r.status}`);
+    const data=await r.json(),row=data?.current?.[item],rial=marketNumber(row?.p);
+    if(!Number.isFinite(rial)||rial<=0)return failed("tgju","invalid_quote");
+    const toman=rial/10,quote=`${label}: ${fa(toman)} تومان (${fa(rial)} ریال)`;
+    const publishedAt=sourceTime(row?.ts);
+    return{used:true,ok:true,provider:"tgju",fetchedAt:stamp(),quote,sources:[{title:"شبکه اطلاع‌رسانی طلا، سکه و ارز",url:"https://www.tgju.org/",content:quote,...(publishedAt?{publishedAt}:{})}]};
+  }catch{return failed("tgju","network_or_timeout")}
+}
+async function marketFallback(kind:LiveKind,primaryError:string,missingEnv?:string[]){
+  const fallback=await tgjuMarketQuote(kind);
+  return fallback.ok?fallback:failed("market",`${primaryError};tgju_${fallback.error||"failed"}`,missingEnv);
+}
 
 // Only the current public query is sent. Family context and conversation history never leave via search.
 export const tavilyProvider:SearchProvider={async search(query,kind){
@@ -52,28 +82,25 @@ export async function marketQuote(query:string,kind:LiveKind):Promise<SearchResu
       return{used:true,ok:true,provider:"coingecko",fetchedAt:stamp(),sources,quote:sources.map(s=>s.content).join("\n")};
     }catch{return failed("coingecko","network_or_timeout")}
   }
+  if(kind!=="currency"&&kind!=="gold")return failed("market","unsupported_kind");
+  if(kind==="currency"&&/(کانادا|استرالیا|رسمی|دولتی|توافقی|هرات|فردایی)/.test(query))return failed("navasan","unsupported_market");
+  if(kind==="gold"&&/(اونس|۲۴|24|آبشده|آب شده|سکه)/.test(query))return failed("navasan","unsupported_gold_instrument");
+
   const missing=[!process.env.NAVASAN_API_KEY?"NAVASAN_API_KEY":"",!process.env.NAVASAN_PRICE_UNIT?"NAVASAN_PRICE_UNIT":""].filter(Boolean);
-  if(missing.length)return failed("navasan","missing_configuration",missing);
-  // The documented payload has no unit field: require an explicitly verified account unit.
+  if(missing.length)return marketFallback(kind,"navasan_missing_configuration",missing);
+  // The documented Navasan payload has no unit field: require an explicitly verified account unit.
   const unit=process.env.NAVASAN_PRICE_UNIT;
-  if(unit!=="IRR"&&unit!=="IRT")return failed("navasan","invalid_price_unit",["NAVASAN_PRICE_UNIT"]);
-  const items:Array<{id:string;label:string}>=[];
-  if(kind==="currency"){
-    if(/(کانادا|استرالیا|رسمی|دولتی|توافقی|هرات|فردایی)/.test(query))return failed("navasan","unsupported_market");
-    items.push({id:/خرید/.test(query)?"usd_buy":"usd_sell",label:/خرید/.test(query)?"دلار آمریکا، خرید نقدی تهران":"دلار آمریکا، فروش نقدی تهران"});
-  }else{
-    if(/(اونس|۲۴|24|آبشده|آب شده|سکه)/.test(query))return failed("navasan","unsupported_gold_instrument");
-    items.push({id:"18ayar",label:"هر گرم طلای ۱۸ عیار"});
-  }
+  if(unit!=="IRR"&&unit!=="IRT")return marketFallback(kind,"navasan_invalid_price_unit",["NAVASAN_PRICE_UNIT"]);
+  const item=kind==="currency"?{id:/خرید/.test(query)?"usd_buy":"usd_sell",label:/خرید/.test(query)?"دلار آمریکا، خرید نقدی تهران":"دلار آمریکا، فروش نقدی تهران"}:{id:"18ayar",label:"هر گرم طلای ۱۸ عیار"};
   try{
-    const url=new URL("https://api.navasan.tech/latest/");url.searchParams.set("api_key",process.env.NAVASAN_API_KEY!);url.searchParams.set("item",items[0].id);
+    const url=new URL("https://api.navasan.tech/latest/");url.searchParams.set("api_key",process.env.NAVASAN_API_KEY!);url.searchParams.set("item",item.id);
     const r=await fetch(url,{cache:"no-store",redirect:"error",signal:AbortSignal.timeout(8000)});
-    if(!r.ok)return failed("navasan",`http_${r.status}`);
-    const data=await r.json(),row=data[items[0].id],value=Number(row?.value);
+    if(!r.ok)return marketFallback(kind,`navasan_http_${r.status}`);
+    const data=await r.json(),row=data[item.id],value=Number(row?.value);
     const tehranDay=(d:Date)=>d.toLocaleDateString("en-CA",{timeZone:"Asia/Tehran"});
-    if(!Number.isFinite(value)||value<=0||!fresh(row?.timestamp,86400000)||tehranDay(new Date(row.timestamp*1000))!==tehranDay(new Date()))return failed("navasan","invalid_or_stale_quote");
+    if(!Number.isFinite(value)||value<=0||!fresh(row?.timestamp,86400000)||tehranDay(new Date(row.timestamp*1000))!==tehranDay(new Date()))return marketFallback(kind,"navasan_invalid_or_stale_quote");
     const toman=unit==="IRR"?value/10:value;
-    const quote=`${items[0].label}: ${fa(toman)} تومان (${fa(toman*10)} ریال)`;
+    const quote=`${item.label}: ${fa(toman)} تومان (${fa(toman*10)} ریال)`;
     return{used:true,ok:true,provider:"navasan",fetchedAt:stamp(),quote,sources:[{title:"نوسان",url:"https://www.navasan.tech/",content:quote,publishedAt:new Date(row.timestamp*1000).toISOString()}]};
-  }catch{return failed("navasan","network_or_timeout")}
+  }catch{return marketFallback(kind,"navasan_network_or_timeout")}
 }
