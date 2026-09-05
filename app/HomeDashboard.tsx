@@ -25,11 +25,13 @@ export default function HomeDashboard(){
   const sagoolAsset=stageFor(sagool?.level||1).asset;
   const avatar=(!brokenAvatar&&pickDisplayAvatar({stored:d.profile?.avatar_url,live:user?.photo_url}))||"";
   const cards=useMemo<FeatureCard[]>(()=>[
+    {icon:"family",title:"خانواده و ابزارها",text:"اعضا، صندوق و کارهای مشترک",href:"/section/family",tone:"violet"},
     {icon:"tree",title:"شجره‌نامه",text:"درخت تصویری و روابط خانواده",href:"/section/tree",tone:"violet"},
     {icon:"wheel",title:"گردونه شانس",text:"هر ۲۴ ساعت یک جایزه",href:"/section/wheel",tone:"gold"},
     {icon:"store",title:"فروشگاه",text:"خانه، سگول و پروفایل",href:"/section/store",tone:"violet"},
     {icon:"wallet",title:"بانک و سکه",text:founder?"Founder · ∞":`${fa(d.profile?.coins||0)} سکه`,href:"/section/finance",tone:"gold"},
     {icon:"calendar",title:"برنامه‌ریز",text:`${fa(d.tasks.length)} کار باز`,href:"/section/planner",tone:"blue"},
+    {icon:"family",title:"خانواده ما",text:"دانشنامه، گالری و میراث",href:"/section/legacy",tone:"gold"},
     {icon:"memories",title:"خاطرات",text:`${fa(d.family.memoriesCount)} خاطره`,href:"/section/memories",tone:"cyan"},
     {icon:"games",title:"بازی‌ها",text:"سریع، کوئیز و گروهی",href:"/section/games",tone:"violet"},
     {icon:"gift",title:"سرگرمی و فرهنگ",text:"فال، شعر و دزفولی",href:"/section/fun",tone:"pink"},

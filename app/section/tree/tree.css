@@ -1,25 +1,46 @@
-.treePage{padding-bottom:24px}
-.treeToolbar{display:flex;gap:8px;align-items:center;margin:10px 0 12px}
+.treePage{padding-bottom:max(28px,calc(var(--safe-bottom) + 24px))}
+.treeToolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 12px}
 .treeToolbar button,.treeToolbar .treeAdd{min-height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;padding:0 12px;font-weight:800}
 .treeToolbar button.on{background:linear-gradient(145deg,#7b45ff,#39e0ff);color:#081018;border-color:transparent}
-.treeViewport{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:22px;padding:8px;background:linear-gradient(180deg,rgba(18,14,48,.55),rgba(8,10,28,.4));border:1px solid rgba(187,198,255,.12)}
-.treeBoard{position:relative;min-height:280px;margin:0 auto}
-.treeLines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.treeNode{position:absolute;width:92px;text-align:center;background:transparent;border:0;color:#fff;padding:0}
-.treeNode .treeAvatar{width:64px;height:64px;margin:0 auto;border-radius:50%;overflow:hidden;border:2px solid rgba(255,214,140,.45);background:radial-gradient(circle at 30% 20%,#8a5cff,#1a1038);display:grid;place-items:center;box-shadow:0 10px 20px rgba(0,0,0,.28)}
-.treeNode .treeAvatar img{width:100%;height:100%;object-fit:cover}
-.treeNode b{display:block;margin-top:6px;font-size:11px;line-height:1.4;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.treeViewport{overflow:hidden;touch-action:none;-webkit-overflow-scrolling:touch;border-radius:22px;min-height:360px;padding:8px 8px 88px;background:
+  radial-gradient(circle at 50% 118%,rgba(92,48,12,.55),transparent 42%),
+  linear-gradient(180deg,rgba(12,18,28,.92),rgba(8,10,20,.96));
+  border:1px solid rgba(196,154,90,.18)}
+.treeStage{position:relative;transform-origin:top center;will-change:transform}
+.treeArt{display:block}
+.treeNode{position:absolute;width:88px;text-align:center;background:transparent;border:0;color:#fff;padding:0;min-height:44px}
+.treeNode .treeAvatar,.treeAvatar{width:62px;height:62px;margin:0 auto;border-radius:50%;overflow:hidden;border:2px solid rgba(255,214,140,.55);background:radial-gradient(circle at 30% 20%,#8a5cff,#1a1038);display:grid;place-items:center;box-shadow:0 10px 22px rgba(0,0,0,.35)}
+.treeAvatar.sm{width:40px;height:40px;margin:0}
+.treeNode .treeAvatar img,.treeAvatar img{width:100%;height:100%;object-fit:cover}
+.treeNode b{display:block;margin-top:6px;font-size:11px;line-height:1.4;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .treeNode small{display:block;font-size:9px;color:#b7add4}
 .treeNode.on .treeAvatar{box-shadow:0 0 0 3px rgba(57,224,255,.45)}
+.treeNode.gone .treeAvatar{border-color:rgba(186,198,220,.7);filter:saturate(.7)}
 .treeEmpty{padding:28px 16px;text-align:center}
 .treeEmpty h2{margin:8px 0}
-.treeSheet{margin-top:12px;padding:14px}
+.treeSheet{margin-top:12px;padding:14px;text-align:right}
 .treeSheet form,.treeSheet .treeFields{display:grid;gap:8px}
-.treeSheet input,.treeSheet select,.treeSheet textarea{min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(8,10,28,.7);color:#fff;padding:10px 12px;font:inherit}
+.treeSheet label{display:grid;gap:6px;font-size:12px;color:#d5cfc4}
+.treeSheet input,.treeSheet select,.treeSheet textarea{min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(8,10,28,.7);color:#fff;padding:10px 12px;font:inherit;width:100%}
 .treeActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.treeActions button{min-height:44px}
+.treeActions button.on{border-color:#ffd27a}
 .treePhotoRow{display:flex;align-items:center;gap:10px}
 .treePhotoRow img,.treePhotoRow .ph{width:56px;height:56px;border-radius:50%;object-fit:cover;background:#1a1038}
 .treeDanger{border:1px solid rgba(255,105,150,.3)!important;background:rgba(90,18,48,.4)!important;color:#ffd5e5}
-@media(max-width:390px){
-  .treeNode{width:86px}
+.treeChoice,.treePickList{display:grid;gap:8px;margin:10px 0}
+.treeChoice button,.treePick{min-height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;text-align:right;padding:10px 12px}
+.treePick{display:flex;gap:10px;align-items:center}
+.treePick small{display:block;color:#b7add4}
+.treeHint{font-size:12px;line-height:1.8;color:#cbbba4}
+.treeLegacyLinks{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.treeLegacyLinks a{min-height:40px;display:inline-flex;align-items:center;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.relationRow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:8px 0}
+.treeCheck{display:flex!important;align-items:center;gap:8px}
+@media(max-width:430px){
+  .treeNode{width:82px}
+  .treeViewport{min-height:320px}
+}
+@media(prefers-reduced-motion:reduce){
+  .treeStage{transition:none}
 }

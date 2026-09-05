@@ -9,23 +9,24 @@ export default function AppSplash(){
     try{
       if(sessionStorage.getItem(SPLASH_DONE)==="1"){
         setShow(false);
-        return;
       }
     }catch{}
     const started=performance.now();
     let exitTimer:ReturnType<typeof setTimeout>|null=null;
     const hide=()=>{
+      if(exitTimer)clearTimeout(exitTimer);
       const wait=Math.max(0,850-(performance.now()-started));
       exitTimer=setTimeout(()=>{
         setShow(false);
         try{sessionStorage.setItem(SPLASH_DONE,"1")}catch{}
       },wait);
     };
-    window.addEventListener("familybot:boot-ready",hide,{once:true});
-    const fallback=setTimeout(hide,4600);
+    window.addEventListener("familybot:boot-ready",hide);
+    const wait=()=>{if(exitTimer)clearTimeout(exitTimer);setShow(true)};
+    window.addEventListener("familybot:boot-wait",wait);
     return()=>{
       window.removeEventListener("familybot:boot-ready",hide);
-      clearTimeout(fallback);
+      window.removeEventListener("familybot:boot-wait",wait);
       if(exitTimer)clearTimeout(exitTimer);
     };
   },[]);

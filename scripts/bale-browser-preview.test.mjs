@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {loader} from './phase2-content-probe.mjs';
+const {isBaleHost}=loader()('lib/useBaleMiniApp.ts');
+assert.equal(isBaleHost(null),false);
+assert.equal(isBaleHost({initData:'',isMiniAppSupported:false},'?debug=1','Mozilla/5.0 Safari/605.1'),false);
+assert.equal(isBaleHost({}),false,'loading the SDK is not proof of a Bale host');
+assert.equal(isBaleHost({initData:'signed-init-data',isMiniAppSupported:false}),true);
+assert.equal(isBaleHost({initDataUnsafe:{user:{id:123}}}),true);
+assert.equal(isBaleHost({isMiniAppSupported:true}),true);
+assert.equal(isBaleHost({isIframe:true}),true);
+assert.equal(isBaleHost({isMiniAppSupported:false},'#tgWebAppData=expired'),true,'invalid launch data still reaches server validation');
+assert.equal(isBaleHost({isMiniAppSupported:false},'','Bale/10.0'),true,'unsupported native host still gets actionable failure');
+assert.equal(isBaleHost({isMiniAppSupported:false},'?_vercel_share=fixture'),false);
+console.log('PASS: ordinary Safari/Chrome SDK is not Bale; native, iframe and signed launch detection preserved');

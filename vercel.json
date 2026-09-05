@@ -6,7 +6,9 @@
   },
   "git": {
     "deploymentEnabled": {
-      "revive-premium-ui": true
+      "revive-premium-ui": true,
+      "feat/family-legacy-encyclopedia": true,
+      "integration/jahani-release-candidate-20260905": true
     }
   },
   "crons": [

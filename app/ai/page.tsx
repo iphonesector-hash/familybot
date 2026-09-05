@@ -2,7 +2,7 @@
 import {FormEvent,useEffect,useRef,useState} from "react";
 import {Icon,Mascot,type MascotMood} from "../ui";
 
-type Msg={role:"user"|"assistant";content:string};
+type Msg={role:"user"|"assistant";content:string;sources?:Array<{title:string;url:string;publishedAt?:string}>;fetchedAt?:string};
 const INTRO="درود بر شما، من هوش مصنوعی سکتور هستم؛ چطور می‌تونم کمکتون کنم؟";
 const quick=[["calendar","ثبت برنامه","دورهمی جمعه ساعت ۲۰ ثبت کن"],["birthday","تولدهای نزدیک","تولدهای نزدیک رو بهم بگو"],["poll","نظرسنجی","نظرسنجی شام کجا باشه گزینه‌ها: خونه، رستوران بساز"],["spark","جستجوی اینترنت","در اینترنت آخرین خبر مهم فناوری امروز رو جستجو کن"]] as const;
 
@@ -31,7 +31,7 @@ export default function AiPage(){
       const r=await fetch("/api/ai/chat",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({message:value,history})});
       const x=await r.json().catch(()=>({}));
       const reply=r.status===401?"نشست بله منقضی شده؛ مینی‌اپ را ببند و دوباره از داخل بله باز کن.":String(x.reply||x.error||`خطای ${r.status}`);
-      setMsgs(v=>[...v,{role:"assistant",content:reply}]);
+      setMsgs(v=>[...v,{role:"assistant",content:reply,sources:Array.isArray(x.sources)?x.sources.filter((source:{url?:string})=>typeof source.url==="string"&&source.url.startsWith("https://")):[],fetchedAt:x.fetchedAt}]);
       if(r.ok&&x.reply)void speak(reply);
       else notify(reply);
     }catch(err){
@@ -69,6 +69,7 @@ export default function AiPage(){
           {msgs.slice(-24).map((m,i)=>(
             <div className={`chatBubble ${m.role}`} key={`${m.role}-${i}`}>
               <span>{m.content}</span>
+              {m.sources?.length?<div style={{display:"grid",gap:6,marginTop:8,fontSize:12}} aria-label="منابع پاسخ">{m.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title}{source.publishedAt?` · زمان منبع: ${new Date(source.publishedAt).toLocaleString("fa-IR",{timeZone:"Asia/Tehran"})}`:""}</a>)}{m.fetchedAt&&<small>زمان دریافت: {new Date(m.fetchedAt).toLocaleString("fa-IR",{timeZone:"Asia/Tehran"})} (تهران)</small>}</div>:null}
               {m.role==="assistant"&&<button onClick={()=>void speak(m.content)} aria-label="خواندن پاسخ">◖))</button>}
             </div>
           ))}

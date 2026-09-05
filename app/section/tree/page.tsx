@@ -1,26 +1,47 @@
 "use client";
-import {FormEvent,useCallback,useEffect,useMemo,useState} from "react";
+import {FormEvent,PointerEvent,TouchEvent,useCallback,useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
 import {Icon} from "../../ui";
 import {
-  RELATION_TYPES,
+  findSameNameMembers,
+  inTree,
   isTreeOnlyMember,
   layoutFamilyTree,
   memberName,
+  searchMembers,
   type TreeMember,
   type TreeRel,
 } from "@/lib/familyTree";
 import "./tree.css";
 
-type Mode="view"|"edit"|"add";
+type Sheet="view"|"edit"|"add"|"pick"|"actions"|null;
 const errText:Record<string,string>={
-  admin_required:"این تغییر فقط برای مدیر گروه مجازه.",
-  self_relation:"هیچ‌کس نمی‌تواند والد خودش باشد.",
-  parent_cycle:"این نسبت یک حلقه والد-فرزندی می‌سازد.",
-  duplicate_spouse:"این پیوند همسری قبلاً ثبت شده.",
-  linked_member:"عضو متصل به بله را نمی‌توان از شجره حذف کرد.",
-  name_required:"نام عضو لازم است.",
+  admin_required:"فقط مدیر یا مؤسس خانواده می‌تواند شجره را ویرایش کند.",
+  self_relation:"نسبت با خود فرد مجاز نیست.",
+  self_parent:"هیچ‌کس نمی‌تواند پدر یا مادر خودش باشد.",
+  self_child:"هیچ‌کس نمی‌تواند فرزند خودش باشد.",
+  self_spouse:"نمی‌توان همسر خود فرد را ثبت کرد.",
+  self_sibling:"نمی‌توان خواهر یا برادر خود فرد را ثبت کرد.",
+  parent_cycle:"این نسبت حلقه نسلی می‌سازد و رد شد.",
+  duplicate_spouse:"پیوند همسری تکراری است.",
+  duplicate_parent:"این والد قبلاً ثبت شده.",
+  duplicate_sibling:"این نسبت خواهر/برادری تکراری است.",
+  duplicate_relation:"این ارتباط قبلاً ثبت شده.",
+  linked_member:"عضو متصل به بله از شجره حذف نمی‌شود.",
+  name_required:"نام لازم است.",
+  member_has_legacy:"این فرد دستی به دانشنامه، یادبود، خاطره یا معرفی اعضا وصل است. اول آن محتوا را جدا کنید؛ حذف خاموش انجام نمی‌شود.",
+  sibling_type_required:"مشخص کنید این فرد برادر است یا خواهر.",
 };
+
+function memberHint(m:TreeMember,rels:TreeRel[]){
+  const bits=[
+    m.relation_label||"",
+    m.birthday?`متولد ${m.birthday.slice(0,4)}`:"",
+    isTreeOnlyMember(m)?"فرد دستی":"عضو بله",
+    inTree(rels,m.id)?"در شجره موجود است":"",
+  ].filter(Boolean);
+  return bits.join(" · ");
+}
 
 function ageFrom(birthday?:string|null){
   if(!birthday)return "";
@@ -29,7 +50,7 @@ function ageFrom(birthday?:string|null){
   const n=new Date();
   let age=n.getFullYear()-d.getFullYear();
   if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))age-=1;
-  return age>=0?`${age} سال` : "";
+  return age>=0?`${age} سال`:"";
 }
 
 export default function TreePage(){
@@ -38,131 +59,261 @@ export default function TreePage(){
   const[canManage,setCanManage]=useState(false);
   const[busy,setBusy]=useState(false);
   const[msg,setMsg]=useState("");
-  const[mode,setMode]=useState<Mode>("view");
-  const[selected,setSelected]=useState<string>("");
+  const[loading,setLoading]=useState(true);
+  const[sheet,setSheet]=useState<Sheet>("view");
+  const[selected,setSelected]=useState("");
+  const[editing,setEditing]=useState(false);
   const[scale,setScale]=useState(1);
+  const[pan,setPan]=useState({x:0,y:0});
+  const[links,setLinks]=useState<{profileId?:string|null;legendId?:string|null;memorialId?:string|null}|null>(null);
+  const drag=useRef<{x:number;y:number;px:number;py:number;moved:boolean}|null>(null);
+  const pinch=useRef<{dist:number;scale:number}|null>(null);
   const session=()=>sessionStorage.getItem("familybot.session")||"";
-  const load=useCallback(async()=>{
-    const s=session();if(!s)return;
-    const r=await fetch("/api/family/tree",{headers:{authorization:`Bearer ${s}`},cache:"no-store"});
+  const load=useCallback(async(memberId?:string)=>{
+    const s=session();if(!s){setLoading(false);setMsg("برای دیدن شجره، Mini App را از بله باز کن.");return}
+    const q=memberId?`?memberId=${encodeURIComponent(memberId)}`:"";
+    const r=await fetch(`/api/family/tree${q}`,{headers:{authorization:`Bearer ${s}`},cache:"no-store"});
     const d=await r.json();
-    if(d.ok){setMembers(d.members||[]);setRels(d.relationships||[]);setCanManage(Boolean(d.canManage))}
+    if(d.ok){setMembers(d.members||[]);setRels(d.relationships||[]);setCanManage(Boolean(d.canManage));if(d.links)setLinks(d.links)}
+    setLoading(false);
   },[]);
   useEffect(()=>{void load()},[load]);
   const layout=useMemo(()=>layoutFamilyTree(members,rels),[members,rels]);
   const current=members.find(m=>m.id===selected)||null;
   async function json(body:Record<string,unknown>){
     const s=session();if(!s)return null;
+    if(busy)return null;
     setBusy(true);setMsg("");
     try{
       const r=await fetch("/api/family/tree",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify(body)});
       const d=await r.json();
       if(!r.ok||!d.ok)throw new Error(d.error||"tree_failed");
-      setMsg(body.action==="member.delete"?"عضو از شجره‌نامه حذف شد.":"شجره‌نامه به‌روزرسانی شد.");
-      await load();
+      setMsg(body.action==="member.delete"?"فرد دستی از شجره جدا شد.":"شجره‌نامه به‌روزرسانی شد.");
+      await load(selected);
       return d as Record<string,unknown>;
     }catch(e){
       const key=e instanceof Error?e.message:"";
-      setMsg(errText[key]||"ذخیره انجام نشد.");
+      setMsg(errText[key]||"ثبت ارتباط انجام نشد.");
       return null;
     }finally{setBusy(false)}
   }
   async function upload(memberId:string,file:File){
     const s=session();if(!s)return;
-    if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("فقط عکس JPG، PNG یا WebP قابل ذخیره است.");return}
+    if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("فرمت این عکس پشتیبانی نمی‌شود. از JPG، PNG یا WebP استفاده کنید.");return}
+    if(file.size>4*1024*1024){setMsg("حجم فایل بیشتر از ۴ مگابایت است.");return}
     setBusy(true);setMsg("");
     try{
       const form=new FormData();form.set("memberId",memberId);form.set("file",file);
       const r=await fetch("/api/family/tree",{method:"POST",headers:{authorization:`Bearer ${s}`},body:form});
       const d=await r.json();if(!r.ok||!d.ok)throw new Error();
-      setMsg("عکس عضو ذخیره شد.");
-      await load();
+      setMsg("عکس ذخیره شد.");await load(selected);
     }catch{setMsg("آپلود عکس انجام نشد.")}
     finally{setBusy(false)}
   }
+  function fit(){
+    const box=document.querySelector(".treeViewport")?.clientWidth||320;
+    const next=Math.max(.55,Math.min(1.15,box/(layout.width+24)));
+    setScale(next);setPan({x:0,y:0});
+  }
+  function onPointerDown(e:PointerEvent<HTMLDivElement>){
+    if((e.target as HTMLElement).closest(".treeNode"))return;
+    drag.current={x:pan.x,y:pan.y,px:e.clientX,py:e.clientY,moved:false};
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e:PointerEvent<HTMLDivElement>){
+    if(!drag.current)return;
+    const dx=e.clientX-drag.current.px,dy=e.clientY-drag.current.py;
+    if(Math.abs(dx)+Math.abs(dy)>8)drag.current.moved=true;
+    setPan({x:drag.current.x+dx,y:drag.current.y+dy});
+  }
+  function onTouchStart(e:TouchEvent<HTMLDivElement>){
+    if(e.touches.length===2){
+      const a=e.touches[0],b=e.touches[1];
+      pinch.current={dist:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),scale};
+    }
+  }
+  function onTouchMove(e:TouchEvent<HTMLDivElement>){
+    if(e.touches.length===2&&pinch.current){
+      const a=e.touches[0],b=e.touches[1];
+      const dist=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+      setScale(Math.max(.5,Math.min(1.6,pinch.current.scale*(dist/pinch.current.dist))));
+    }
+  }
   function openMember(id:string){
-    setSelected(id);
-    if(canManage)setMode("edit");
+    if(drag.current?.moved)return;
+    setSelected(id);setSheet(editing&&canManage?"actions":"view");void load(id);
   }
   return <main className="appShell treePage">
     <div className="ambient ambientA"/><div className="starField"/>
     <header className="appHeader">
-      <Link className="roundButton" href="/section/family">←</Link>
-      <div className="wordmark"><b>شجره‌نامه</b><span>نمای خانواده</span></div>
+      <Link className="roundButton" href="/">←</Link>
+      <div className="wordmark"><b>شجره‌نامه</b><span>{editing?"حالت ویرایش":"درخت خانواده"}</span></div>
       <span className="profileAvatar"><Icon name="tree"/></span>
     </header>
     {msg&&<div className="adminNotice">{msg}</div>}
     <div className="treeToolbar">
-      <button className={mode==="view"?"on":""} onClick={()=>setMode("view")}>نمایش</button>
-      {canManage&&<button className={mode==="edit"?"on":""} onClick={()=>setMode("edit")}>ویرایش</button>}
-      {canManage&&<button className={`treeAdd${mode==="add"?" on":""}`} onClick={()=>setMode("add")}>+ افزودن عضو</button>}
-      <button onClick={()=>setScale(s=>Math.max(.7,Number((s-.1).toFixed(2))))}>−</button>
-      <button onClick={()=>setScale(s=>Math.min(1.3,Number((s+.1).toFixed(2))))}>+</button>
+      <button className={!editing?"on":""} onClick={()=>{setEditing(false);setSheet("view")}}>نمایش</button>
+      {canManage&&<button className={editing?"on":""} onClick={()=>setEditing(true)}>ویرایش</button>}
+      {canManage&&<button className="treeAdd" onClick={()=>setSheet("add")}>افزودن فرد</button>}
+      <button onClick={()=>setScale(s=>Math.max(.5,Number((s-.12).toFixed(2))))} aria-label="کوچک">−</button>
+      <button onClick={()=>setScale(s=>Math.min(1.6,Number((s+.12).toFixed(2))))} aria-label="بزرگ">+</button>
+      <button onClick={fit}>نمایش کامل</button>
+      <button onClick={()=>{setScale(1);setPan({x:0,y:0})}}>بازگشت به نمای اولیه</button>
     </div>
-    {!members.length
-      ? <section className="premiumPanel treeEmpty">
-          <Icon name="tree" size={36}/>
-          <h2>شجره‌نامه خانواده هنوز ساخته نشده</h2>
-          <p>اولین عضو را اضافه کن تا درخت خانواده شکل بگیرد.</p>
-          {canManage&&<button className="primaryCta" onClick={()=>setMode("add")}>اولین عضو را اضافه کن</button>}
-        </section>
-      : <div className="treeViewport">
-          <div className="treeBoard" style={{width:layout.width*scale,height:layout.height*scale}}>
-            <div style={{transform:`scale(${scale})`,transformOrigin:"top right",width:layout.width,height:layout.height,position:"relative"}}>
-              <svg className="treeLines" viewBox={`0 0 ${layout.width} ${layout.height}`}>
-                {layout.parentLines.map((l,i)=><path key={`p${i}`} d={`M${l.x1} ${l.y1} C${l.x1} ${(l.y1+l.y2)/2}, ${l.x2} ${(l.y1+l.y2)/2}, ${l.x2} ${l.y2}`} fill="none" stroke="rgba(186,150,255,.7)" strokeWidth="2"/>)}
-                {layout.spouseLines.map((l,i)=><line key={`s${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(255,214,140,.7)" strokeWidth="2"/>)}
+    {loading?<section className="premiumPanel treeEmpty">در حال بارگذاری شجره‌نامه…</section>
+      :!members.length
+        ? <section className="premiumPanel treeEmpty">
+            <Icon name="tree" size={36}/>
+            <h2>هنوز شجره‌نامه‌ای ساخته نشده</h2>
+            <p>اولین عضو خانواده را اضافه کنید.</p>
+            {canManage&&<button className="primaryCta" onClick={()=>setSheet("add")}>افزودن فرد</button>}
+          </section>
+        : <div className="treeViewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>{drag.current=null}} onTouchStart={onTouchStart} onTouchMove={onTouchMove}>
+            <div className="treeStage" style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${scale})`}}>
+              <svg className="treeArt" viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
+                <defs>
+                  <linearGradient id="bark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c48a3a"/><stop offset="100%" stopColor="#5a3112"/></linearGradient>
+                  <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f3d08a"/><stop offset="100%" stopColor="#8a5cff"/></linearGradient>
+                </defs>
+                {layout.branches.filter(b=>b.kind==="root").map((b,i)=><path key={`r${i}`} d={b.d} fill={i===0?"url(#bark)":"none"} stroke={i?"#c49a5a":"none"} strokeWidth={i?3:0} opacity=".9"/>)}
+                {layout.branches.filter(b=>b.kind==="parent").map((b,i)=><path key={`p${i}`} d={b.d} fill="none" stroke="url(#leaf)" strokeWidth="3"/>)}
+                {layout.branches.filter(b=>b.kind==="spouse").map((b,i)=><path key={`s${i}`} d={b.d} fill="none" stroke="#ffd27a" strokeWidth="2.4"/>)}
               </svg>
               {layout.nodes.map(n=>(
-                <button key={n.member.id} className={`treeNode${selected===n.member.id?" on":""}`} style={{left:n.x,top:n.y}} onClick={()=>openMember(n.member.id)}>
+                <button key={n.member.id} className={`treeNode${selected===n.member.id?" on":""}${n.member.death_date?" gone":""}`} style={{left:n.x,top:n.y}} onClick={()=>openMember(n.member.id)}>
                   <div className="treeAvatar">{n.member.avatar_url?<img src={n.member.avatar_url} alt=""/>:<Icon name="profile" size={22}/>}</div>
                   <b>{memberName(n.member)}</b>
-                  <small>{n.member.relation_label||ageFrom(n.member.birthday)||""}</small>
+                  <small>{n.member.relation_label||ageFrom(n.member.birthday)||(isTreeOnlyMember(n.member)?"ثبت دستی":"")}</small>
                 </button>
               ))}
             </div>
-          </div>
-        </div>}
-    {mode==="add"&&canManage&&<AddSheet busy={busy} members={members} onSave={json} onCancel={()=>setMode("view")}/>}
-    {mode==="edit"&&canManage&&current&&<EditSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onUpload={upload} onClose={()=>setMode("view")}/>}
-    {mode==="view"&&current&&<section className="premiumPanel treeSheet">
-      <span className="eyebrow">برگه عضو</span>
+          </div>}
+    {sheet==="add"&&canManage&&<AddSheet members={members} rels={rels} busy={busy} onSave={json} onPickExisting={()=>setSheet("pick")} onCancel={()=>setSheet("view")}/>}
+    {sheet==="pick"&&canManage&&<PickSheet members={members} rels={rels} onPick={id=>{setSelected(id);setSheet("actions")}} onCancel={()=>setSheet("add")}/>}
+    {sheet==="actions"&&canManage&&current&&<ActionSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onEdit={()=>setSheet("edit")} onClose={()=>setSheet("view")}/>}
+    {sheet==="edit"&&canManage&&current&&<EditSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onUpload={upload} onClose={()=>setSheet("view")}/>}
+    {sheet==="view"&&current&&<section className="premiumPanel treeSheet">
+      <span className="eyebrow">برگه فرد</span>
       <h2>{memberName(current)}</h2>
-      <p>{current.relation_label||"نسبت ثبت نشده"}{ageFrom(current.birthday)?` · ${ageFrom(current.birthday)}`:""}</p>
-      {canManage&&<button className="primaryCta" onClick={()=>setMode("edit")}>ویرایش این عضو</button>}
+      <p>{current.relation_label||(isTreeOnlyMember(current)?"فرد دستی":"عضو خانواده")}{ageFrom(current.birthday)?` · ${ageFrom(current.birthday)}`:""}{current.death_date?` · درگذشت ${current.death_date}`:""}</p>
+      <div className="treeLegacyLinks">
+        <Link href={`/section/legacy/people${links?.profileId?`/${links.profileId}`:""}`}>معرفی اعضا</Link>
+        <Link href="/section/legacy/legends">چهره‌های ماندگار</Link>
+        {current.death_date||links?.memorialId?<Link href={links?.memorialId?`/section/legacy/memorials/${links.memorialId}`:"/section/legacy/memorials"}>آسمانی‌ها</Link>:null}
+        <Link href="/section/legacy/gallery">تصاویر</Link>
+        <Link href="/section/legacy/journal">خاطرات</Link>
+        <Link href="/section/legacy/encyclopedia">دانشنامه</Link>
+      </div>
+      {canManage&&editing&&<button className="primaryCta" onClick={()=>setSheet("actions")}>اقدامات ویرایش</button>}
     </section>}
   </main>;
 }
 
-function AddSheet({members,busy,onSave,onCancel}:{members:TreeMember[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onCancel:()=>void}){
-  const[first,setFirst]=useState(""),[last,setLast]=useState(""),[label,setLabel]=useState("فرزند"),[birth,setBirth]=useState(""),[parent,setParent]=useState(""),[spouse,setSpouse]=useState("");
+function AddSheet({members,rels,busy,onSave,onPickExisting,onCancel}:{members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onPickExisting:()=>void;onCancel:()=>void}){
+  const[tab,setTab]=useState<"choose"|"manual">("choose");
+  const[first,setFirst]=useState(""),[last,setLast]=useState(""),[label,setLabel]=useState(""),[birth,setBirth]=useState(""),[death,setDeath]=useState(""),[gender,setGender]=useState("");
+  const[warn,setWarn]=useState<TreeMember[]|null>(null);
+  async function createOther(){
+    const d=await onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null,gender:gender||null});
+    if(d)onCancel();
+  }
   function submit(e:FormEvent){
     e.preventDefault();
-    void (async()=>{
-      const created=await onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null});
-      const id=created&&typeof created.memberId==="string"?created.memberId:"";
-      if(id&&parent)await onSave({action:"relation.save",fromMemberId:parent,toMemberId:id,relationType:label==="مادر"?"مادر":"پدر"});
-      if(id&&spouse)await onSave({action:"relation.save",fromMemberId:id,toMemberId:spouse,relationType:"همسر"});
-      if(created)onCancel();
-    })();
+    const same=findSameNameMembers(members,{first_name:first,last_name:last,display_name:[first,last].filter(Boolean).join(" ")});
+    if(same.length&&!warn){setWarn(same);return}
+    void createOther();
   }
   return <section className="premiumPanel treeSheet">
-    <span className="eyebrow">+ افزودن عضو</span>
-    <h2>عضو جدید خانواده</h2>
-    <form onSubmit={submit}>
-      <input value={first} onChange={e=>setFirst(e.target.value)} placeholder="نام" required/>
-      <input value={last} onChange={e=>setLast(e.target.value)} placeholder="نام خانوادگی"/>
-      <select value={label} onChange={e=>setLabel(e.target.value)}>{RELATION_TYPES.map(x=><option key={x}>{x}</option>)}</select>
-      <input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/>
-      {members.length>0&&<>
-        <select value={parent} onChange={e=>setParent(e.target.value)}><option value="">والد (اختیاری)</option>{members.map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>
-        <select value={spouse} onChange={e=>setSpouse(e.target.value)}><option value="">همسر (اختیاری)</option>{members.map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>
-      </>}
+    <span className="eyebrow">افزودن فرد</span>
+    <h2>چگونه اضافه شود؟</h2>
+    <div className="treeChoice">
+      <button type="button" className={tab==="choose"?"on":""} onClick={()=>{setTab("choose");onPickExisting()}}>انتخاب از اعضای خانواده</button>
+      <button type="button" className={tab==="manual"?"on":""} onClick={()=>setTab("manual")}>ثبت فرد به‌صورت دستی</button>
+    </div>
+    {tab==="manual"&&<form onSubmit={submit}>
+      <label>نام<input value={first} onChange={e=>{setFirst(e.target.value);setWarn(null)}} required/></label>
+      <label>نام خانوادگی<input value={last} onChange={e=>{setLast(e.target.value);setWarn(null)}}/></label>
+      <label>نسبت (اختیاری)<input value={label} onChange={e=>setLabel(e.target.value)}/></label>
+      <label>جنسیت (برای نمایش)
+        <select value={gender} onChange={e=>setGender(e.target.value)}><option value="">نامشخص</option><option value="male">مرد</option><option value="female">زن</option></select>
+      </label>
+      <label>تاریخ تولد (اختیاری)<input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/></label>
+      <label>تاریخ فوت (اختیاری)<input type="date" value={death} onChange={e=>setDeath(e.target.value)}/></label>
+      {warn&&<div className="adminNotice">
+        <p>فردی با نام مشابه در خانواده وجود دارد. لطفاً بررسی کنید که این شخص همان فرد نباشد.</p>
+        {warn.map(m=><button type="button" key={m.id} className="treePick" onClick={onPickExisting}><b>{memberName(m)}</b><small>{memberHint(m,rels)}</small></button>)}
+        <div className="treeActions">
+          <button type="button" onClick={onPickExisting}>استفاده از فرد موجود</button>
+          <button type="button" className="adminSave" disabled={busy} onClick={()=>void createOther()}>این فرد شخص دیگری است</button>
+        </div>
+      </div>}
+      <p className="treeHint">فرمت‌های مجاز عکس بعد از ثبت: JPG، PNG، WebP — حداکثر ۴ مگابایت</p>
+      {members.length===0?<p className="treeHint">این فرد می‌تواند ریشه شجره باشد.</p>:null}
       <div className="treeActions">
-        <button className="adminSave" disabled={busy||!first.trim()}>ثبت عضو</button>
+        <button className="adminSave" disabled={busy||!first.trim()}>{warn?"ادامه بررسی نام":"ثبت فرد دستی"}</button>
         <button type="button" onClick={onCancel}>انصراف</button>
       </div>
-    </form>
+    </form>}
+  </section>;
+}
+
+function PickSheet({members,rels,onPick,onCancel}:{members:TreeMember[];rels:TreeRel[];onPick:(id:string)=>void;onCancel:()=>void}){
+  const[q,setQ]=useState("");
+  const list=searchMembers(members,q);
+  return <section className="premiumPanel treeSheet">
+    <span className="eyebrow">اعضای خانواده</span>
+    <h2>انتخاب از اعضای خانواده</h2>
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="جستجوی نام"/>
+    <div className="treePickList">
+      {list.map(m=><button key={m.id} className="treePick" onClick={()=>onPick(m.id)}>
+        <span className="treeAvatar sm">{m.avatar_url?<img src={m.avatar_url} alt=""/>:<Icon name="profile" size={18}/>}</span>
+        <span><b>{memberName(m)}</b><small>{memberHint(m,rels)}</small></span>
+      </button>)}
+    </div>
+    <button onClick={onCancel}>بازگشت</button>
+  </section>;
+}
+
+function ActionSheet({member,members,rels,busy,onSave,onEdit,onClose}:{member:TreeMember;members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onEdit:()=>void;onClose:()=>void}){
+  const[kind,setKind]=useState<"پدر"|"مادر"|"همسر"|"فرزند"|"برادر"|"">("");
+  const[target,setTarget]=useState("");
+  const[make,setMake]=useState(false);
+  const[first,setFirst]=useState("");
+  const[sibType,setSibType]=useState<"برادر"|"خواهر"|"">("");
+  const[gender,setGender]=useState("");
+  async function apply(){
+    let id=target;
+    if(make){
+      const created=await onSave({action:"member.create",firstName:first,displayName:first,relationLabel:kind==="برادر"?sibType||kind:kind,gender:kind==="برادر"?(sibType==="خواهر"?"female":sibType==="برادر"?"male":gender||null):null});
+      id=created&&typeof created.memberId==="string"?created.memberId:"";
+    }
+    if(!id||!kind)return;
+    if(kind==="پدر"||kind==="مادر")await onSave({action:"relation.save",fromMemberId:id,toMemberId:member.id,relationType:kind});
+    else if(kind==="فرزند")await onSave({action:"relation.save",fromMemberId:member.id,toMemberId:id,relationType:"فرزند"});
+    else if(kind==="همسر")await onSave({action:"relation.save",fromMemberId:member.id,toMemberId:id,relationType:"همسر"});
+    else await onSave({action:"relation.sibling",fromMemberId:member.id,toMemberId:id,siblingType:sibType||undefined});
+    setKind("");setTarget("");setMake(false);setFirst("");setSibType("");setGender("");
+  }
+  const chosen=members.find(m=>m.id===target);
+  const needSibType=kind==="برادر"&&!(chosen?.gender==="male"||chosen?.gender==="female"||sibType);
+  return <section className="premiumPanel treeSheet">
+    <span className="eyebrow">اقدامات</span>
+    <h2>{memberName(member)}</h2>
+    <div className="treeActions">
+      <button onClick={onEdit}>ویرایش فرد</button>
+      {(["پدر","مادر","همسر","فرزند","برادر"] as const).map(k=><button key={k} className={kind===k?"on":""} onClick={()=>setKind(k)}>{k==="برادر"?"افزودن خواهر/برادر":`افزودن ${k}`}</button>)}
+      <button onClick={onClose}>مشاهده جزئیات</button>
+    </div>
+    {kind&&<>
+      <p className="treeHint">{kind==="برادر"?"خواهر یا برادر را انتخاب یا ثبت کن.":`برای افزودن ${kind} یک عضو موجود را انتخاب کن یا فرد دستی بساز.`}</p>
+      <label className="treeCheck"><input type="checkbox" checked={make} onChange={e=>setMake(e.target.checked)}/> ثبت فرد به‌صورت دستی</label>
+      {make?<input value={first} onChange={e=>setFirst(e.target.value)} placeholder="نام فرد جدید"/>:
+        <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">انتخاب از اعضای خانواده</option>{members.filter(m=>m.id!==member.id).map(m=><option key={m.id} value={m.id}>{memberName(m)} — {memberHint(m,rels)}</option>)}</select>}
+      {kind==="برادر"&&<label>نسبت
+        <select value={sibType} onChange={e=>setSibType(e.target.value as "برادر"|"خواهر"|"")}><option value="">انتخاب کنید</option><option value="برادر">برادر</option><option value="خواهر">خواهر</option></select>
+      </label>}
+      <button className="adminSave" disabled={busy||(make?!first.trim():!target)||needSibType} onClick={()=>void apply()}>ثبت ارتباط</button>
+    </>}
   </section>;
 }
 
@@ -171,48 +322,38 @@ function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:Tr
   const[last,setLast]=useState(member.last_name||"");
   const[label,setLabel]=useState(member.relation_label||"");
   const[birth,setBirth]=useState((member.birthday||"").slice(0,10));
-  const[from,setFrom]=useState(member.id);
-  const[to,setTo]=useState("");
-  const[type,setType]=useState("پدر");
+  const[death,setDeath]=useState((member.death_date||"").slice(0,10));
   useEffect(()=>{
-    setFirst(member.first_name||"");
-    setLast(member.last_name||"");
-    setLabel(member.relation_label||"");
-    setBirth((member.birthday||"").slice(0,10));
-    setFrom(member.id);
+    setFirst(member.first_name||"");setLast(member.last_name||"");setLabel(member.relation_label||"");
+    setBirth((member.birthday||"").slice(0,10));setDeath((member.death_date||"").slice(0,10));
   },[member]);
   const mine=rels.filter(r=>r.from_member_id===member.id||r.to_member_id===member.id);
   const names=new Map(members.map(m=>[m.id,memberName(m)]));
   return <section className="premiumPanel treeSheet">
-    <span className="eyebrow">ویرایش عضو</span>
+    <span className="eyebrow">ویرایش فرد</span>
     <h2>{memberName(member)}</h2>
     <div className="treePhotoRow">
       {member.avatar_url?<img src={member.avatar_url} alt=""/>:<span className="ph"><Icon name="profile"/></span>}
       <label className="primaryCta">تغییر عکس
         <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)void onUpload(member.id,f);e.currentTarget.value=""}}/>
       </label>
-      {member.avatar_url&&<button disabled={busy} onClick={()=>void onSave({action:"member.photo.remove",memberId:member.id})}>حذف عکس</button>}
     </div>
+    <p className="treeHint">فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۴ مگابایت</p>
     <div className="treeFields">
       <input value={first} onChange={e=>setFirst(e.target.value)} placeholder="نام"/>
       <input value={last} onChange={e=>setLast(e.target.value)} placeholder="نام خانوادگی"/>
       <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="نسبت"/>
       <input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/>
-      <button className="adminSave" disabled={busy} onClick={()=>void onSave({action:"member.update",memberId:member.id,firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null})}>ذخیره مشخصات</button>
+      <input type="date" value={death} onChange={e=>setDeath(e.target.value)}/>
+      <button className="adminSave" disabled={busy} onClick={()=>void onSave({action:"member.update",memberId:member.id,firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null})}>ذخیره مشخصات</button>
     </div>
-    <h3>نسبت‌ها</h3>
-    {mine.map(r=><div className="dashboardCard relationRow" key={r.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,alignItems:"center"}}>
-      <span>{names.get(r.from_member_id)} ← {r.relation_type} → {names.get(r.to_member_id)}</span>
-      <button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("این رابطه حذف شود؟"))void onSave({action:"relation.delete",relationId:r.id})}}>حذف</button>
+    <h3>حذف ارتباط از شجره</h3>
+    {mine.map(r=><div className="relationRow" key={r.id}>
+      <span>{names.get(r.from_member_id)} · {r.relation_type} · {names.get(r.to_member_id)}</span>
+      <button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("فقط این ارتباط حذف شود؟ حساب کاربری پاک نمی‌شود."))void onSave({action:"relation.delete",relationId:r.id})}}>حذف ارتباط</button>
     </div>)}
-    <div className="treeFields" style={{marginTop:10}}>
-      <select value={from} onChange={e=>setFrom(e.target.value)}>{members.map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>
-      <select value={type} onChange={e=>setType(e.target.value)}>{RELATION_TYPES.map(x=><option key={x}>{x}</option>)}</select>
-      <select value={to} onChange={e=>setTo(e.target.value)}><option value="">عضو مقابل</option>{members.filter(m=>m.id!==from).map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>
-      <button className="adminSave" disabled={busy||!to} onClick={()=>void onSave({action:"relation.save",fromMemberId:from,toMemberId:to,relationType:type})}>ثبت نسبت</button>
-    </div>
     <div className="treeActions">
-      {isTreeOnlyMember(member)&&<button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("این عضو از شجره‌نامه حذف شود؟"))void onSave({action:"member.delete",memberId:member.id})}}>حذف عضو</button>}
+      {isTreeOnlyMember(member)&&<button className="treeDanger" disabled={busy} onClick={()=>{if(window.confirm("فرد دستی از شجره حذف شود؟ نسبت‌ها پاک می‌شوند. عضو بله و محتوای خانواده ما حذف نمی‌شود."))void onSave({action:"member.delete",memberId:member.id})}}>حذف فرد دستی</button>}
       <button onClick={onClose}>بستن</button>
     </div>
   </section>;
