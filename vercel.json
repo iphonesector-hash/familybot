@@ -6,7 +6,8 @@
   },
   "git": {
     "deploymentEnabled": {
-      "revive-premium-ui": true
+      "revive-premium-ui": true,
+      "feat/family-legacy-encyclopedia": true
     }
   },
   "crons": [

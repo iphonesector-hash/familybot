@@ -26,7 +26,11 @@ function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Family Core database is not configured");
-  return createClient(url, key, {db: {schema: "familybot"}, auth: {persistSession: false, autoRefreshToken: false}});
+  return createClient(url, key, {
+    db: {schema: "familybot"},
+    auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false},
+    global: {headers: {Authorization: `Bearer ${key}`, apikey: key}},
+  });
 }
 
 async function actorFor(familyId: string, chatId: number, userId: number): Promise<AccessActor & {userId: number; familyId: string}> {
