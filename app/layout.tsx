@@ -9,6 +9,7 @@ import AppSplash from "./AppSplash";
 import SoundFX from "./SoundFX";
 import BottomNav from "./BottomNav";
 import BuildMarker from "./BuildMarker";
+import InternalNavigationBridge from "./InternalNavigationBridge";
 import "./globals.css";
 import "./motion.css";
 import "./platform.css";
@@ -20,4 +21,4 @@ import "./premium-ui.css";
 import "./build-marker.css";
 export const metadata:Metadata={title:"JAHANI | خانواده بزرگ جهانی",description:"دستیار هوشمند، مدیریت، سرگرمی و زندگی دیجیتال خانواده بزرگ جهانی در بله",applicationName:"JAHANI",appleWebApp:{capable:true,title:"JAHANI",statusBarStyle:"black-translucent"},formatDetection:{telephone:false}};
 export const viewport:Viewport={width:"device-width",initialScale:1,viewportFit:"cover",themeColor:"#020817"};
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="fa" dir="rtl" suppressHydrationWarning><head><Script src="https://tapi.bale.ai/miniapp.js?3" strategy="beforeInteractive"/></head><body><AppSplash/><SoundFX/><SessionBridge/><BaleBridge/><MiniAppBootstrap/><NativeBaleNav/><BirthdayMode/><BuildMarker/>{children}<BottomNav/></body></html>}
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="fa" dir="rtl" suppressHydrationWarning><head><Script src="https://tapi.bale.ai/miniapp.js?3" strategy="beforeInteractive"/></head><body><AppSplash/><SoundFX/><SessionBridge/><BaleBridge/><MiniAppBootstrap/><NativeBaleNav/><BirthdayMode/><BuildMarker/><InternalNavigationBridge/>{children}<BottomNav/></body></html>}

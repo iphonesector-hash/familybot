@@ -3,10 +3,12 @@ import {createClient} from "@supabase/supabase-js";
 import {validateBaleInitData} from "@/lib/baleMiniAppAuth";
 import {createFamilySession} from "@/lib/familySession";
 import {isAdmin} from "@/lib/bale";
-import {balePhotoDiagnostic,extractBalePhotoUrl,isFamilyUpload} from "@/lib/avatarResolve";
+import {balePhotoDiagnostic,extractBalePhotoUrl,isFamilyUpload,usableHttpUrl} from "@/lib/avatarResolve";
 import {ensureMemberBaleAvatar} from "@/lib/baleProfilePhoto";
 
+const AVATAR_BUCKET="familybot-avatars";
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)throw new Error("Family Core database is not configured");return createClient(url,key,{db:{schema:"familybot"},auth:{persistSession:false,autoRefreshToken:false}})}
+async function displayAvatar(s:ReturnType<typeof db>,value:string){if(!value)return null;if(value.startsWith("storage:")){const signed=await s.storage.from(AVATAR_BUCKET).createSignedUrl(value.slice(8),43200);return signed.error?null:signed.data.signedUrl}return usableHttpUrl(value)}
 
 export async function POST(req:NextRequest){
  try{
@@ -15,7 +17,7 @@ export async function POST(req:NextRequest){
   const diag=balePhotoDiagnostic(init.user);
   console.info("[bale.photo]",diag);
   const supabase=db();
-  const {data:members,error}=await supabase.from("members").select("id,family_id,bale_user_id,display_name,first_name,last_active_at,is_founder,role,avatar_url,families!members_family_id_fkey(id,name,bale_chat_id)").eq("bale_user_id",init.user.id).order("last_active_at",{ascending:false});
+  const {data:members,error}=await supabase.from("members").select("id,family_id,bale_user_id,display_name,first_name,last_active_at,is_founder,role,avatar_url,xp,coins,level,streak,equipped_profile_item,families!members_family_id_fkey(id,name,bale_chat_id)").eq("bale_user_id",init.user.id).order("last_active_at",{ascending:false});
   if(error)throw error;
   const rows=(members||[]).filter((m:any)=>m.families?.bale_chat_id);
   if(!rows.length)return NextResponse.json({ok:true,status:"needs_family",user:init.user,photoDiagnostic:diag});
@@ -41,8 +43,9 @@ export async function POST(req:NextRequest){
   }
   const finalValue=String(patch.avatar_url||selected.avatar_url||"");
   const finalAvatarSource=isFamilyUpload(finalValue)?"uploaded-family":photo?"miniapp":finalValue.startsWith("storage:bale/")?"bale-api":"none";
-  console.info("[bale.photo]",{initUserPresent:diag.userPresent,baleUserIdPresent:diag.userIdPresent,miniAppPhotoPresent:Boolean(photo),miniAppPhotoUsable:Boolean(photo),fallbackAttempt:!photo,getUserProfilePhotosStatus:(pipeline as any).getUserProfilePhotos||"unsupported_not_called",getChatStatus:(pipeline as any).getChatPhoto||"not_attempted",getFileStatus:(pipeline as any).getFile||"not_attempted",fileDownloaded:Boolean((pipeline as any).downloaded),storageUploadSucceeded:Boolean((pipeline as any).stored),avatarStoredAsStoragePath:finalValue.startsWith("storage:"),signedUrlGenerated:false,finalAvatarPresent:Boolean(finalValue),finalAvatarSource});
+  console.info("[bale.photo]",{initUserPresent:diag.userPresent,baleUserIdPresent:diag.userIdPresent,miniAppPhotoPresent:Boolean(photo),miniAppPhotoUsable:Boolean(photo),fallbackAttempt:!photo,getUserProfilePhotosStatus:(pipeline as any).getUserProfilePhotos||"unsupported_not_called",getChatStatus:(pipeline as any).getChatPhoto||"not_attempted",getFileStatus:(pipeline as any).getFile||"not_attempted",fileDownloaded:Boolean((pipeline as any).downloaded),storageUploadSucceeded:Boolean((pipeline as any).stored),avatarStoredAsStoragePath:finalValue.startsWith("storage:"),signedUrlGenerated:false,finalAvatarPresent:Boolean(finalValue),finalAvatarSource,serverResolve});
   const updated=await supabase.from("members").update(patch).eq("id",selected.id).eq("family_id",selected.family_id);if(updated.error)throw updated.error;
-  return NextResponse.json({ok:true,status:"ready",session:token,canManage,family:{id:selected.family_id,name:selected.families?.name||"خانواده",chatId},user:{...init.user,photo_url:photo||init.user.photo_url},photoDiagnostic:diag});
+  const avatarUrl=await displayAvatar(supabase,finalValue);
+  return NextResponse.json({ok:true,status:"ready",session:token,canManage,family:{id:selected.family_id,name:selected.families?.name||"خانواده",chatId},profileSeed:{id:selected.id,display_name:selected.display_name,first_name:selected.first_name,avatar_url:avatarUrl,resolved_avatar_url:avatarUrl,xp:Number(selected.xp||0),coins:Number(selected.coins||0),level:Number(selected.level||1),streak:Number(selected.streak||0),is_founder:founder,equipped_profile_item:selected.equipped_profile_item||null},user:{...init.user,photo_url:photo||init.user.photo_url},photoDiagnostic:diag});
  }catch(error){console.error("Bale Mini App session bootstrap failed",error);return NextResponse.json({ok:false,error:"bootstrap_failed"},{status:500})}
 }

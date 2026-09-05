@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFamilySession } from "@/lib/familySession";
 import { isAdmin } from "@/lib/bale";
-import { completeFamilyTask, createFamilyTask, createMemory, isFamilyFounder, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
+import { completeFamilyTask, createFamilyTask, createMemory, equipProfileItem, isFamilyFounder, purchaseStoreItem, updateOwnProfile } from "@/lib/familyMutations";
 import { createFamilyEvent, createFamilyPoll, evaluateAchievements, readMissions, transferFamilyCoins, voteFamilyPoll } from "@/lib/familyFeatures";
 import { claimMission } from "@/lib/missionClaims";
 import { readPlannerData } from "@/lib/plannerData";
@@ -16,6 +16,7 @@ export async function POST(req:NextRequest){
     let data:unknown;
     switch(body.action){
       case "profile.update":data=await updateOwnProfile(session.familyId,session.userId,{displayName:p.displayName as string,relationLabel:p.relationLabel as string,bio:p.bio as string,birthday:(p.birthday as string)||null});break;
+      case "profile.equip":data=await equipProfileItem(session.familyId,session.userId,p.itemId?String(p.itemId):null);break;
       case "task.create":{
         const requestedReward=Math.max(0,Number(p.rewardCoins||0));
         if(requestedReward>0){const canReward=await isAdmin(session.chatId,session.userId).catch(()=>false)||await isFamilyFounder(session.familyId,session.userId).catch(()=>false);if(!canReward)return NextResponse.json({ok:false,error:"admin_required_for_reward"},{status:403})}
@@ -37,5 +38,5 @@ export async function POST(req:NextRequest){
       default:return NextResponse.json({ok:false,error:"unknown_action"},{status:400});
     }
     return NextResponse.json({ok:true,data});
-  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed","mission_not_complete","poll_not_owned","event_not_owned"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
+  }catch(error){const message=error instanceof Error?error.message:"action_failed";const status=["insufficient_coins","coin_balance_changed","mission_not_complete","poll_not_owned","event_not_owned","item_not_owned"].includes(message)?409:400;console.error("family action failed",error);return NextResponse.json({ok:false,error:message},{status});}
 }
