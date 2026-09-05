@@ -37,13 +37,20 @@ assert.equal(resolveChatCompletionsUrl("https://llm.example.com/openai/v1/chat/c
 const helper=load("lib/aiProvider.ts");
 assert.match(helper,/resolveChatCompletionsUrl/);
 assert.match(helper,/completeChat/);
+assert.match(helper,/DEFAULT_MODEL="openai\/gpt-oss-120b"/);
+assert.match(helper,/reasoning_format="hidden"/);
+assert.match(helper,/sanitizeModelText/);
+assert.match(helper,/openai\/gpt-oss-120b/);
+assert.match(helper,/openai\/gpt-oss-20b/);
 assert.doesNotMatch(helper,/\$\{base\}\/chat\/completions/);
 
 const chat=load("app/api/ai/chat/route.ts");
 assert.match(chat,/from "@\/lib\/aiProvider"/);
 assert.match(chat,/completeChat/);
 assert.match(chat,/request_accepted/);
-assert.match(chat,/final_reply/);
+assert.match(chat,/kind:"live_web"/);
+assert.match(chat,/web\.answer/);
+assert.match(chat,/فرایند فکر/);
 assert.doesNotMatch(chat,/\$\{base\}\/chat\/completions/);
 
 const remote=load("lib/contentRemote.ts");
@@ -60,6 +67,23 @@ assert.doesNotMatch(remote,/\$\{base\}\/chat\/completions/);
 
 const group=load("lib/groupSectorAi.ts");
 assert.match(group,/from "@\/lib\/aiProvider"/);
+assert.match(group,/from "@\/lib\/webSearch"/);
+assert.match(group,/searchLive\(message\)/);
+assert.match(group,/LIVE_SEARCH_WARNING/);
+assert.match(group,/web\.answer\|\|web\.quote/);
+assert.doesNotMatch(group,/duckduckgo/i);
 assert.doesNotMatch(group,/\$\{base\}\/chat\/completions/);
 
-console.log("ai-provider: endpoint normalization and shared helper assertions passed");
+const web=load("lib/webSearch/provider.ts");
+assert.match(web,/groqCompoundProvider/);
+assert.match(web,/groq\/compound/);
+assert.match(web,/web_search/);
+assert.match(web,/visit_website/);
+assert.match(web,/GROQ_API_KEY/);
+assert.match(web,/answer\?:string/);
+
+const index=load("lib/webSearch/index.ts");
+assert.match(index,/groqCompoundProvider/);
+assert.match(index,/provider!==tavilyProvider/);
+
+console.log("ai-provider: stable model, hidden reasoning, shared live web fallback assertions passed");
