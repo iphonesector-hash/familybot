@@ -4,12 +4,14 @@ import { verifyFamilySession } from "@/lib/familySession";
 
 const Body=z.object({text:z.string().min(1).max(2500)});
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
+function speechText(v:string){return v.replace(/https?:\/\/\S+/gi," ").replace(/[`*_#~>|\[\](){}]/g," ").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu," ").replace(/\s+/g," ").trim()}
 
 export async function POST(req:NextRequest){
   try{
     const session=sessionFrom(req);
     if(!session)return new Response(JSON.stringify({error:"unauthorized"}),{status:401,headers:{"content-type":"application/json","cache-control":"no-store"}});
-    const {text}=Body.parse(await req.json());
+    const parsed=Body.parse(await req.json()),text=speechText(parsed.text);
+    if(!text)return new Response(JSON.stringify({error:"empty_tts_text"}),{status:400,headers:{"content-type":"application/json","cache-control":"no-store"}});
     const key=process.env.ELEVENLABS_API_KEY;
     const voiceId=process.env.ELEVENLABS_VOICE_ID;
     const modelId=process.env.ELEVENLABS_MODEL_ID||"eleven_multilingual_v2";
