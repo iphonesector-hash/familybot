@@ -148,6 +148,36 @@ assert.ok(encyclopedia.includes("وضعیت انتشار"));
 assert.ok(encyclopedia.includes("ذخیره پیش‌نویس"));
 assert.ok(encyclopedia.includes("ارسال برای تأیید"));
 assert.equal((encyclopedia.match(/همه اعضای خانواده/g) || []).length, 1);
+assert.ok(encyclopedia.includes("فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۲۰ مگابایت"));
+
+const gallery = readFileSync(new URL("../app/section/legacy/gallery/page.tsx", import.meta.url), "utf8");
+assert.ok(gallery.includes("video/quicktime"));
+assert.ok(gallery.includes("فرمت‌های مجاز: JPG، PNG، WebP، MP4، MOV — حداکثر حجم هر فایل ۲۰ مگابایت"));
+
+const mediaApi = readFileSync(new URL("../app/api/family/memory-media/route.ts", import.meta.url), "utf8");
+assert.ok(mediaApi.includes('["video/quicktime","mov"]'));
+assert.ok(mediaApi.includes("20*1024*1024"));
+
+const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"]);
+const MAX = 20 * 1024 * 1024;
+function mediaMsg(file) {
+  if (Number(file.size || 0) > MAX) return "حجم فایل بیشتر از ۲۰ مگابایت است.";
+  if (ALLOWED.has(String(file.type || ""))) return "";
+  if (String(file.type || "").startsWith("video/")) return "فرمت این ویدیو پشتیبانی نمی‌شود. از MP4 یا MOV استفاده کنید.";
+  if (String(file.type || "").startsWith("image/")) return "فرمت این عکس پشتیبانی نمی‌شود. از JPG، PNG یا WebP استفاده کنید.";
+  return "فرمت این فایل پشتیبانی نمی‌شود. از JPG، PNG، WebP، MP4 یا MOV استفاده کنید.";
+}
+assert.equal(mediaMsg({type: "image/jpeg", size: 10}), "");
+assert.equal(mediaMsg({type: "image/png", size: 10}), "");
+assert.equal(mediaMsg({type: "image/webp", size: 10}), "");
+assert.equal(mediaMsg({type: "video/mp4", size: 10}), "");
+assert.equal(mediaMsg({type: "video/quicktime", size: 10}), "");
+assert.ok(mediaMsg({type: "image/gif", size: 10}).includes("JPG"));
+assert.ok(mediaMsg({type: "video/webm", size: 10}).includes("MP4 یا MOV"));
+assert.equal(mediaMsg({type: "video/mp4", size: MAX + 1}), "حجم فایل بیشتر از ۲۰ مگابایت است.");
+assert.ok(!ALLOWED.has("video/webm"));
+assert.ok(!ALLOWED.has("image/heic"));
+
 
 
 console.log("family-legacy tests passed");

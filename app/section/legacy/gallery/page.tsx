@@ -45,8 +45,9 @@ export default function GalleryPage(){
         <textarea name="description" rows={2} placeholder="شرح"/>
         <select name="album_id" defaultValue=""><option value="">بدون آلبوم</option>{albums.map((a:any)=><option key={a.id} value={a.id}>{a.title}</option>)}</select>
         <label>تاریخ تقریبی یا دقیق<input name="taken_on" type="date"/></label>
-        <label className="legacyFile">فایل تصویر یا فیلم MP4
-          <input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" required/>
+        <label className="legacyFile">فایل تصویر یا فیلم
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" required/>
+          <span className="legacyHint">فرمت‌های مجاز: JPG، PNG، WebP، MP4، MOV — حداکثر حجم هر فایل ۲۰ مگابایت</span>
         </label>
         <div>{(Array.isArray(members)?members:[]).map((m:any)=><label key={m.id} className="legacyCheck"><input type="checkbox" name="tagged" value={m.id}/>{m.name}</label>)}</div>
         <label>سطح دسترسی

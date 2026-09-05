@@ -30,7 +30,10 @@ export default function LegendsPage(){
         <textarea name="why_important" rows={3} placeholder="چرا برای خانواده مهم است؟"/>
         <textarea name="achievements" rows={3} placeholder="دستاوردها"/>
         <textarea name="biography" rows={6} placeholder="زندگی‌نامه"/>
-        <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+        <label className="legacyFile">تصویر
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+          <span className="legacyHint">فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۲۰ مگابایت</span>
+        </label>
         <select name="visibility" defaultValue="family"><option value="family">خانواده</option><option value="close_family">بستگان نزدیک</option><option value="private">فقط خودم</option></select>
         <select name="status" defaultValue="pending"><option value="draft">پیش‌نویس</option><option value="pending">ارسال برای تأیید</option>{admin?<option value="approved">تأیید و انتشار</option>:null}</select>
         {admin?<label><input type="checkbox" name="featured" value="1"/> نمایش ویژه</label>:null}

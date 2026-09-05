@@ -37,7 +37,10 @@ export default function MemorialsPage(){
         <textarea name="personal_history" rows={4} placeholder="داستان زندگی"/>
         <textarea name="quotes" rows={2} placeholder="جمله‌ای به یادماندنی"/>
         <textarea name="cemetery_info" rows={2} placeholder="آرامگاه؛ فقط اگر خانواده بخواهد"/>
-        <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+        <label className="legacyFile">تصویر
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+          <span className="legacyHint">فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۲۰ مگابایت</span>
+        </label>
         <select name="visibility" defaultValue="family"><option value="family">خانواده</option><option value="close_family">بستگان نزدیک</option><option value="private">فقط خودم</option><option value="admins">مدیران</option></select>
         <select name="status" defaultValue={admin?"approved":"pending"}><option value="draft">پیش‌نویس</option><option value="pending">ارسال برای تأیید</option>{admin?<option value="approved">انتشار محترمانه</option>:null}</select>
         <button className="adminSave" disabled={busy}>ثبت یادبود</button>

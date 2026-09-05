@@ -68,7 +68,10 @@ export default function PeoplePage(){
         <textarea name="personal_story" rows={5} placeholder="داستان شخصی"/>
         <label>تولد (اختیاری)<input name="birthday" type="date"/></label>
         <label>ازدواج (اختیاری)<input name="marriage_date" type="date"/></label>
-        <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+        <label className="legacyFile">تصویر
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp"/>
+          <span className="legacyHint">فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۲۰ مگابایت</span>
+        </label>
         <select name="visibility" defaultValue="family"><option value="family">همه اعضای خانواده</option><option value="close_family">بستگان نزدیک</option><option value="private">فقط خودم</option><option value="admins">مدیران</option></select>
         <button className="adminSave" disabled={busy}>ذخیره معرفی</button>
       </form>

@@ -26,6 +26,7 @@
 .legacyComposer h2{margin:0 0 12px;font-size:18px}
 .legacyFile input[type=file]{font-size:13px;padding:8px;max-width:100%}
 .legacyFileName{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#b9b0cf}
+.legacyHint{display:block;font-size:11px;line-height:1.7;color:#b9b0cf;white-space:normal}
 .legacyStatus{border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
 .legacyStatus legend{padding:0 6px;font-size:12px;color:#d5cfc4}
 .legacyStatus button{min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font-size:13px}

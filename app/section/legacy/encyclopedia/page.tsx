@@ -34,7 +34,8 @@ export default function EncyclopediaPage(){
         <label>برچسب‌ها<input name="tags" placeholder="با ، جدا کنید"/></label>
         <label className="legacyFile">تصویر اصلی
           <input name="file" type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFileName(e.target.files?.[0]?.name||"")}/>
-          <span className="legacyFileName">{fileName||"JPG، PNG یا WebP"}</span>
+          <span className="legacyFileName">{fileName||"فایلی انتخاب نشده"}</span>
+          <span className="legacyHint">فرمت‌های مجاز عکس: JPG، PNG، WebP — حداکثر حجم ۲۰ مگابایت</span>
         </label>
         <label>سطح دسترسی
           <select name="visibility" defaultValue="family">

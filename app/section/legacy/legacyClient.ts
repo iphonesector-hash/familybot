@@ -22,14 +22,31 @@ export async function legacyAct(action: string, payload: Record<string, unknown>
   return d.data;
 }
 
+export const LEGACY_MAX_BYTES = 20 * 1024 * 1024;
+export const LEGACY_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"]);
+
+export function legacyMediaMessage(file: {type?: string; size?: number}) {
+  if (Number(file.size || 0) > LEGACY_MAX_BYTES) return "حجم فایل بیشتر از ۲۰ مگابایت است.";
+  if (LEGACY_MEDIA_TYPES.has(String(file.type || ""))) return "";
+  if (String(file.type || "").startsWith("video/")) return "فرمت این ویدیو پشتیبانی نمی‌شود. از MP4 یا MOV استفاده کنید.";
+  if (String(file.type || "").startsWith("image/")) return "فرمت این عکس پشتیبانی نمی‌شود. از JPG، PNG یا WebP استفاده کنید.";
+  return "فرمت این فایل پشتیبانی نمی‌شود. از JPG، PNG، WebP، MP4 یا MOV استفاده کنید.";
+}
+
 export async function uploadLegacyFile(file: File) {
   const session = sessionStorage.getItem("familybot.session");
   if (!session) throw new Error("برای آپلود، Mini App را از داخل بله باز کن.");
+  const local = legacyMediaMessage(file);
+  if (local) throw new Error(local);
   const form = new FormData();
   form.set("file", file);
   const r = await fetch("/api/family/memory-media", {method: "POST", headers: {authorization: `Bearer ${session}`}, body: form, cache: "no-store"});
   const d = await r.json();
-  if (!r.ok || !d.ok) throw new Error(d.error === "file_too_large" ? "حجم فایل باید حداکثر ۲۰ مگابایت باشد." : d.error === "unsupported_media_type" ? "فقط JPG، PNG، WebP یا MP4 پشتیبانی می‌شود." : "آپلود انجام نشد.");
+  if (!r.ok || !d.ok) {
+    if (d.error === "file_too_large") throw new Error("حجم فایل بیشتر از ۲۰ مگابایت است.");
+    if (d.error === "unsupported_media_type") throw new Error(legacyMediaMessage({type: file.type, size: 1}));
+    throw new Error("آپلود انجام نشد.");
+  }
   return {mediaRef: String(d.mediaRef || ""), kind: String(d.kind || "image")};
 }
 
