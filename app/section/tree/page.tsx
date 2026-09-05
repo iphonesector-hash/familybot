@@ -12,6 +12,7 @@ import {
   type TreeMember,
   type TreeRel,
 } from "@/lib/familyTree";
+import {displayJalali,jalaliToIso} from "@/lib/jalaliDate";
 import "./tree.css";
 
 type Sheet="view"|"edit"|"add"|"pick"|"actions"|null;
@@ -29,14 +30,16 @@ const errText:Record<string,string>={
   duplicate_relation:"این ارتباط قبلاً ثبت شده.",
   linked_member:"عضو متصل به بله از شجره حذف نمی‌شود.",
   name_required:"نام لازم است.",
+  tree_offline_members_required:"ثبت فرد دستی هنوز در دیتابیس فعال نشده است. migration شجره‌نامه را اعمال کنید.",
   member_has_legacy:"این فرد دستی به دانشنامه، یادبود، خاطره یا معرفی اعضا وصل است. اول آن محتوا را جدا کنید؛ حذف خاموش انجام نمی‌شود.",
   sibling_type_required:"مشخص کنید این فرد برادر است یا خواهر.",
 };
 
 function memberHint(m:TreeMember,rels:TreeRel[]){
+  const birth=displayJalali(m.birthday);
   const bits=[
     m.relation_label||"",
-    m.birthday?`متولد ${m.birthday.slice(0,4)}`:"",
+    birth?`متولد ${birth.slice(0,4)}`:"",
     isTreeOnlyMember(m)?"فرد دستی":"عضو بله",
     inTree(rels,m.id)?"در شجره موجود است":"",
   ].filter(Boolean);
@@ -51,6 +54,13 @@ function ageFrom(birthday?:string|null){
   let age=n.getFullYear()-d.getFullYear();
   if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))age-=1;
   return age>=0?`${age} سال`:"";
+}
+
+function JalaliDateField({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}){
+  return <label>{label}
+    <input inputMode="numeric" dir="ltr" value={value} onChange={e=>onChange(e.target.value)} placeholder="۱۴۰۳/۰۷/۱۵" maxLength={10}/>
+    <small className="treeHint">تاریخ شمسی، به شکل سال/ماه/روز</small>
+  </label>;
 }
 
 export default function TreePage(){
@@ -98,16 +108,16 @@ export default function TreePage(){
     }finally{setBusy(false)}
   }
   async function upload(memberId:string,file:File){
-    const s=session();if(!s)return;
-    if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("فرمت این عکس پشتیبانی نمی‌شود. از JPG، PNG یا WebP استفاده کنید.");return}
-    if(file.size>4*1024*1024){setMsg("حجم فایل بیشتر از ۴ مگابایت است.");return}
+    const s=session();if(!s)return false;
+    if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("فرمت این عکس پشتیبانی نمی‌شود. از JPG، PNG یا WebP استفاده کنید.");return false}
+    if(file.size>4*1024*1024){setMsg("حجم فایل بیشتر از ۴ مگابایت است.");return false}
     setBusy(true);setMsg("");
     try{
       const form=new FormData();form.set("memberId",memberId);form.set("file",file);
       const r=await fetch("/api/family/tree",{method:"POST",headers:{authorization:`Bearer ${s}`},body:form});
       const d=await r.json();if(!r.ok||!d.ok)throw new Error();
-      setMsg("عکس ذخیره شد.");await load(selected);
-    }catch{setMsg("آپلود عکس انجام نشد.")}
+      setMsg("عکس ذخیره شد.");await load(selected);return true;
+    }catch{setMsg("آپلود عکس انجام نشد.");return false}
     finally{setBusy(false)}
   }
   function fit(){
@@ -188,14 +198,14 @@ export default function TreePage(){
               ))}
             </div>
           </div>}
-    {sheet==="add"&&canManage&&<AddSheet members={members} rels={rels} busy={busy} onSave={json} onPickExisting={()=>setSheet("pick")} onCancel={()=>setSheet("view")}/>}
+    {sheet==="add"&&canManage&&<AddSheet members={members} rels={rels} busy={busy} onSave={json} onUpload={upload} onPickExisting={()=>setSheet("pick")} onCancel={()=>setSheet("view")}/>}
     {sheet==="pick"&&canManage&&<PickSheet members={members} rels={rels} onPick={id=>{setSelected(id);setSheet("actions")}} onCancel={()=>setSheet("add")}/>}
     {sheet==="actions"&&canManage&&current&&<ActionSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onEdit={()=>setSheet("edit")} onClose={()=>setSheet("view")}/>}
     {sheet==="edit"&&canManage&&current&&<EditSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onUpload={upload} onClose={()=>setSheet("view")}/>}
     {sheet==="view"&&current&&<section className="premiumPanel treeSheet">
       <span className="eyebrow">برگه فرد</span>
       <h2>{memberName(current)}</h2>
-      <p>{current.relation_label||(isTreeOnlyMember(current)?"فرد دستی":"عضو خانواده")}{ageFrom(current.birthday)?` · ${ageFrom(current.birthday)}`:""}{current.death_date?` · درگذشت ${current.death_date}`:""}</p>
+      <p>{current.relation_label||(isTreeOnlyMember(current)?"فرد دستی":"عضو خانواده")}{current.birthday?` · تولد ${displayJalali(current.birthday)}`:""}{ageFrom(current.birthday)?` · ${ageFrom(current.birthday)}`:""}{current.death_date?` · درگذشت ${displayJalali(current.death_date)}`:""}</p>
       <div className="treeLegacyLinks">
         <Link href={`/section/legacy/people${links?.profileId?`/${links.profileId}`:""}`}>معرفی اعضا</Link>
         <Link href="/section/legacy/legends">چهره‌های ماندگار</Link>
@@ -209,13 +219,24 @@ export default function TreePage(){
   </main>;
 }
 
-function AddSheet({members,rels,busy,onSave,onPickExisting,onCancel}:{members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onPickExisting:()=>void;onCancel:()=>void}){
+function AddSheet({members,rels,busy,onSave,onUpload,onPickExisting,onCancel}:{members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onUpload:(id:string,file:File)=>Promise<boolean>;onPickExisting:()=>void;onCancel:()=>void}){
   const[tab,setTab]=useState<"choose"|"manual">("choose");
   const[first,setFirst]=useState(""),[last,setLast]=useState(""),[label,setLabel]=useState(""),[birth,setBirth]=useState(""),[death,setDeath]=useState(""),[gender,setGender]=useState("");
+  const[photo,setPhoto]=useState<File|null>(null);
+  const[dateError,setDateError]=useState("");
   const[warn,setWarn]=useState<TreeMember[]|null>(null);
   async function createOther(){
-    const d=await onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null,gender:gender||null});
-    if(d)onCancel();
+    const birthday=birth.trim()?jalaliToIso(birth):null;
+    const deathDate=death.trim()?jalaliToIso(death):null;
+    if(birth.trim()&&!birthday){setDateError("تاریخ تولد شمسی معتبر نیست. نمونه: ۱۴۰۳/۰۷/۱۵");return}
+    if(death.trim()&&!deathDate){setDateError("تاریخ فوت شمسی معتبر نیست. نمونه: ۱۴۰۳/۰۷/۱۵");return}
+    if(birthday&&deathDate&&deathDate<birthday){setDateError("تاریخ فوت نمی‌تواند قبل از تاریخ تولد باشد.");return}
+    setDateError("");
+    const d=await onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday,deathDate,gender:gender||null});
+    if(!d)return;
+    const memberId=typeof d.memberId==="string"?d.memberId:"";
+    if(photo&&memberId)await onUpload(memberId,photo);
+    onCancel();
   }
   function submit(e:FormEvent){
     e.preventDefault();
@@ -237,8 +258,17 @@ function AddSheet({members,rels,busy,onSave,onPickExisting,onCancel}:{members:Tr
       <label>جنسیت (برای نمایش)
         <select value={gender} onChange={e=>setGender(e.target.value)}><option value="">نامشخص</option><option value="male">مرد</option><option value="female">زن</option></select>
       </label>
-      <label>تاریخ تولد (اختیاری)<input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/></label>
-      <label>تاریخ فوت (اختیاری)<input type="date" value={death} onChange={e=>setDeath(e.target.value)}/></label>
+      <div className="treePhotoRow">
+        <span className="ph"><Icon name="profile"/></span>
+        <label className="primaryCta">{photo?"تغییر عکس":"انتخاب عکس"}
+          <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={busy} onChange={e=>{setPhoto(e.target.files?.[0]||null);e.currentTarget.value=""}}/>
+        </label>
+      </div>
+      {photo?<p className="treeHint">عکس انتخاب‌شده: {photo.name}</p>:null}
+      <p className="treeHint">JPG، PNG یا WebP — حداکثر ۴ مگابایت</p>
+      <JalaliDateField label="تاریخ تولد (اختیاری)" value={birth} onChange={value=>{setBirth(value);setDateError("")}}/>
+      <JalaliDateField label="تاریخ فوت (اختیاری)" value={death} onChange={value=>{setDeath(value);setDateError("")}}/>
+      {dateError?<div className="adminNotice">{dateError}</div>:null}
       {warn&&<div className="adminNotice">
         <p>فردی با نام مشابه در خانواده وجود دارد. لطفاً بررسی کنید که این شخص همان فرد نباشد.</p>
         {warn.map(m=><button type="button" key={m.id} className="treePick" onClick={onPickExisting}><b>{memberName(m)}</b><small>{memberHint(m,rels)}</small></button>)}
@@ -247,7 +277,6 @@ function AddSheet({members,rels,busy,onSave,onPickExisting,onCancel}:{members:Tr
           <button type="button" className="adminSave" disabled={busy} onClick={()=>void createOther()}>این فرد شخص دیگری است</button>
         </div>
       </div>}
-      <p className="treeHint">فرمت‌های مجاز عکس بعد از ثبت: JPG، PNG، WebP — حداکثر ۴ مگابایت</p>
       {members.length===0?<p className="treeHint">این فرد می‌تواند ریشه شجره باشد.</p>:null}
       <div className="treeActions">
         <button className="adminSave" disabled={busy||!first.trim()}>{warn?"ادامه بررسی نام":"ثبت فرد دستی"}</button>
@@ -317,18 +346,28 @@ function ActionSheet({member,members,rels,busy,onSave,onEdit,onClose}:{member:Tr
   </section>;
 }
 
-function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:TreeMember;members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onUpload:(id:string,file:File)=>Promise<void>;onClose:()=>void}){
+function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:TreeMember;members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onUpload:(id:string,file:File)=>Promise<boolean>;onClose:()=>void}){
   const[first,setFirst]=useState(member.first_name||"");
   const[last,setLast]=useState(member.last_name||"");
   const[label,setLabel]=useState(member.relation_label||"");
-  const[birth,setBirth]=useState((member.birthday||"").slice(0,10));
-  const[death,setDeath]=useState((member.death_date||"").slice(0,10));
+  const[birth,setBirth]=useState(displayJalali(member.birthday));
+  const[death,setDeath]=useState(displayJalali(member.death_date));
+  const[dateError,setDateError]=useState("");
   useEffect(()=>{
     setFirst(member.first_name||"");setLast(member.last_name||"");setLabel(member.relation_label||"");
-    setBirth((member.birthday||"").slice(0,10));setDeath((member.death_date||"").slice(0,10));
+    setBirth(displayJalali(member.birthday));setDeath(displayJalali(member.death_date));setDateError("");
   },[member]);
   const mine=rels.filter(r=>r.from_member_id===member.id||r.to_member_id===member.id);
   const names=new Map(members.map(m=>[m.id,memberName(m)]));
+  async function saveDetails(){
+    const birthday=birth.trim()?jalaliToIso(birth):null;
+    const deathDate=death.trim()?jalaliToIso(death):null;
+    if(birth.trim()&&!birthday){setDateError("تاریخ تولد شمسی معتبر نیست. نمونه: ۱۴۰۳/۰۷/۱۵");return}
+    if(death.trim()&&!deathDate){setDateError("تاریخ فوت شمسی معتبر نیست. نمونه: ۱۴۰۳/۰۷/۱۵");return}
+    if(birthday&&deathDate&&deathDate<birthday){setDateError("تاریخ فوت نمی‌تواند قبل از تاریخ تولد باشد.");return}
+    setDateError("");
+    await onSave({action:"member.update",memberId:member.id,firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday,deathDate});
+  }
   return <section className="premiumPanel treeSheet">
     <span className="eyebrow">ویرایش فرد</span>
     <h2>{memberName(member)}</h2>
@@ -343,9 +382,10 @@ function EditSheet({member,members,rels,busy,onSave,onUpload,onClose}:{member:Tr
       <input value={first} onChange={e=>setFirst(e.target.value)} placeholder="نام"/>
       <input value={last} onChange={e=>setLast(e.target.value)} placeholder="نام خانوادگی"/>
       <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="نسبت"/>
-      <input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/>
-      <input type="date" value={death} onChange={e=>setDeath(e.target.value)}/>
-      <button className="adminSave" disabled={busy} onClick={()=>void onSave({action:"member.update",memberId:member.id,firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null})}>ذخیره مشخصات</button>
+      <JalaliDateField label="تاریخ تولد" value={birth} onChange={value=>{setBirth(value);setDateError("")}}/>
+      <JalaliDateField label="تاریخ فوت" value={death} onChange={value=>{setDeath(value);setDateError("")}}/>
+      {dateError?<div className="adminNotice">{dateError}</div>:null}
+      <button className="adminSave" disabled={busy} onClick={()=>void saveDetails()}>ذخیره مشخصات</button>
     </div>
     <h3>حذف ارتباط از شجره</h3>
     {mine.map(r=><div className="relationRow" key={r.id}>
