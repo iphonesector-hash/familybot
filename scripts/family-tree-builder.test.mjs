@@ -54,12 +54,24 @@ function searchMembers(members,query){
   if(!q)return members;
   return members.filter(m=>normalizePersianName([m.display_name,m.first_name,m.last_name,m.relation_label].filter(Boolean).join(" ")).includes(q));
 }
-function planSiblingLinks(rels,personId,siblingId){
+function planSiblingLinks(rels,personId,siblingId,opts={}){
   if(personId===siblingId)return {error:"self_sibling",edges:[]};
   const parents=[];
   for(const rel of rels){const e=parentEdge(rel);if(e&&e[1]===personId)parents.push({id:e[0],type:rel.relation_type})}
   if(parents.length)return {error:null,edges:parents.map(p=>({from:p.id,to:siblingId,type:p.type==="مادر"?"مادر":"پدر"}))};
-  return {error:null,edges:[{from:personId,to:siblingId,type:"برادر"}]};
+  const type=opts.siblingType==="برادر"||opts.siblingType==="خواهر"?opts.siblingType:opts.gender==="male"?"برادر":opts.gender==="female"?"خواهر":null;
+  if(!type)return {error:"sibling_type_required",edges:[]};
+  return {error:null,edges:[{from:personId,to:siblingId,type}]};
+}
+function memberNameKey(m){
+  const display=normalizePersianName(m.display_name||"");
+  const full=normalizePersianName([m.first_name,m.last_name].filter(Boolean).join(" "));
+  return display||full;
+}
+function findSameNameMembers(members,candidate){
+  const key=memberNameKey(candidate);
+  if(!key)return [];
+  return members.filter(m=>memberNameKey(m)===key);
 }
 function layoutGens(members,rels){
   const parents=new Map();const children=new Map();const spouses=new Map();
@@ -104,6 +116,23 @@ assert.equal(validateRelation([],"a","b","همسر"),null);
 const sib=planSiblingLinks([{from_member_id:"f",to_member_id:"a",relation_type:"پدر"}],"a","s");
 assert.deepEqual(sib.edges,[{from:"f",to:"s",type:"پدر"}]);
 assert.equal(planSiblingLinks([],"a","a").error,"self_sibling");
+assert.equal(planSiblingLinks([],"a","b",{gender:"male"}).edges[0].type,"برادر");
+assert.equal(planSiblingLinks([],"a","b",{gender:"female"}).edges[0].type,"خواهر");
+assert.equal(planSiblingLinks([],"a","b").error,"sibling_type_required");
+assert.equal(planSiblingLinks([],"a","b",{siblingType:"خواهر"}).edges[0].type,"خواهر");
+
+const twins=[
+  {id:"p1",first_name:"علی",last_name:"محمدی",display_name:"علی محمدی",bale_user_id:11},
+  {id:"p2",first_name:"علی",last_name:"محمدی",display_name:"علی محمدی",bale_user_id:null},
+];
+const hits=searchMembers(twins,"علی محمدی");
+assert.equal(hits.length,2);
+assert.notEqual(hits[0].id,hits[1].id);
+assert.equal(findSameNameMembers(twins,{first_name:"علی",last_name:"محمدی",display_name:"علی محمدی"}).length,2);
+assert.equal(findSameNameMembers(twins,{first_name:"علي",last_name:"محمدی",display_name:"علی محمدی"}).length,2);
+assert.equal(isTreeOnlyMember(twins[0]),false);
+assert.equal(isTreeOnlyMember(twins[1]),true);
+
 
 const gens=layoutGens(
   [{id:"gf"},{id:"gm"},{id:"f"},{id:"m"},{id:"c"}],
@@ -132,5 +161,11 @@ assert.equal(page.includes("member.link"),false);
 assert.ok(page.includes("حذف ارتباط"));
 assert.ok(page.includes("حذف فرد دستی"));
 assert.ok(page.includes("عضو متصل به بله"));
+assert.ok(page.includes("این فرد شخص دیگری است"));
+assert.ok(page.includes("استفاده از فرد موجود"));
+assert.ok(page.includes("در شجره موجود است"));
+assert.ok(page.includes("فردی با نام مشابه در خانواده وجود دارد"));
+assert.ok(page.includes("مشخص کنید این فرد برادر است یا خواهر"));
+
 
 console.log("family-tree-builder tests passed");

@@ -39,10 +39,33 @@ export function normalizePersianName(input:string){
   return String(input||"").replace(/ي/g,"ی").replace(/ك/g,"ک").replace(/[\u200c\u200f\u200e]/g," ").replace(/\s+/g," ").trim().toLowerCase();
 }
 
-export function searchMembers<T extends Pick<TreeMember,"display_name"|"first_name"|"last_name"|"relation_label">>(members:T[],query:string){
+export function searchMembers<T extends Pick<TreeMember,"id"|"display_name"|"first_name"|"last_name"|"relation_label">>(members:T[],query:string){
   const q=normalizePersianName(query);
   if(!q)return members;
   return members.filter(m=>normalizePersianName([m.display_name,m.first_name,m.last_name,m.relation_label].filter(Boolean).join(" ")).includes(q));
+}
+
+export function memberNameKey(m:Pick<TreeMember,"display_name"|"first_name"|"last_name">){
+  const display=normalizePersianName(m.display_name||"");
+  const full=normalizePersianName([m.first_name,m.last_name].filter(Boolean).join(" "));
+  return display||full;
+}
+
+export function findSameNameMembers<T extends Pick<TreeMember,"id"|"display_name"|"first_name"|"last_name">>(members:T[],candidate:Pick<TreeMember,"display_name"|"first_name"|"last_name">,exceptId?:string){
+  const key=memberNameKey(candidate);
+  if(!key)return [] as T[];
+  return members.filter(m=>m.id!==exceptId&&memberNameKey(m)===key);
+}
+
+export function inTree(rels:TreeRel[],memberId:string){
+  return rels.some(r=>r.from_member_id===memberId||r.to_member_id===memberId);
+}
+
+export function siblingFallbackType(gender?:string|null,explicit?:string|null){
+  if(explicit==="برادر"||explicit==="خواهر")return explicit;
+  if(gender==="male")return "برادر";
+  if(gender==="female")return "خواهر";
+  return null;
 }
 
 export function parentEdge(rel:TreeRel):[string,string]|null{
@@ -116,12 +139,12 @@ export function inferredSiblings(rels:TreeRel[],memberId:string){
   return [...kids];
 }
 
-export function planSiblingLinks(rels:TreeRel[],personId:string,siblingId:string){
+export function planSiblingLinks(rels:TreeRel[],personId:string,siblingId:string,opts?:{gender?:string|null;siblingType?:string|null}){
   if(personId===siblingId)return {error:"self_sibling" as const,edges:[] as Array<{from:string;to:string;type:string}>};
   const parents=parentsOf(rels,personId);
   if(parents.length){
     return {
-      error:null,
+      error:null as "self_sibling"|"sibling_type_required"|null,
       edges:parents.map(pid=>{
         const existing=rels.find(r=>{
           const e=parentEdge(r);return e&&e[0]===pid&&e[1]===personId;
@@ -131,7 +154,9 @@ export function planSiblingLinks(rels:TreeRel[],personId:string,siblingId:string
       }),
     };
   }
-  return {error:null,edges:[{from:personId,to:siblingId,type:"برادر"}]};
+  const type=siblingFallbackType(opts?.gender,opts?.siblingType);
+  if(!type)return {error:"sibling_type_required" as const,edges:[] as Array<{from:string;to:string;type:string}>};
+  return {error:null,edges:[{from:personId,to:siblingId,type}]};
 }
 
 export function validateRelation(rels:TreeRel[],from:string,to:string,type:string){

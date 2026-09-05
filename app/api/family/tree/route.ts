@@ -169,7 +169,9 @@ export async function POST(req:NextRequest){
       const person=String(body.fromMemberId||""),sibling=String(body.toMemberId||"");
       const existing=await supabase.from("relationships").select("id,from_member_id,to_member_id,relation_type").eq("family_id",s.familyId);
       if(existing.error)throw existing.error;
-      const plan=planSiblingLinks((existing.data||[]) as TreeRel[],person,sibling);
+      const sib=await supabase.from("members").select("id,gender").eq("id",sibling).eq("family_id",s.familyId).maybeSingle();
+      const explicit=body.siblingType==="خواهر"||body.siblingType==="برادر"?String(body.siblingType):null;
+      const plan=planSiblingLinks((existing.data||[]) as TreeRel[],person,sibling,{gender:sib.data?.gender||null,siblingType:explicit});
       if(plan.error)return NextResponse.json({ok:false,error:plan.error},{status:400});
       for(const edge of plan.edges){
         const problem=await saveEdge(s.familyId,edge.from,edge.to,edge.type);

@@ -3,6 +3,8 @@ import {FormEvent,PointerEvent,TouchEvent,useCallback,useEffect,useMemo,useRef,u
 import Link from "next/link";
 import {Icon} from "../../ui";
 import {
+  findSameNameMembers,
+  inTree,
   isTreeOnlyMember,
   layoutFamilyTree,
   memberName,
@@ -28,7 +30,18 @@ const errText:Record<string,string>={
   linked_member:"عضو متصل به بله از شجره حذف نمی‌شود.",
   name_required:"نام لازم است.",
   member_has_legacy:"این فرد دستی به دانشنامه، یادبود، خاطره یا معرفی اعضا وصل است. اول آن محتوا را جدا کنید؛ حذف خاموش انجام نمی‌شود.",
+  sibling_type_required:"مشخص کنید این فرد برادر است یا خواهر.",
 };
+
+function memberHint(m:TreeMember,rels:TreeRel[]){
+  const bits=[
+    m.relation_label||"",
+    m.birthday?`متولد ${m.birthday.slice(0,4)}`:"",
+    isTreeOnlyMember(m)?"فرد دستی":"عضو بله",
+    inTree(rels,m.id)?"در شجره موجود است":"",
+  ].filter(Boolean);
+  return bits.join(" · ");
+}
 
 function ageFrom(birthday?:string|null){
   if(!birthday)return "";
@@ -175,9 +188,9 @@ export default function TreePage(){
               ))}
             </div>
           </div>}
-    {sheet==="add"&&canManage&&<AddSheet members={members} busy={busy} onSave={json} onPickExisting={()=>setSheet("pick")} onCancel={()=>setSheet("view")}/>}
+    {sheet==="add"&&canManage&&<AddSheet members={members} rels={rels} busy={busy} onSave={json} onPickExisting={()=>setSheet("pick")} onCancel={()=>setSheet("view")}/>}
     {sheet==="pick"&&canManage&&<PickSheet members={members} rels={rels} onPick={id=>{setSelected(id);setSheet("actions")}} onCancel={()=>setSheet("add")}/>}
-    {sheet==="actions"&&canManage&&current&&<ActionSheet member={current} members={members} busy={busy} onSave={json} onEdit={()=>setSheet("edit")} onClose={()=>setSheet("view")}/>}
+    {sheet==="actions"&&canManage&&current&&<ActionSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onEdit={()=>setSheet("edit")} onClose={()=>setSheet("view")}/>}
     {sheet==="edit"&&canManage&&current&&<EditSheet member={current} members={members} rels={rels} busy={busy} onSave={json} onUpload={upload} onClose={()=>setSheet("view")}/>}
     {sheet==="view"&&current&&<section className="premiumPanel treeSheet">
       <span className="eyebrow">برگه فرد</span>
@@ -196,12 +209,19 @@ export default function TreePage(){
   </main>;
 }
 
-function AddSheet({members,busy,onSave,onPickExisting,onCancel}:{members:TreeMember[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onPickExisting:()=>void;onCancel:()=>void}){
+function AddSheet({members,rels,busy,onSave,onPickExisting,onCancel}:{members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onPickExisting:()=>void;onCancel:()=>void}){
   const[tab,setTab]=useState<"choose"|"manual">("choose");
   const[first,setFirst]=useState(""),[last,setLast]=useState(""),[label,setLabel]=useState(""),[birth,setBirth]=useState(""),[death,setDeath]=useState(""),[gender,setGender]=useState("");
+  const[warn,setWarn]=useState<TreeMember[]|null>(null);
+  async function createOther(){
+    const d=await onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null,gender:gender||null});
+    if(d)onCancel();
+  }
   function submit(e:FormEvent){
     e.preventDefault();
-    void onSave({action:"member.create",firstName:first,lastName:last,displayName:[first,last].filter(Boolean).join(" "),relationLabel:label,birthday:birth||null,deathDate:death||null,gender:gender||null}).then(d=>{if(d)onCancel()});
+    const same=findSameNameMembers(members,{first_name:first,last_name:last,display_name:[first,last].filter(Boolean).join(" ")});
+    if(same.length&&!warn){setWarn(same);return}
+    void createOther();
   }
   return <section className="premiumPanel treeSheet">
     <span className="eyebrow">افزودن فرد</span>
@@ -211,18 +231,26 @@ function AddSheet({members,busy,onSave,onPickExisting,onCancel}:{members:TreeMem
       <button type="button" className={tab==="manual"?"on":""} onClick={()=>setTab("manual")}>ثبت فرد به‌صورت دستی</button>
     </div>
     {tab==="manual"&&<form onSubmit={submit}>
-      <label>نام<input value={first} onChange={e=>setFirst(e.target.value)} required/></label>
-      <label>نام خانوادگی<input value={last} onChange={e=>setLast(e.target.value)}/></label>
+      <label>نام<input value={first} onChange={e=>{setFirst(e.target.value);setWarn(null)}} required/></label>
+      <label>نام خانوادگی<input value={last} onChange={e=>{setLast(e.target.value);setWarn(null)}}/></label>
       <label>نسبت (اختیاری)<input value={label} onChange={e=>setLabel(e.target.value)}/></label>
       <label>جنسیت (برای نمایش)
         <select value={gender} onChange={e=>setGender(e.target.value)}><option value="">نامشخص</option><option value="male">مرد</option><option value="female">زن</option></select>
       </label>
       <label>تاریخ تولد (اختیاری)<input type="date" value={birth} onChange={e=>setBirth(e.target.value)}/></label>
       <label>تاریخ فوت (اختیاری)<input type="date" value={death} onChange={e=>setDeath(e.target.value)}/></label>
+      {warn&&<div className="adminNotice">
+        <p>فردی با نام مشابه در خانواده وجود دارد. لطفاً بررسی کنید که این شخص همان فرد نباشد.</p>
+        {warn.map(m=><button type="button" key={m.id} className="treePick" onClick={onPickExisting}><b>{memberName(m)}</b><small>{memberHint(m,rels)}</small></button>)}
+        <div className="treeActions">
+          <button type="button" onClick={onPickExisting}>استفاده از فرد موجود</button>
+          <button type="button" className="adminSave" disabled={busy} onClick={()=>void createOther()}>این فرد شخص دیگری است</button>
+        </div>
+      </div>}
       <p className="treeHint">فرمت‌های مجاز عکس بعد از ثبت: JPG، PNG، WebP — حداکثر ۴ مگابایت</p>
       {members.length===0?<p className="treeHint">این فرد می‌تواند ریشه شجره باشد.</p>:null}
       <div className="treeActions">
-        <button className="adminSave" disabled={busy||!first.trim()}>ثبت فرد دستی</button>
+        <button className="adminSave" disabled={busy||!first.trim()}>{warn?"ادامه بررسی نام":"ثبت فرد دستی"}</button>
         <button type="button" onClick={onCancel}>انصراف</button>
       </div>
     </form>}
@@ -231,7 +259,6 @@ function AddSheet({members,busy,onSave,onPickExisting,onCancel}:{members:TreeMem
 
 function PickSheet({members,rels,onPick,onCancel}:{members:TreeMember[];rels:TreeRel[];onPick:(id:string)=>void;onCancel:()=>void}){
   const[q,setQ]=useState("");
-  const connected=new Set(rels.flatMap(r=>[r.from_member_id,r.to_member_id]));
   const list=searchMembers(members,q);
   return <section className="premiumPanel treeSheet">
     <span className="eyebrow">اعضای خانواده</span>
@@ -240,31 +267,35 @@ function PickSheet({members,rels,onPick,onCancel}:{members:TreeMember[];rels:Tre
     <div className="treePickList">
       {list.map(m=><button key={m.id} className="treePick" onClick={()=>onPick(m.id)}>
         <span className="treeAvatar sm">{m.avatar_url?<img src={m.avatar_url} alt=""/>:<Icon name="profile" size={18}/>}</span>
-        <span><b>{memberName(m)}</b><small>{m.relation_label||""} · {connected.has(m.id)?"متصل به شجره":isTreeOnlyMember(m)?"ثبت دستی":"عضو بله"}</small></span>
+        <span><b>{memberName(m)}</b><small>{memberHint(m,rels)}</small></span>
       </button>)}
     </div>
     <button onClick={onCancel}>بازگشت</button>
   </section>;
 }
 
-function ActionSheet({member,members,busy,onSave,onEdit,onClose}:{member:TreeMember;members:TreeMember[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onEdit:()=>void;onClose:()=>void}){
+function ActionSheet({member,members,rels,busy,onSave,onEdit,onClose}:{member:TreeMember;members:TreeMember[];rels:TreeRel[];busy:boolean;onSave:(x:Record<string,unknown>)=>Promise<Record<string,unknown>|null>;onEdit:()=>void;onClose:()=>void}){
   const[kind,setKind]=useState<"پدر"|"مادر"|"همسر"|"فرزند"|"برادر"|"">("");
   const[target,setTarget]=useState("");
   const[make,setMake]=useState(false);
   const[first,setFirst]=useState("");
+  const[sibType,setSibType]=useState<"برادر"|"خواهر"|"">("");
+  const[gender,setGender]=useState("");
   async function apply(){
     let id=target;
     if(make){
-      const created=await onSave({action:"member.create",firstName:first,displayName:first,relationLabel:kind});
+      const created=await onSave({action:"member.create",firstName:first,displayName:first,relationLabel:kind==="برادر"?sibType||kind:kind,gender:kind==="برادر"?(sibType==="خواهر"?"female":sibType==="برادر"?"male":gender||null):null});
       id=created&&typeof created.memberId==="string"?created.memberId:"";
     }
     if(!id||!kind)return;
     if(kind==="پدر"||kind==="مادر")await onSave({action:"relation.save",fromMemberId:id,toMemberId:member.id,relationType:kind});
     else if(kind==="فرزند")await onSave({action:"relation.save",fromMemberId:member.id,toMemberId:id,relationType:"فرزند"});
     else if(kind==="همسر")await onSave({action:"relation.save",fromMemberId:member.id,toMemberId:id,relationType:"همسر"});
-    else await onSave({action:"relation.sibling",fromMemberId:member.id,toMemberId:id});
-    setKind("");setTarget("");setMake(false);setFirst("");
+    else await onSave({action:"relation.sibling",fromMemberId:member.id,toMemberId:id,siblingType:sibType||undefined});
+    setKind("");setTarget("");setMake(false);setFirst("");setSibType("");setGender("");
   }
+  const chosen=members.find(m=>m.id===target);
+  const needSibType=kind==="برادر"&&!(chosen?.gender==="male"||chosen?.gender==="female"||sibType);
   return <section className="premiumPanel treeSheet">
     <span className="eyebrow">اقدامات</span>
     <h2>{memberName(member)}</h2>
@@ -277,8 +308,11 @@ function ActionSheet({member,members,busy,onSave,onEdit,onClose}:{member:TreeMem
       <p className="treeHint">{kind==="برادر"?"خواهر یا برادر را انتخاب یا ثبت کن.":`برای افزودن ${kind} یک عضو موجود را انتخاب کن یا فرد دستی بساز.`}</p>
       <label className="treeCheck"><input type="checkbox" checked={make} onChange={e=>setMake(e.target.checked)}/> ثبت فرد به‌صورت دستی</label>
       {make?<input value={first} onChange={e=>setFirst(e.target.value)} placeholder="نام فرد جدید"/>:
-        <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">انتخاب از اعضای خانواده</option>{members.filter(m=>m.id!==member.id).map(m=><option key={m.id} value={m.id}>{memberName(m)}</option>)}</select>}
-      <button className="adminSave" disabled={busy||(make?!first.trim():!target)} onClick={()=>void apply()}>ثبت ارتباط</button>
+        <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">انتخاب از اعضای خانواده</option>{members.filter(m=>m.id!==member.id).map(m=><option key={m.id} value={m.id}>{memberName(m)} — {memberHint(m,rels)}</option>)}</select>}
+      {kind==="برادر"&&<label>نسبت
+        <select value={sibType} onChange={e=>setSibType(e.target.value as "برادر"|"خواهر"|"")}><option value="">انتخاب کنید</option><option value="برادر">برادر</option><option value="خواهر">خواهر</option></select>
+      </label>}
+      <button className="adminSave" disabled={busy||(make?!first.trim():!target)||needSibType} onClick={()=>void apply()}>ثبت ارتباط</button>
     </>}
   </section>;
 }
