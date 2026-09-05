@@ -1,7 +1,7 @@
 import type {LiveKind} from "./classifier";
 
 export type SearchSource={title:string;url:string;content:string;publishedAt?:string};
-export type SearchResult={used:boolean;ok:boolean;provider:string;fetchedAt:string;sources:SearchSource[];error?:string;missingEnv?:string[];quote?:string};
+export type SearchResult={used:boolean;ok:boolean;provider:string;fetchedAt:string;sources:SearchSource[];error?:string;missingEnv?:string[];quote?:string;answer?:string};
 export type SearchProvider={search:(query:string,kind:LiveKind)=>Promise<SearchResult>};
 export const LIVE_SEARCH_WARNING="جست‌وجوی زنده الان پاسخ نداد.";
 const stamp=()=>new Date().toISOString();
@@ -19,6 +19,29 @@ function sourceTime(raw:unknown){
   const numeric=Number(raw);let ms=Number.isFinite(numeric)&&numeric>0?(numeric>1e12?numeric:numeric*1000):Date.parse(String(raw));
   if(!Number.isFinite(ms)||ms>Date.now()+60000||ms<Date.now()-86400000)return undefined;
   return new Date(ms).toISOString();
+}
+function cleanAnswer(raw:unknown){return String(raw??"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/<analysis>[\s\S]*?<\/analysis>/gi,"").replace(/<\/?(?:think|analysis|reasoning)>/gi,"").trim()}
+function groqToolSources(tools:unknown):SearchSource[]{
+  const out:SearchSource[]=[];
+  for(const tool of Array.isArray(tools)?tools:[]){
+    for(const row of Array.isArray((tool as any)?.search_results)?(tool as any).search_results:[]){
+      const url=safeSourceUrl(row?.url),content=String(row?.content||row?.snippet||row?.text||"").trim().slice(0,1800);
+      if(!url||!content||out.some(s=>s.url===url))continue;
+      const title=String(row?.title||new URL(url).hostname).slice(0,180);
+      const published=typeof row?.published_date==="string"?Date.parse(row.published_date):NaN;
+      out.push({title,url,content,...(Number.isFinite(published)?{publishedAt:new Date(published).toISOString()}:{})});
+      if(out.length===5)return out;
+    }
+    const text=String((tool as any)?.output||"");
+    const re=/(?:^|\n)Title:\s*(.+?)\n(?:URL|Url):\s*(https:\/\/[^\s]+)(?:\n(?:Content|Snippet):\s*([\s\S]*?))?(?=\nTitle:|$)/gi;
+    for(const m of text.matchAll(re)){
+      const url=safeSourceUrl(m[2]),content=String(m[3]||m[1]||"").trim().slice(0,1800);
+      if(!url||!content||out.some(s=>s.url===url))continue;
+      out.push({title:String(m[1]||new URL(url).hostname).trim().slice(0,180),url,content});
+      if(out.length===5)return out;
+    }
+  }
+  return out;
 }
 
 // Public structured fallback for Tehran market quotes. TGJU's current feed reports IRR.
@@ -61,6 +84,30 @@ export const tavilyProvider:SearchProvider={async search(query,kind){
     }
     return sources.length?{used:true,ok:true,provider:"tavily",fetchedAt:stamp(),sources}:failed("tavily","empty_or_stale");
   }catch{return failed("tavily","network_or_timeout")}
+}};
+
+// No extra search key is required: this uses the existing Groq key and sends ONLY the public query.
+export const groqCompoundProvider:SearchProvider={async search(query,kind){
+  const key=process.env.GROQ_API_KEY;
+  if(!key)return failed("groq-compound","missing_key",["GROQ_API_KEY"]);
+  const model=kind==="weather"?"groq/compound-mini":"groq/compound";
+  const prompt=`برای این پرسش عمومی حتماً از جست‌وجوی زنده وب استفاده کن و فقط بر اساس داده تازه پاسخ بده. پاسخ را فارسی، کوتاه و دقیق بنویس. اگر خبر است، تاریخ/تازگی را رعایت کن. پرسش: ${query}`;
+  try{
+    const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+      method:"POST",
+      headers:{"content-type":"application/json",authorization:`Bearer ${key}`,"Groq-Model-Version":"latest"},
+      body:JSON.stringify({model,messages:[{role:"user",content:prompt}],compound_custom:{tools:{enabled_tools:["web_search","visit_website"]}}}),
+      cache:"no-store",
+      signal:AbortSignal.timeout(12000)
+    });
+    if(!r.ok)return failed("groq-compound",`http_${r.status}`);
+    const data=await r.json().catch(()=>null),message=data?.choices?.[0]?.message;
+    const tools=Array.isArray(message?.executed_tools)?message.executed_tools:[];
+    const usedWeb=tools.some((t:any)=>/(search|web_search|visit)/i.test(String(t?.type||t?.name||""))||/https?:\/\//i.test(String(t?.output||"")));
+    const answer=cleanAnswer(message?.content);
+    if(!usedWeb||!answer)return failed("groq-compound",!usedWeb?"no_web_tool":"empty_answer");
+    return{used:true,ok:true,provider:"groq-compound",fetchedAt:stamp(),sources:groqToolSources(tools),answer};
+  }catch{return failed("groq-compound","network_or_timeout")}
 }};
 
 export async function marketQuote(query:string,kind:LiveKind):Promise<SearchResult>{

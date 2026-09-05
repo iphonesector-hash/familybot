@@ -10,7 +10,7 @@ import {readAiMemory,rememberAiTurn} from "@/lib/aiMemory";
 import {aiProviderMeta,completeChat} from "@/lib/aiProvider";
 
 const Body=z.object({message:z.string().min(1).max(4000),history:z.array(z.object({role:z.enum(["user","assistant"]),content:z.string().max(4000)})).max(20).default([])});
-const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند. اگر کاربر فقط سلام کرد، با «سلام» شروع کن و خودت را معرفی کن.`;
+const SYSTEM=`تو «سکتور AI» هستی؛ دستیار گرم، دقیق و حرفه‌ای خانواده بزرگ جهانی. فارسی روان و دوستانه حرف بزن. داده خصوصی را حدس نزن. فقط وقتی نتیجه موفق سرور داری بگو کاری انجام شده. اگر نتایج جستجوی وب داده شد، آن‌ها را از داده خصوصی خانواده جدا بدان و خلاصه کن. حافظه گذشته فقط برای تداوم گفتگوست و نباید از آن نتیجه حساس یا قطعی بسازی. پاسخ‌ها کاربردی و نسبتاً کوتاه باشند. اگر کاربر فقط سلام کرد، با «سلام» شروع کن و خودت را معرفی کن. هرگز فرایند فکر، تحلیل داخلی، reasoning یا تگ‌های think/analysis را در پاسخ نمایش نده.`;
 
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
 function fa(n:number){return new Intl.NumberFormat("fa-IR").format(n)}
@@ -50,6 +50,11 @@ export async function POST(req:NextRequest){
     if(web.used&&!web.ok){
       logAi("live_search_failed",{provider:web.provider,error:web.error,missingEnv:web.missingEnv});
       return NextResponse.json({reply:LIVE_SEARCH_WARNING,searched:false,grounded:false});
+    }
+    if(web.answer){
+      void rememberAiTurn(session.familyId,session.userId,body.message,web.answer).catch(()=>{});
+      logAi("final_reply",{ok:true,kind:"live_web",provider:web.provider});
+      return NextResponse.json({reply:web.answer,searched:true,grounded:true,sources:web.sources,fetchedAt:web.fetchedAt});
     }
     if(web.quote){
       // Structured prices are rendered verbatim; an LLM cannot alter a rate or unit.
