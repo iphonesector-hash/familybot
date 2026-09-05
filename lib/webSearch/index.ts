@@ -1,5 +1,6 @@
 import {classifyLiveQuery} from "./classifier";
-import {failed,groqCompoundProvider,marketQuote,tavilyProvider,type SearchProvider,type SearchResult} from "./provider";
+import {failed,marketQuote,tavilyProvider,type SearchProvider,type SearchResult} from "./provider";
+import {groqCompoundProvider} from "./groqCompound";
 export {LIVE_SEARCH_WARNING} from "./provider";
 export async function searchLive(query:string,provider:SearchProvider=tavilyProvider):Promise<SearchResult>{
   const kind=classifyLiveQuery(query);
