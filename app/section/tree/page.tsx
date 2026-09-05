@@ -144,8 +144,8 @@ export default function TreePage(){
       {canManage&&<button className="treeAdd" onClick={()=>setSheet("add")}>افزودن فرد</button>}
       <button onClick={()=>setScale(s=>Math.max(.5,Number((s-.12).toFixed(2))))} aria-label="کوچک">−</button>
       <button onClick={()=>setScale(s=>Math.min(1.6,Number((s+.12).toFixed(2))))} aria-label="بزرگ">+</button>
-      <button onClick={fit}>جا شدن</button>
-      <button onClick={()=>{setScale(1);setPan({x:0,y:0})}}>بازنشانی</button>
+      <button onClick={fit}>نمایش کامل</button>
+      <button onClick={()=>{setScale(1);setPan({x:0,y:0})}}>بازگشت به نمای اولیه</button>
     </div>
     {loading?<section className="premiumPanel treeEmpty">در حال بارگذاری شجره‌نامه…</section>
       :!members.length
