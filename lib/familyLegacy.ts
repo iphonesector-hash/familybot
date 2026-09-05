@@ -320,7 +320,10 @@ export async function moderateLegacy(familyId: string, chatId: number, userId: n
   if (!actor.isAdmin) throw new Error("admin_required");
   const status = parseModeration(input.status);
   const table = tableFor(input.targetType);
-  const r = await db().from(table).update({moderation_status: status, updated_by: actor.memberId}).eq("id", input.id).eq("family_id", familyId).select("id,moderation_status").maybeSingle();
+  const patch: Record<string, unknown> = {moderation_status: status};
+  if (!["family_legacy_media", "family_albums"].includes(table)) patch.updated_by = actor.memberId;
+  if (table === "family_albums") patch.updated_at = new Date().toISOString();
+  const r = await db().from(table).update(patch).eq("id", input.id).eq("family_id", familyId).select("id,moderation_status").maybeSingle();
   if (r.error) throw r.error;
   if (!r.data) throw new Error("not_found");
   return r.data;
