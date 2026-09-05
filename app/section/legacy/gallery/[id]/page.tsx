@@ -13,7 +13,7 @@ export default function MediaDetail(){
   const i=d.item;
   return <LegacyChrome title={i.title||"تصویر خانواده"} subtitle={i.taken_on||""} icon="memories" tone="blue">
     <button onClick={()=>setZoom(true)} style={{padding:0,border:0,background:"transparent",width:"100%"}}>
-      {i.media_kind==="video"?<video src={i.media_url||""} controls style={{width:"100%",borderRadius:22}}/>:<img src={i.media_url||""} alt="" style={{width:"100%",borderRadius:22,maxHeight:420,objectFit:"contain",background:"#000"}}/>}
+      {i.media_kind==="video"?<video src={i.media_url||""} controls playsInline preload="metadata" style={{width:"100%",borderRadius:22}}/>:<img src={i.media_url||""} alt="" style={{width:"100%",borderRadius:22,maxHeight:420,objectFit:"contain",background:"#000"}}/>}
     </button>
     {i.description?<p className="legacyArticle">{i.description}</p>:null}
     <div className="legacyMeta">{(d.tags||[]).map((t:any)=><span key={t.id} className="legacySoft"><a href={`/section/legacy/people?member=${t.id}`}>{t.name}</a>{d.me?.isAdmin||d.me?.memberId===i.uploader_member_id||d.me?.memberId===t.id?<button className="ghostCta" style={{minHeight:32,marginRight:6}} onClick={()=>void legacyAct("media.untag",{id:i.id,memberId:t.id}).then(load)}>حذف تگ</button>:null}</span>)}</div>
@@ -23,6 +23,6 @@ export default function MediaDetail(){
     </div>
     <Engage targetType="media" targetId={i.id} reactions={d.reactions} onDone={load}/>
     <Comments targetType="media" targetId={i.id} items={d.comments} onDone={load}/>
-    {zoom?<div className="legacyViewer" onClick={()=>setZoom(false)}><div style={{textAlign:"left"}}><button className="roundButton" onClick={()=>setZoom(false)}>×</button></div>{i.media_kind==="video"?<video src={i.media_url||""} controls/>:<img src={i.media_url||""} alt=""/>}<p>{i.title}</p></div>:null}
+    {zoom?<div className="legacyViewer" onClick={()=>setZoom(false)}><div style={{textAlign:"left"}}><button className="roundButton" onClick={()=>setZoom(false)}>×</button></div>{i.media_kind==="video"?<video src={i.media_url||""} controls playsInline preload="metadata"/>:<img src={i.media_url||""} alt=""/>}<p>{i.title}</p></div>:null}
   </LegacyChrome>;
 }

@@ -40,7 +40,7 @@ export default function LegacyHome(){
       <h1>میراث، خاطره و نام‌ها در یک خانه</h1>
       <p>این بخش خصوصی خانواده است؛ برای ثبت تاریخ، چهره‌ها، آسمانی‌ها و آلبوم نسل‌ها. نه ویکی عمومی، نه بازی.</p>
     </section>
-    <form onSubmit={search} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginTop:14}}>
+    <form className="legacySearch" onSubmit={search}>
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="جستجو در افراد، دانشنامه، خاطرات و آلبوم‌ها"/>
       <button className="primaryCta" style={{minWidth:88}}>جستجو</button>
     </form>
@@ -48,17 +48,17 @@ export default function LegacyHome(){
     {err?<div className="adminNotice">{err}</div>:null}
     {hits.length?<section className="premiumPanel" style={{padding:14,marginTop:12}}>{hits.map(h=><a key={h.type+h.id} href={h.href} className="dashboardCard" style={{display:"block",marginBottom:8}}><b>{h.title}</b><p>{h.type}</p></a>)}</section>:null}
     <section className="premiumPanel" style={{padding:16,marginTop:16}}>
-      <div className="sectionHeading"><div><span className="eyebrow">امروز در تاریخ خانواده</span><h2>چنین روزی</h2></div></div>
+      <div className="legacyHead"><div><span className="eyebrow">امروز در تاریخ خانواده</span><h2>چنین روزی</h2></div></div>
       {d.today.length?d.today.map(c=><a key={c.title+c.href} href={c.href} className="dashboardCard" style={{display:"block",marginTop:10}}><h2>{c.title}</h2><p>{c.text}</p></a>):<Empty text="برای امروز رویداد دقیقی با روز و ماه مشخص ثبت نشده."/>}
     </section>
     <nav className="legacyModules">
       {modules.map(m=><a key={m.href} className="premiumPanel legacyModule" href={m.href}><IconOrb name={m.icon} tone={m.tone}/><div><b>{m.title}</b><small>{m.text}</small></div></a>)}
     </nav>
-    <div className="sectionHeading" style={{marginTop:22}}><div><span className="eyebrow">تازه‌های دانشنامه</span><h2>آخرین نوشته‌ها</h2></div><a href="/section/legacy/encyclopedia">همه</a></div>
+    <div className="legacyHead"><div><span className="eyebrow">تازه‌های دانشنامه</span><h2>آخرین نوشته‌ها</h2></div><a href="/section/legacy/encyclopedia">همه</a></div>
     <div className="legacyRail">{d.latestArticles.length?d.latestArticles.map(a=><a key={a.id} className="premiumPanel" href={`/section/legacy/encyclopedia/${a.id}`} style={{padding:14}}><small>{a.category}</small><h3 style={{margin:"8px 0 0"}}>{a.title}</h3></a>):<Empty text="هنوز مطلبی در دانشنامه خانواده وجود ندارد" cta="اولین مقاله" href="/section/legacy/encyclopedia"/>}</div>
-    <div className="sectionHeading" style={{marginTop:18}}><div><span className="eyebrow">آخرین خاطرات</span><h2>دلنوشته‌ها</h2></div><a href="/section/legacy/journal">همه</a></div>
+    <div className="legacyHead"><div><span className="eyebrow">آخرین خاطرات</span><h2>دلنوشته‌ها</h2></div><a href="/section/legacy/journal">همه</a></div>
     <div className="legacyRail">{d.latestJournal.length?d.latestJournal.map(j=><a key={j.id} className="premiumPanel" href={`/section/legacy/journal/${j.id}`} style={{padding:14}}><small>{j.kind}</small><h3>{j.title}</h3><p>{j.body}</p></a>):<Empty text="هنوز خاطره‌ای ثبت نشده" cta="نوشتن" href="/section/legacy/journal"/>}</div>
-    <div className="sectionHeading" style={{marginTop:18}}><div><span className="eyebrow">تصاویر قدیمی</span><h2>آلبوم‌های اخیر</h2></div><a href="/section/legacy/gallery">گالری</a></div>
+    <div className="legacyHead"><div><span className="eyebrow">تصاویر قدیمی</span><h2>آلبوم‌های اخیر</h2></div><a href="/section/legacy/gallery">گالری</a></div>
     <div className="legacyRail">{d.oldPhotos.length?d.oldPhotos.map(p=><a key={p.id} href={`/section/legacy/gallery/${p.id}`} className="premiumPanel" style={{padding:0,overflow:"hidden"}}>{p.media_url?<img src={p.media_url} alt="" style={{width:"100%",height:140,objectFit:"cover"}}/>:<div style={{padding:16}}>{p.title||"تصویر"}</div>}</a>):<Empty text="اولین عکس خانوادگی را اضافه کنید" href="/section/legacy/gallery" cta="افزودن عکس"/>}</div>
   </main>;
 }

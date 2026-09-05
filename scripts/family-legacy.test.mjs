@@ -137,4 +137,17 @@ assert.equal(matchesMonthDay(null, "full", wedding), false);
 assert.ok(["family", "close_family", "private", "admins"].includes("close_family"));
 assert.ok(["draft", "pending", "approved", "rejected", "archived"].includes("pending"));
 
+import {readFileSync} from "node:fs";
+const encyclopedia = readFileSync(new URL("../app/section/legacy/encyclopedia/page.tsx", import.meta.url), "utf8");
+assert.equal((encyclopedia.match(/name="visibility"/g) || []).length, 1);
+assert.equal((encyclopedia.match(/name="status"/g) || []).length, 0);
+assert.equal((encyclopedia.match(/PrivacySelect/g) || []).length, 0);
+assert.equal((encyclopedia.match(/StatusSelect/g) || []).length, 0);
+assert.ok(encyclopedia.includes("سطح دسترسی"));
+assert.ok(encyclopedia.includes("وضعیت انتشار"));
+assert.ok(encyclopedia.includes("ذخیره پیش‌نویس"));
+assert.ok(encyclopedia.includes("ارسال برای تأیید"));
+assert.equal((encyclopedia.match(/همه اعضای خانواده/g) || []).length, 1);
+
+
 console.log("family-legacy tests passed");

@@ -23,11 +23,11 @@ export default function GalleryPage(){
     }catch(err){setMsg(err instanceof Error?err.message:"خطا")}finally{setBusy(false)}
   }
   return <LegacyChrome title="گالری خانواده" subtitle="آلبوم نسل‌ها" icon="memories" tone="blue">
-    <div className="storeTabs" style={{overflowX:"auto"}}>
-      <button className={!album?"active":""} onClick={()=>setAlbum("")}>همه</button>
-      {albums.map((a:any)=><button key={a.id} className={album===a.id?"active":""} onClick={()=>setAlbum(a.id)}>{a.title}</button>)}
+    <div className="legacyTabs">
+      <button type="button" className={!album?"active":""} onClick={()=>setAlbum("")}>همه</button>
+      {albums.map((a:any)=><button type="button" key={a.id} className={album===a.id?"active":""} onClick={()=>setAlbum(a.id)}>{a.title}</button>)}
     </div>
-    <section className="storeGrid">{items.length?items.map((m:any)=><a key={m.id} href={`/section/legacy/gallery/${m.id}`} className="premiumPanel" style={{overflow:"hidden",padding:0}}>{m.media_kind==="video"?<video src={m.media_url||""} style={{width:"100%",height:150,objectFit:"cover"}}/>:<img src={m.media_url||""} alt={m.title||""} style={{width:"100%",height:150,objectFit:"cover"}}/>}<div style={{padding:10}}><b>{m.title||"بدون عنوان"}</b></div></a>):<Empty text="اولین عکس خانوادگی را اضافه کنید"/>}</section>
+    <section className="legacyCards">{items.length?items.map((m:any)=><a key={m.id} href={`/section/legacy/gallery/${m.id}`} className="legacyCard" style={{padding:0,overflow:"hidden"}}>{m.media_kind==="video"?<video src={m.media_url||""} preload="metadata" muted playsInline style={{width:"100%",height:150,objectFit:"cover"}}/>:<img src={m.media_url||""} alt={m.title||""} style={{width:"100%",height:150,objectFit:"cover"}}/>}<div style={{padding:10}}><b>{m.title||"بدون عنوان"}</b></div></a>):<Empty text="اولین عکس خانوادگی را اضافه کنید"/>}</section>
     <section className="premiumPanel" style={{padding:16,marginTop:16}}>
       <h2>آلبوم جدید</h2>
       <form className="legacyForm" onSubmit={saveAlbum}>
@@ -45,9 +45,13 @@ export default function GalleryPage(){
         <textarea name="description" rows={2} placeholder="شرح"/>
         <select name="album_id" defaultValue=""><option value="">بدون آلبوم</option>{albums.map((a:any)=><option key={a.id} value={a.id}>{a.title}</option>)}</select>
         <label>تاریخ تقریبی یا دقیق<input name="taken_on" type="date"/></label>
-        <input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" required/>
-        <div>{(Array.isArray(members)?members:[]).map((m:any)=><label key={m.id} style={{display:"flex",gap:8,alignItems:"center"}}><input type="checkbox" name="tagged" value={m.id}/>{m.name}</label>)}</div>
+        <label className="legacyFile">فایل تصویر یا فیلم MP4
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" required/>
+        </label>
+        <div>{(Array.isArray(members)?members:[]).map((m:any)=><label key={m.id} className="legacyCheck"><input type="checkbox" name="tagged" value={m.id}/>{m.name}</label>)}</div>
+        <label>سطح دسترسی
         <select name="visibility" defaultValue="family"><option value="family">خانواده</option><option value="close_family">بستگان نزدیک</option><option value="private">فقط خودم</option></select>
+        </label>
         <button className="adminSave" disabled={busy}>{busy?"در حال آپلود...":"افزودن به گالری"}</button>
       </form>
       {msg&&<div className="adminNotice">{msg}</div>}
