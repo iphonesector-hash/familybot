@@ -4,6 +4,12 @@
     "NEXT_PUBLIC_APP_URL": "https://familybot-gray.vercel.app",
     "NEXT_PUBLIC_SUPABASE_URL": "https://ouuyarzxlusoebjiphgm.supabase.co"
   },
+  "functions": {
+    "app/api/bale/webhook/route.ts": {
+      "regions": ["fra1"],
+      "functionFailoverRegions": ["lhr1"]
+    }
+  },
   "git": {
     "deploymentEnabled": {
       "revive-premium-ui": true,
