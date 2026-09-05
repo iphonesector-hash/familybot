@@ -1,0 +1,23 @@
+.legacyHero{padding:22px 20px;min-height:168px;display:grid;gap:10px;background:
+  linear-gradient(145deg,rgba(62,42,28,.55),rgba(18,22,48,.92)),
+  radial-gradient(circle at 88% 12%,rgba(255,199,95,.18),transparent 42%)}
+.legacyHero h1{font-size:26px;margin:0;letter-spacing:-.3px}
+.legacyHero p{margin:0;line-height:1.9;font-size:13px;color:#d7cbb8}
+.legacyModules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.legacyModule{min-height:108px;padding:14px;border-radius:20px;display:grid;align-content:space-between;text-decoration:none;color:inherit}
+.legacyModule small{color:#cbbba4;font-size:11px;line-height:1.7}
+.legacyRail{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+.legacyRail > *{min-width:210px;scroll-snap-align:start}
+.legacyEmpty{padding:22px;border-radius:20px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,220,170,.18);color:#d8cfc0;line-height:2;text-align:center}
+.legacyArticle{white-space:pre-wrap;line-height:2.05;font-size:15px;color:#efe8dc}
+.legacyMeta{display:flex;flex-wrap:wrap;gap:6px}
+.legacySoft{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:5px 10px;font-size:11px}
+.legacyMemorial{background:
+  linear-gradient(180deg,rgba(18,22,36,.96),rgba(10,12,22,.98));
+  border-color:rgba(180,190,220,.14)!important}
+.legacyCandle{width:100%;min-height:54px;border-radius:16px;background:rgba(255,214,140,.08);border:1px solid rgba(255,214,140,.2);color:#ffe7b8;font-weight:800}
+.legacyViewer{position:fixed;inset:0;z-index:120;background:rgba(4,6,16,.92);display:grid;grid-template-rows:auto 1fr auto;padding:max(12px,var(--safe-top)) 12px max(18px,var(--safe-bottom))}
+.legacyViewer img,.legacyViewer video{width:100%;height:100%;object-fit:contain}
+.legacyForm{display:grid;gap:10px}
+.legacyForm label{display:grid;gap:6px;font-size:12px;color:#d5cfc4}
+@media(max-width:430px){.legacyModules{grid-template-columns:1fr}.legacyHero h1{font-size:22px}}
