@@ -1,7 +1,34 @@
 type BaleMethod = "sendMessage"|"editMessageText"|"deleteMessage"|"answerCallbackQuery"|"banChatMember"|"unbanChatMember"|"restrictChatMember"|"getChatAdministrators"|"pinChatMessage"|"unpinChatMessage"|"setWebhook"|"getWebhookInfo";
 const API_BASE="https://tapi.bale.ai/bot",DEFAULT_APP_URL="https://familybot-gray.vercel.app";
 export type BaleInlineButton={text:string;callback_data?:string;url?:string;web_app?:{url:string}};
-export async function baleApi<T=unknown>(method:BaleMethod,payload:Record<string,unknown>={}){const token=process.env.BALE_BOT_TOKEN;if(!token)throw new Error("BALE_BOT_TOKEN is not configured");const response=await fetch(`${API_BASE}${token}/${method}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});const data=await response.json();if(!response.ok||data?.ok===false)throw new Error(data?.description??`Bale API ${method} failed`);return data as T}
+
+async function parseBaleResponse<T>(response:Response,method:BaleMethod){
+  const text=await response.text();
+  let data:any=null;
+  try{data=text?JSON.parse(text):null}catch{/* handled below */}
+  if(!response.ok||!data||data?.ok===false)throw new Error(data?.description??`Bale API ${method} failed (${response.status})`);
+  return data as T;
+}
+
+async function directBale<T>(token:string,method:BaleMethod,payload:Record<string,unknown>){
+  const response=await fetch(`${API_BASE}${token}/${method}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload),cache:"no-store",signal:AbortSignal.timeout(3000)});
+  return parseBaleResponse<T>(response,method);
+}
+
+async function relayBale<T>(token:string,method:BaleMethod,payload:Record<string,unknown>){
+  const appUrl=process.env.NEXT_PUBLIC_APP_URL||DEFAULT_APP_URL;
+  const response=await fetch(new URL("/api/bale/relay",appUrl),{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${token}`},body:JSON.stringify({method,payload}),cache:"no-store",signal:AbortSignal.timeout(9500)});
+  return parseBaleResponse<T>(response,method);
+}
+
+export async function baleApi<T=unknown>(method:BaleMethod,payload:Record<string,unknown>={}){
+  const token=process.env.BALE_BOT_TOKEN;
+  if(!token)throw new Error("BALE_BOT_TOKEN is not configured");
+  try{return await directBale<T>(token,method,payload)}catch(error){
+    console.warn("[bale.api] direct_failed_relaying",{method,kind:error instanceof Error?error.name:"unknown"});
+    return relayBale<T>(token,method,payload);
+  }
+}
 export function sendMessage(chatId:string|number,text:string,extra:Record<string,unknown>={}){return baleApi("sendMessage",{chat_id:chatId,text,...extra})}
 export function answerCallbackQuery(callbackQueryId:string,text?:string,showAlert=false){return baleApi("answerCallbackQuery",{callback_query_id:callbackQueryId,...(text?{text}:{}),show_alert:showAlert})}
 export function editMessageText(chatId:string|number,messageId:number,text:string,extra:Record<string,unknown>={}){return baleApi("editMessageText",{chat_id:chatId,message_id:messageId,text,...extra})}
