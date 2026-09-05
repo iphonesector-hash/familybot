@@ -4,6 +4,7 @@ import {verifyFamilySession} from "@/lib/familySession";
 import {resolveContent,type ContentKind} from "@/lib/contentSources";
 import {riddleOptions} from "@/lib/funBank";
 import {challengeReward} from "@/lib/challengeRewards";
+import {startDezfuliQuiz} from "@/lib/dezfuliQuiz";
 import {interpretHafez} from "@/lib/contentRemote";
 
 function sessionFrom(req:NextRequest){const a=req.headers.get("authorization")||"";return a.startsWith("Bearer ")?verifyFamilySession(a.slice(7)):null}
@@ -53,7 +54,12 @@ export async function POST(req:NextRequest){
     }
   }
   if(!KINDS.has(type)) return NextResponse.json({ok:false,error:"unknown_fun_type"},{status:400});
-  const sourced=await resolveContent(type,recent);
+  let sourced;
+  try{sourced=await resolveContent(type,recent)}catch{return NextResponse.json({ok:false,error:"content_unavailable"},{status:503})}
+  if(type==="dezfuli-word"){
+    try{return NextResponse.json({ok:true,data:await startDezfuliQuiz(db(),session,sourced)})}
+    catch{return NextResponse.json({ok:false,error:"quiz_unavailable"},{status:503})}
+  }
   if(type==="riddle"){
     try{
       const options=shuffle(sourced.options?.length?sourced.options:riddleOptions({id:sourced.id,text:sourced.text,extra:sourced.extra}));
@@ -70,10 +76,10 @@ export async function POST(req:NextRequest){
     }
   }
   let interpretation=sourced.extra||"";
-  if(type==="dezfuli-word")interpretation=sourced.options?.length?"":(sourced.extra||"");
+
   if(type==="hafez"&&sourced.source==="ganjoor"){
     interpretation=await interpretHafez(sourced.text);
   }
-  const quizOptions=type==="dezfuli-word"&&sourced.options?.length?sourced.options:undefined;
-  return NextResponse.json({ok:true,data:{type,id:sourced.id,text:sourced.text,interpretation,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,sourceUrl:sourced.sourceUrl,contentHash:sourced.contentHash,fetchedAt:sourced.fetchedAt,options:quizOptions}});
+
+  return NextResponse.json({ok:true,data:{type,id:sourced.id,text:sourced.text,interpretation,source:sourced.source,sourceLabel:sourced.sourceLabel,sourceMode:sourced.sourceMode,sourceUrl:sourced.sourceUrl,contentHash:sourced.contentHash,fetchedAt:sourced.fetchedAt}});
 }

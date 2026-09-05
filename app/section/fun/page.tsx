@@ -1,14 +1,14 @@
 "use client";
-import {useState} from "react";
+import {useRef,useState} from "react";
 import {Icon,IconOrb} from "../../ui";
 import Accordion from "../../ui/Accordion";
 
 type Kind="joke"|"fact"|"riddle"|"motivation"|"hafez"|"proverb"|"poem"|"dezfuli-word"|"dezfuli-proverb"|"dezfuli-poem";
 type Riddle={sessionId:string;text:string;options:string[]};
-type Quiz={id:string;text:string;options:string[]};
+type Quiz={sessionId:string;text:string;options:string[]};
 const KEY="familybot.funRecent";
-function readRecent(){try{return JSON.parse(sessionStorage.getItem(KEY)||"[]") as string[]}catch{return []}}
-function writeRecent(id:string){const next=[id,...readRecent().filter(x=>x!==id)].slice(0,28);try{sessionStorage.setItem(KEY,JSON.stringify(next))}catch{}}
+function readRecent(kind:Kind):string[]{try{const v=JSON.parse(sessionStorage.getItem(`${KEY}.${kind}`)||"[]");return Array.isArray(v)?v.filter(x=>typeof x==="string").slice(0,50):[]}catch{return []}}
+function writeRecent(kind:Kind,hash:string){const next=[hash,...readRecent(kind).filter(x=>x!==hash)].slice(0,50);try{sessionStorage.setItem(`${KEY}.${kind}`,JSON.stringify(next))}catch{}}
 const fa=(n:number)=>new Intl.NumberFormat("fa-IR").format(n||0);
 
 export default function FunPage(){
@@ -19,41 +19,50 @@ export default function FunPage(){
   const[riddle,setRiddle]=useState<Riddle|null>(null);
   const[score,setScore]=useState(0);
   const[busy,setBusy]=useState(false);
+  const requestBusy=useRef(false);
+  const[kind,setKind]=useState<Kind|null>(null);
+  const[sourceUrl,setSourceUrl]=useState("");
 
   async function get(k:Kind){
+    if(requestBusy.current||busy)return;
+    requestBusy.current=true;setBusy(true);setKind(k);setSourceUrl("");
+    try{
     setAnswer("");setQuiz(null);setRiddle(null);setSource("");
     const s=sessionStorage.getItem("familybot.session");
     if(!s)return setText("Mini App را از داخل بله باز کن.");
-    const r=await fetch("/api/family/fun",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:k,recent:readRecent(),recentHashes:readRecent()})});
+    const r=await fetch("/api/family/fun",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({type:k,recentHashes:readRecent(k)})});
     const x=await r.json();
     if(!x.ok){setText("محتوا فعلاً در دسترس نیست.");return}
-    if(x.data.id)writeRecent(String(x.data.id));
-    if(x.data.contentHash)writeRecent(String(x.data.contentHash));
+    if(x.data.contentHash)writeRecent(k,String(x.data.contentHash));
     setText(x.data.text);
-    setSource(String(x.data.sourceLabel||x.data.source||"curated-local"));
+    setSource(k==="dezfuli-word"?"":String(x.data.sourceLabel||x.data.source||""));
+    setSourceUrl(/^https:\/\//.test(String(x.data.sourceUrl))?x.data.sourceUrl:"");
     if(k==="riddle"&&Array.isArray(x.data.options)&&x.data.sessionId){
       setRiddle({sessionId:String(x.data.sessionId),text:String(x.data.text),options:x.data.options.map(String)});
       setAnswer("");
       return;
     }
-    if(k==="dezfuli-word"&&Array.isArray(x.data.options)&&x.data.id){
-      setQuiz({id:String(x.data.id),text:String(x.data.text),options:x.data.options.map(String)});
+    if(k==="dezfuli-word"&&Array.isArray(x.data.options)&&x.data.sessionId&&x.data.options.length===3){
+      setQuiz({sessionId:String(x.data.sessionId),text:String(x.data.text),options:x.data.options.map(String)});
       return;
     }
     setAnswer(x.data.interpretation||"");
+    }catch{setText("محتوا فعلاً در دسترس نیست.")}finally{requestBusy.current=false;setBusy(false)}
   }
 
-  async function choose(v:string){
+  async function choose(v:number){
     if(!quiz||busy)return;const current=quiz;setBusy(true);
     try{
       const s=sessionStorage.getItem("familybot.session");if(!s){setAnswer("Mini App را از داخل بله باز کن.");return}
-      const r=await fetch("/api/family/culture/quiz",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({wordId:current.id,answer:v})});
+      const r=await fetch("/api/family/culture/quiz",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${s}`},body:JSON.stringify({sessionId:current.sessionId,option:v})});
       const x=await r.json();if(!r.ok||!x.ok)throw new Error();
+      setSource(String(x.sourceLabel||""));
+      setSourceUrl(/^https:\/\//.test(String(x.sourceUrl))?x.sourceUrl:"");
       if(x.correct){
         const coins=Number(x.reward?.coins||0),cp=Number(x.reward?.cp||0);
         if(!x.alreadyClaimed&&(coins||cp))setScore(n=>n+coins+cp);
-        setAnswer(x.alreadyClaimed?`قبلاً جایزه این واژه را گرفته‌ای. معنی درست «${x.meaning}» است.`:`آفرین! +${fa(coins)} سکه · +${fa(cp)} CP\nمعنی درست «${x.meaning}» است.`);
-      }else setAnswer(`جواب درست: ${x.meaning}`);
+        setAnswer(x.alreadyClaimed?`قبلاً جایزه این واژه را گرفته‌ای. معنی درست «${x.meaning}» است.`:`✓ آفرین! +${fa(coins)} سکه · +${fa(cp)} CP\nمعنی درست «${x.meaning}» است.`);
+      }else setAnswer(`✗ جواب درست: ${x.meaning}`);
       setQuiz(null);
     }catch{setAnswer("ثبت پاسخ انجام نشد.")}finally{setBusy(false)}
   }
@@ -78,28 +87,29 @@ export default function FunPage(){
     <div className="ambient ambientA"/><header className="appHeader"><a href="/" className="roundButton">←</a><div className="wordmark"><b>سرگرمی و فرهنگ</b><span>محتوای گسترده بدون تکرار فوری</span></div><IconOrb name="gift" tone="pink"/></header>
     <section className="premiumPanel" style={{padding:18,textAlign:"center"}}>
       <span className="eyebrow">امتیاز این نشست · {score}</span>
-      {source?<small className="sourceTag">منبع: {source}</small>:null}
+      {source?<small className="sourceTag">منبع: {sourceUrl?<a href={sourceUrl} target="_blank" rel="noreferrer">{source}</a>:source}</small>:null}
       <p style={{fontSize:18,lineHeight:2,whiteSpace:"pre-line"}}>{text}</p>
-      {quiz&&<div style={{display:"grid",gap:8}}>{quiz.options.map(o=><button disabled={busy} className="primaryCta" key={o} onClick={()=>void choose(o)}>{o}</button>)}</div>}
+      {quiz&&<div style={{display:"grid",gap:8}}>{quiz.options.map((o,i)=><button disabled={busy} className="primaryCta" key={o} onClick={()=>void choose(i)}>{o}</button>)}</div>}
       {riddle&&<div style={{display:"grid",gap:8}}>{riddle.options.map((o,i)=><button disabled={busy} className="primaryCta" key={`${o}-${i}`} onClick={()=>void chooseRiddle(i)}>{o}</button>)}</div>}
       {answer&&<div className="adminNotice" style={{marginTop:10,lineHeight:2,whiteSpace:"pre-line"}}>{answer}</div>}
+      {kind&&!quiz&&!riddle&&<button className="coolBtn" disabled={busy} onClick={()=>void get(kind)}>{busy?"در حال دریافت…":kind==="dezfuli-word"?"کلمه بعدی":"بعدی"}</button>}
     </section>
     <Accordion title="سرگرمی" summary="جوک، دانستنی، چیستان، فال" defaultOpen>
       <div className="actionGrid">
-        {([["joke","جوک"],["fact","دانستنی"],["riddle","چیستان"],["motivation","انگیزه"],["hafez","فال حافظ"]] as const).map(([k,t])=><button className="coolBtn" key={k} onClick={()=>void get(k)}><b>{t}</b></button>)}
+        {([["joke","جوک"],["fact","دانستنی"],["riddle","چیستان"],["motivation","انگیزه"],["hafez","فال حافظ"]] as const).map(([k,t])=><button className="coolBtn" disabled={busy} key={k} onClick={()=>void get(k)}><b>{t}</b></button>)}
       </div>
     </Accordion>
     <Accordion title="ادبیات فارسی" summary="ضرب‌المثل و شعر کلاسیک">
       <div className="actionGrid">
-        <button className="coolBtn" onClick={()=>void get("proverb")}><b>ضرب‌المثل</b></button>
-        <button className="coolBtn" onClick={()=>void get("poem")}><b>شعر</b></button>
+        <button className="coolBtn" disabled={busy} onClick={()=>void get("proverb")}><b>ضرب‌المثل</b></button>
+        <button className="coolBtn" disabled={busy} onClick={()=>void get("poem")}><b>شعر</b></button>
       </div>
     </Accordion>
     <Accordion title="فرهنگ دزفولی" summary="واژه، ضرب‌المثل و لالایی مستند">
       <div className="actionGrid">
-        <button className="coolBtn" onClick={()=>void get("dezfuli-word")}><b>کلمه دزفولی</b></button>
-        <button className="coolBtn" onClick={()=>void get("dezfuli-proverb")}><b>ضرب‌المثل</b></button>
-        <button className="coolBtn" onClick={()=>void get("dezfuli-poem")}><b>شعر محلی</b></button>
+        <button className="coolBtn" disabled={busy} onClick={()=>void get("dezfuli-word")}><b>کلمه دزفولی</b></button>
+        <button className="coolBtn" disabled={busy} onClick={()=>void get("dezfuli-proverb")}><b>ضرب‌المثل</b></button>
+        <button className="coolBtn" disabled={busy} onClick={()=>void get("dezfuli-poem")}><b>شعر محلی</b></button>
       </div>
     </Accordion>
   </main>;

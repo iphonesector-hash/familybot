@@ -1,7 +1,8 @@
 import {createHash} from "node:crypto";
 
 export function normalizeFa(text:string){
-  return String(text||"")
+  return String(text||"").normalize("NFKC")
+    .replace(/[\u200c\u200d\u200e\u200f\ufeff]/g,"")
     .replace(/[يى]/g,"ی")
     .replace(/ك/g,"ک")
     .replace(/[ًٌٍَُِّْـ]/g,"")

@@ -1,5 +1,7 @@
+import imported from "@/lib/contentData/dezfuli.json";
+import {normalizeFa} from "@/lib/contentHash";
 export type DezfuliWord={id:string;word:string;meaning:string;options:readonly string[];example:string;source:string};
-export const DEZFULI_WORDS:readonly DezfuliWord[]=[
+const legacyWords:readonly DezfuliWord[]=[
 {id:"tarok",word:"تُرُک تُرُک",meaning:"آهسته راه رفتن",options:["آهسته راه رفتن","بلند خندیدن","سریع دویدن"],example:"برای توصیف راه رفتن آرام و آهسته.",source:"دزفولی بیاموزیم"},
 {id:"qap",word:"قَپ قَپ",meaning:"مُشت مُشت",options:["مُشت مُشت","ذره ذره","آرام آرام"],example:"یک ترکیب آهنگین در گویش دزفولی.",source:"دزفولی بیاموزیم"},
 {id:"belbel",word:"بِل بِل",meaning:"خاموش و روشن یا کم‌نور شدن چراغ",options:["خاموش و روشن شدن چراغ","چشمک زدن کودک","تند باریدن باران"],example:"وقتی نور چراغ ناپایدار است.",source:"دزفولی بیاموزیم"},
@@ -46,12 +48,12 @@ export const DEZFULI_WORDS:readonly DezfuliWord[]=[
 {id:"mari-ajele",word:"مَری مَخو رُوه شِیره نَفتَ بَندَه",meaning:"خیلی عجله دارد",options:["خیلی عجله دارد","خیلی قدبلند است","خیلی آرام راه می‌رود"],example:"اصطلاح ثبت‌شده در پیش‌نمایش عمومی کانال دزفولی بیاموزیم.",source:"دزفولی بیاموزیم"},
 {id:"mari-biqarar",word:"مَری باقِلِه سَر تُووَسَ",meaning:"خیلی بی‌قرار است",options:["خیلی بی‌قرار است","خیلی گرسنه است","خیلی خجالتی است"],example:"اصطلاح ثبت‌شده در پیش‌نمایش عمومی کانال دزفولی بیاموزیم.",source:"دزفولی بیاموزیم"}
 ] as const;
-export const DEZFULI_PROVERBS=[
+const legacyProverbs=[
 {id:"mashk-malar",text:"یِکِه مَشکَ بَرَ، یِکِه مَلارَ",meaning:"کنایه از شلوغی و نابسامانی؛ هرکس بخشی را می‌برد و نظم از بین می‌رود.",source:"دزفولی بیاموزیم / رسانه محسن زرشناس"},
 {id:"ghaze",text:"کاشکی گَرُم گَری بیدِه گَرِ غَزَ خایی",meaning:"کنایه از کسی که حتی برای منفعت خودش هم حاضر نیست زحمتی بکشد.",source:"دزفولی بیاموزیم"},
 {id:"doanevis",text:"مو دعا نویس شهرم، هرکه خر نه پیش قرم",meaning:"طعنه به ادعای پیشگویی؛ هرکس ساده‌باور نباشد، مشتری چنین ادعاهایی نمی‌شود.",source:"دزفولی بیاموزیم"}
 ] as const;
-export const DEZFULI_POEMS=[
+const legacyPoems=[
 {id:"lullaby-old",text:"رولَمَه مَخوَر سگِ سیاهِ دم درازِ بَلَه گوش",meaning:"آغاز یک لالایی قدیمی؛ مادر از موجود ترسناک می‌خواهد به کودک آسیبی نرساند.",source:"لالایی قدیمی دزفول / دزفولی بیاموزیم"},
 {id:"behrang",text:"هر کجا نُومته میارن مو بِلَرزُم",meaning:"بخشی کوتاه از شعری عاشقانه درباره بی‌قراری با شنیدن نام محبوب.",source:"حسین بهرنگ / دزفولی بیاموزیم"},
 {id:"olle",text:"اُلولَن بِکُنُم روزِت بووه خَوش",meaning:"بخشی کوتاه از یک اُلّه (لالایی) با آرزوی روزهای خوش برای کودک.",source:"سیما امیدیان / دزفولی بیاموزیم"}
@@ -67,3 +69,8 @@ export function dezfuliSourceLabel(source:string){
   return source||"دزفولی";
 }
 
+
+function sourceUrl(source:string){return source.includes("چمدان آبی")?`https://chamadaneabi.ir/${source.includes("حیوانات")?"heyvanat-dezfuli":"kalamat-dezfuli"}/`:"https://t.me/s/dezfuli_biamoozim";}
+export const DEZFULI_WORDS=[...legacyWords.map(w=>({...w,sourceUrl:sourceUrl(w.source)})),...imported.words].filter((w,i,a)=>a.findIndex(x=>normalizeFa(x.word)===normalizeFa(w.word))===i);
+export const DEZFULI_PROVERBS=[...legacyProverbs.map(p=>({...p,sourceUrl:sourceUrl(p.source)})),...imported.proverbs];
+export const DEZFULI_POEMS=[...legacyPoems.map(p=>({...p,sourceUrl:sourceUrl(p.source)})),...imported.poems];

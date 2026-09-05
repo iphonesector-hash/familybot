@@ -1,3 +1,4 @@
+import {DEZFULI_WORDS} from "@/lib/dezfuliCulture";
 import {contentHash,normalizeFa} from "@/lib/contentHash";
 import {isFamilySafe} from "@/lib/contentSafety";
 
@@ -34,7 +35,7 @@ function pair(word:string,meaning:string,source:string,label:string,url:string):
     sourceLabel:label,
     sourceUrl:url,
     sourceMode:"cached-remote",
-    contentHash:contentHash("dezfuli-word",`${w}:${m}`),
+    contentHash:contentHash("dezfuli-word",`معنی «${w}» چیه؟`),
     fetchedAt:new Date().toISOString()
   };
 }
@@ -64,21 +65,18 @@ function parseTelegram(html:string){
   return out;
 }
 
-function parseChamadane(html:string,page:"lexicon"|"animals"){
-  const text=strip(html);
+export function parseChamadane(html:string,page:"lexicon"|"animals"){
   const out:IngestedDezfuli[]=[];
-  const re=/([\u0600-\u06FF\u064B-\u0652\s]{2,32}?)\s*(?:\([^)]{0,24}\))?\s*=\s*([\u0600-\u06FF\u064B-\u0652،,\s]{2,60})/g;
-  let m:RegExpExecArray|null;
-  while((m=re.exec(text))){
-    const row=pair(
-      m[1],
-      m[2],
-      page==="animals"?"chamadane-abi-animals":"chamadane-abi-lexicon",
-      "چمدان آبی",
-      page==="animals"?"https://chamadaneabi.ir/heyvanat-dezfuli/":"https://chamadaneabi.ir/kalamat-dezfuli/"
-    );
-    if(row)out.push(row);
-    if(out.length>=40)break;
+  // Preserve entry boundaries. Never let a regex combine navigation, comments or two definitions.
+  const blocks=[...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].flatMap(m=>m[1].split(/<br\s*\/?\s*>/gi)).map(strip);
+  for(const line of blocks){
+    if((line.match(/=/g)||[]).length!==1)continue;
+    const [left,right]=line.split("=");
+    const word=left.replace(/\([^)]*\)/g,"").trim(),meaning=right.trim();
+    const verified=DEZFULI_WORDS.find(w=>normalizeFa(w.word)===normalizeFa(word)&&normalizeFa(w.meaning)===normalizeFa(meaning));
+    if(!verified)continue;
+    const row=pair(word,meaning,page==="animals"?"chamadane-abi-animals":"chamadane-abi-lexicon","چمدان آبی",verified.sourceUrl);
+    if(row&&!out.some(x=>x.contentHash===row.contentHash))out.push(row);
   }
   return out;
 }
@@ -122,6 +120,6 @@ export function dezfuliIngestStatus(){
   return {
     cached:Boolean(cache&&Date.now()-cache.at<TTL),
     count:cache?.items.length||0,
-    mode:cache&&cache.items.length?"cached-remote":"verified-import"
+    mode:cache&&cache.items.length?"cached-remote":null
   };
 }
